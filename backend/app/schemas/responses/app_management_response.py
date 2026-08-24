@@ -1,5 +1,8 @@
 from typing import Optional, List
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
+
+from backend.app.schemas.responses.user_management_response import UserSummaryResponse
 
 
 class AppCreateResponse(BaseModel):
@@ -21,9 +24,11 @@ class AppDetailResponse(BaseModel):
     deploy_time: Optional[str] = None
     priority: int = 0
     user_id: int
+    user_name: str
     edit_time: Optional[str] = None
     create_time: Optional[str] = None
     update_time: Optional[str] = None
+    user: UserSummaryResponse
 
 
 class AppSummaryResponse(BaseModel):
@@ -36,6 +41,7 @@ class AppSummaryResponse(BaseModel):
     deploy_time: Optional[str] = None
     priority: int = 0
     user_id: int
+    user_name: Optional[str] = None
     create_time: Optional[str] = None
     update_time: Optional[str] = None
 

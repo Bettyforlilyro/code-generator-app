@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
+from backend.app.common.emuns.code_file_type import CodeFileType
+
 
 class AppCreateRequest(BaseModel):
     """应用创建请求模型"""
@@ -9,7 +11,9 @@ class AppCreateRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "init_prompt": "创建一个现代化的个人博客网站",
-                "app_name": "我的博客应用"
+                "app_name": "我的博客应用",
+                "app_coverage": "https://example.com/coverage.jpg",
+                "code_gen_type": CodeFileType.HTML
             }
         }
     )
@@ -22,7 +26,7 @@ class AppCreateRequest(BaseModel):
     app_name: Optional[str] = Field(
         None,
         max_length=256,
-        description="应用名称（可选，不传则使用init_prompt前20字符作为名称）",
+        description="应用名称（可选，不传则由系统生成）",
         examples=["我的博客应用"]
     )
     app_coverage: Optional[str] = Field(
@@ -30,6 +34,11 @@ class AppCreateRequest(BaseModel):
         max_length=1024,
         description="应用封面图标URL（可选）",
         examples=["https://example.com/coverage.jpg"]
+    )
+    code_gen_type: Optional[CodeFileType] = Field(
+        None,
+        description="应用代码文件类型（可选）",
+        examples=['html'],
     )
 
 
