@@ -107,12 +107,12 @@ def create_app():
 @login_required
 def update_app(app_id):
     """
-    用户根据id修改自己创建的应用（暂时仅支持修改应用名称、封面）
+    用户根据id修改自己创建的应用（暂时仅支持修改应用名称、封面），管理员可以修改应用优先级
     ---
     tags:
       - 应用管理
-    summary: 用户更新自己的应用
-    description: 当前登录用户修改自己创建的应用的名称和封面
+    summary: 更新应用
+    description: 当前登录用户修改自己创建的应用的名称和封面，管理员可以修改应用优先级
     parameters:
       - in: header
         name: Authorization
@@ -138,6 +138,11 @@ def update_app(app_id):
               type: string
               maxLength: 1024
               description: 应用封面图标URL（可选）
+              example: https://example.com/coverage.jpg
+            priority:
+              type: integer
+              description: 首页展示优先级（可选，值越大越靠前，仅管理员可修改，非管理员携带此参数会被忽视）
+              example: 10
     responses:
       200:
         description: 更新成功
@@ -231,11 +236,11 @@ def delete_app_by_user(app_id):
 @app_management_bp.route('/<int:app_id>', methods=['GET'])
 def get_app_detail(app_id):
     """
-    根据id查看应用详情
+    根据id查看应用详情，无需登录
     ---
     tags:
       - 应用管理
-    summary: 查看应用详情
+    summary: 查看应用详情（无需登录）
     description: 根据应用ID获取应用详细信息
     parameters:
       - in: path

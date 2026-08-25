@@ -6,24 +6,24 @@ from backend.app.services.ai_common.LLM_Client import ChatClientBuilder
 class AICodeGeneratorFacade:
     """AI代码生成器外观类"""
     @staticmethod
-    def generate_code_and_save_file(user_message: str, code_file_type: CodeFileType):
+    def generate_code_and_save_file(user_message: str, code_gen_type: CodeFileType, app_id: int):
         """生成代码并保存文件，返回保存路径"""
         # 1. 调用AI模型生成代码
         llm_client = (ChatClientBuilder()
-                      .set_response_format(CodeFileType.get_cls_type(code_file_type).get_response_format())
-                      .set_system_prompt(CodeFileType.get_system_prompt(code_file_type))
+                      .set_response_format(CodeFileType.get_cls_type(code_gen_type).get_response_format())
+                      .set_system_prompt(CodeFileType.get_system_prompt(code_gen_type))
                       .build())
         message = [
             {"role": "user", "content": user_message}
         ]
-        response = llm_client.chat_structured(message, CodeFileType.get_cls_type(code_file_type))
+        response = llm_client.chat_structured(message, CodeFileType.get_cls_type(code_gen_type))
         # 2. 保存代码到文件
-        saver = CodeFileSaverFactory.get_saver(code_file_type)
-        file_save_path = saver.save_code_file(response)
+        saver = CodeFileSaverFactory.get_saver(code_gen_type)
+        file_save_path = saver.save_code_file(response, app_id)
         return file_save_path
 
     @staticmethod
-    def generate_code_and_save_file_streaming(user_message: str, code_file_type: CodeFileType):
+    def generate_code_and_save_file_streaming(user_message: str, code_gen_type: CodeFileType, app_id: int):
         """
         流式生成代码并保存文件的生成器（纯数据生成器，不处理 SSE 包装）
 
@@ -33,12 +33,12 @@ class AICodeGeneratorFacade:
                   - {"type": "complete", "file_path": "...", ...} （完成事件）
                   - {"type": "error", "message": "..."}          （错误事件）
         """
-        pydantic_model = CodeFileType.get_cls_type(code_file_type)
+        pydantic_model = CodeFileType.get_cls_type(code_gen_type)
 
         # 关键区别：流式模式下不设置 response_format（结构化输出）
         # 只设置 system_prompt，让 AI 按 prompt 要求输出 JSON 格式文本
         llm_client = (ChatClientBuilder()
-                      .set_system_prompt(CodeFileType.get_system_prompt(code_file_type))
+                      .set_system_prompt(CodeFileType.get_system_prompt(code_gen_type))
                       .build())
 
         message = [{"role": "user", "content": user_message}]
@@ -66,8 +66,8 @@ class AICodeGeneratorFacade:
                     raise ValueError(f"无法解析AI响应为{pydantic_model.__name__}:\n原始响应: {full_response}")
 
             # 第三阶段：保存文件
-            saver = CodeFileSaverFactory.get_saver(code_file_type)
-            file_save_path = saver.save_code_file(result)
+            saver = CodeFileSaverFactory.get_saver(code_gen_type)
+            file_save_path = saver.save_code_file(result, app_id)
 
             # 第四阶段：产出完成事件数据
             yield {

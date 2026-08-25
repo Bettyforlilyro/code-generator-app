@@ -15,7 +15,7 @@ class CodeFileSaver(ABC):
 
     """代码文件保存器"""
     @abstractmethod
-    def save_code_file(self, code_file: BaseCodeResult) -> str:
+    def save_code_file(self, code_file: BaseCodeResult, app_id: int) -> str:
         """保存代码文件，返回保存路径（保存的目录）"""
         pass
 
@@ -43,11 +43,11 @@ class HTMLCodeFileSaver(CodeFileSaver):
     def __init__(self, path: str = ""):
         super().__init__(path)
 
-    def save_code_file(self, code_result: HtmlCodeResult) -> str:
+    def save_code_file(self, code_result: HtmlCodeResult, app_id: int) -> str:
         if not isinstance(code_result, HtmlCodeResult):
             raise TypeError(f"HTMLCodeFileSaver 只接受 HtmlCodeResult，收到 {type(code_result).__name__}")
 
-        output_dir = self._make_output_dir(self.path, "html")
+        output_dir = self._make_output_dir(self.path, f"html_{app_id}")
         self._write_files(output_dir, code_result.get_files_dict())
         return output_dir
 
@@ -58,11 +58,11 @@ class MultiFileCodeFileSaver(CodeFileSaver):
     def __init__(self, path: str = ""):
         super().__init__(path)
 
-    def save_code_file(self, code_result: MultiFileCodeResult) -> str:
+    def save_code_file(self, code_result: MultiFileCodeResult, app_id: int) -> str:
         if not isinstance(code_result, MultiFileCodeResult):
             raise TypeError(f"MultiFileCodeFileSaver 只接受 MultiFileCodeResult，收到 {type(code_result).__name__}")
 
-        output_dir = self._make_output_dir(self.path, "multi_file")
+        output_dir = self._make_output_dir(self.path, f"multi_file_{app_id}")
         self._write_files(output_dir, code_result.get_files_dict())
         return output_dir
 # ========== 可以扩展其他文件类型保存器 ==========
@@ -76,8 +76,8 @@ class CodeFileSaverFactory:
     }
 
     @classmethod
-    def get_saver(cls, file_type: CodeFileType) -> CodeFileSaver:
-        saver_cls = cls._saver_map.get(file_type)
+    def get_saver(cls, gen_type: CodeFileType) -> CodeFileSaver:
+        saver_cls = cls._saver_map.get(gen_type)
         if saver_cls is None:
-            raise ValueError(f"未注册的文件类型: {file_type}")
+            raise ValueError(f"未注册的生成文件类型: {gen_type}")
         return saver_cls()

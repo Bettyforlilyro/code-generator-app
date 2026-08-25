@@ -123,7 +123,7 @@ def test_custom_build():
     assert isinstance(response, HtmlCodeResult), "响应应为HtmlCodeResult类型"
     assert response.html_code is not None, "html_code不应为None"
     saver = CodeFileSaverFactory.get_saver(CodeFileType.HTML)
-    saver.save_code_file(response)
+    saver.save_code_file(response, app_id=1)
     print("✅ 测试2通过\n")
     return True
 
@@ -324,9 +324,9 @@ def test_system_prompt_update():
 
 
 def test_ai_code_generator_facade():
-    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过50行", CodeFileType.HTML)
+    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过50行", CodeFileType.HTML, app_id=1)
     assert res_file_path1 is not None, "生成的文件路径应为非空字符串"
-    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过100行", CodeFileType.MULTI_FILE)
+    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过100行", CodeFileType.MULTI_FILE, app_id=1)
     assert res_file_path2 is not None, "生成的文件路径应为非空字符串"
 
 
