@@ -9,8 +9,8 @@ venv/
 
 backend/data/
 generated_apps/
-backend/tests/html/
-backend/tests/multi_file/
+backend/tests/html*
+backend/tests/multi*
 
 packages/
 
@@ -20,3 +20,4 @@ packages/
 .mypy_cache/
 .vscode/
 .idea/
+/backend/tests/html_14/

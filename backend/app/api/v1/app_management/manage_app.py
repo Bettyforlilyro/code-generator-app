@@ -257,7 +257,8 @@ def get_app_detail(app_id):
     app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND)
-
+    if not app_id or app_id <= 0:
+        raise BusinessException(ErrorCode.BAD_REQUEST, message="应用ID必须为大于0的整数")
     # 应该返回应用详情，包含应用创建者简略信息
     user_id = app.user_id
     user_info = User.query.filter_by(id=user_id).first()
