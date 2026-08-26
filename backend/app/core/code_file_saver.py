@@ -21,8 +21,7 @@ class CodeFileSaver(ABC):
     @staticmethod
     def _make_output_dir(root: str, sub_dir: str) -> str:
         """创建输出目录"""
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        output_dir = os.path.join(root, sub_dir, timestamp) if sub_dir else os.path.join(root, timestamp)
+        output_dir = os.path.join(root, sub_dir) if sub_dir else root
         os.makedirs(output_dir, exist_ok=True)
         return output_dir
 
