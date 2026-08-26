@@ -344,9 +344,9 @@ def directory_response(
                     'file_name': relative_slash,
                     'file_size': file_stat.st_size,
                     'mime_type': mime_type or 'application/octet-stream',
-                    'file_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}',
-                    'preview_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}&mode=preview',
-                    'download_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}&mode=download',
+                    'file_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}',
+                    'preview_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}',
+                    'download_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}&mode=download',
                     'modified_time': file_stat.st_mtime
                 }
                 files_list.append(file_info)

@@ -116,33 +116,52 @@ def get_static_files():
       405:
         description: 应用不存在或文件不存在
     """
-    # 1. 获取并验证参数
     deploy_key = request.args.get('deploy_key')
+    file_name = request.args.get('file_name')
+    # 1. 验证参数
     if not deploy_key:
         return error_response(ErrorCode.MISSING_PARAMETER, "deploy_key不能为空")
 
     # 2. 查询应用信息
     app = AppModel.query.filter_by(deploy_key=deploy_key, is_delete=0).first()
     if not app:
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
+        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在，请确认是否已生成")
 
-    # 3. 构建应用目录部署路径
+    # 3. 构建应用目录路径
     app_dir = os.path.join(DEFAULT_GENERATE_ROOT, app.code_gen_type + "_" + str(app.id))
     if not os.path.exists(app_dir):
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用目录不存在，可能是应用未生成")
+        return error_response(ErrorCode.APP_NOT_FOUND, "应用目录不存在，请确认是否已部署")
+
+    return _handle_static_request(deploy_key, file_name)
+
+
+# 抽离核心逻辑为公共函数
+def _handle_static_request(deploy_key, file_name):
+    """核心的静态资源处理逻辑（两种路由形式共用）"""
     app_deploy_dir = os.path.join(DEFAULT_DEPLOY_ROOT, deploy_key)
-
-    # 4. 获取参数
-    file_name = request.args.get('file_name')
-    mode = request.args.get('mode', 'preview')  # 默认为预览模式
-
-    # 5. 确定下载模式
+    # 4. 获取模式参数
+    mode = request.args.get('mode', 'preview')
     as_attachment = (mode == 'download')
 
-    # 6. 调用统一的目录响应函数
+    # 5. 调用统一的目录响应函数
     return directory_response(
         base_dir=app_deploy_dir,
         file_name=file_name,
         deploy_key=deploy_key,
         as_attachment=as_attachment
     )
+
+
+# 新增：路径参数路由（为了支持相对路径自动解析）
+@code_bp.route('/static/<deploy_key>/<path:file_name>', methods=['GET'])
+@login_required
+def get_static_file_by_path(deploy_key, file_name):
+    """
+    路径参数形式的静态资源接口
+    - 支持HTML中的相对路径自动解析（不需要修改AI生成的代码）
+    - 示例：/api/v1/code/static/8qEDDL/index.html
+    - 浏览器会自动将HTML中的href="css/style.css"解析为：
+      /api/v1/code/static/8qEDDL/css/style.css
+    """
+    # 复用核心逻辑
+    return _handle_static_request(deploy_key, file_name)
