@@ -3,15 +3,14 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
 from backend.app.models.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult
 
 
 class CodeFileSaver(ABC):
 
-    DEFAULT_ROOT = r"D:\projects\code-generator-app\backend\tests"
-
     def __init__(self, path: str = ""):
-        self.path = path or self.DEFAULT_ROOT
+        self.path = path or DEFAULT_GENERATE_ROOT
 
     """代码文件保存器"""
     @abstractmethod

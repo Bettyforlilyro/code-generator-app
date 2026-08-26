@@ -1,6 +1,6 @@
 from flask import request, g
 
-from backend.app.api.v1.code_generate_api import code_generate_bp
+from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
@@ -9,7 +9,7 @@ from backend.app.schemas.responses.BaseResponse import error_response, stream_re
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 
 
-@code_generate_bp.route('/generate', methods=['POST'])
+@code_bp.route('/generate', methods=['POST'])
 @login_required
 def generate_code_stream():
     """

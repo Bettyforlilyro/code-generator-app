@@ -9,8 +9,7 @@ venv/
 
 backend/data/
 generated_apps/
-backend/tests/html*
-backend/tests/multi*
+
 
 packages/
 
