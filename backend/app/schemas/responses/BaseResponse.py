@@ -1,13 +1,14 @@
 import asyncio
+import mimetypes
+import os
 import queue
 import threading
 from typing import Optional, Any, Generic, TypeVar, Union, Generator, AsyncGenerator, Callable
 
-from flask import jsonify, Response, stream_with_context
+from flask import jsonify, Response, stream_with_context, after_this_request
 from pydantic import BaseModel, Field
 
 from backend.app.common.exceptions.error_codes import ErrorCode
-
 
 T = TypeVar('T')
 
@@ -208,3 +209,152 @@ def stream_response(
             'X-Accel-Buffering': 'no',
         }
     )
+
+
+def file_response(
+        file_path: str,
+        as_attachment: bool = False,
+        download_name: str = None,
+        mimetype: str = None,
+        headers: dict = None
+):
+    """
+    构造文件响应（在线预览或下载）
+
+    支持两种模式：
+    1. 在线预览（as_attachment=False）：浏览器根据Content-Type自动渲染（如HTML图片）
+    2. 下载（as_attachment=True）：触发浏览器下载对话框
+
+    Args:
+        file_path: 文件的绝对路径
+        as_attachment: 是否作为附件下载，False为在线预览，True为下载
+        download_name: 下载时的文件名（仅在as_attachment=True时生效）
+        mimetype: 指定MIME类型，不传则自动检测
+        headers: 额外的响应头
+
+    Returns:
+        Flask文件响应或错误响应
+    """
+    # 1. 验证文件是否存在
+    if not os.path.exists(file_path):
+        return error_response(ErrorCode.APP_NOT_FOUND, f"文件不存在: {file_path}")
+    if not os.path.isfile(file_path):
+        return error_response(ErrorCode.INVALID_PARAMETER, f"不是文件: {file_path}")
+
+    # 2. 自动检测MIME类型
+    if not mimetype:
+        mimetype, _ = mimetypes.guess_type(file_path)
+        if not mimetype:
+            mimetype = 'application/octet-stream'
+
+    # 3. 准备响应头
+    response_headers = headers.copy() if headers else {}
+
+    # 4. 如果是下载模式，设置Content-Disposition
+    if as_attachment:
+        if not download_name:
+            download_name = os.path.basename(file_path)
+        response_headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
+    else:
+        # 在线预览模式，明确设置为inline
+        response_headers['Content-Disposition'] = 'inline'
+
+    def set_response_headers(resp):
+        for key, value in response_headers.items():
+            resp.headers[key] = value
+        return resp
+
+    after_this_request(set_response_headers)
+
+    # 5. 使用send_file返回文件
+    from flask import send_file
+    return send_file(
+        file_path,
+        mimetype=mimetype,
+        as_attachment=as_attachment,
+        download_name=download_name
+    )
+
+
+def directory_response(
+        base_dir: str,
+        file_name: str = None,
+        deploy_key: str = None,
+        as_attachment: bool = False,
+        download_name: str = None
+):
+    """
+    构造目录或文件响应（静态资源统一入口）
+
+    - 有file_name时：返回单个文件（支持在线预览/下载）
+    - 无file_name时：返回目录列表（JSON格式）
+
+    包含路径安全检查，防止路径穿越攻击。
+
+    Args:
+        base_dir: 基础目录（绝对路径）
+        file_name: 文件名（支持相对路径，如css/style.css）
+        deploy_key: 部署key（用于构建文件URL，目录列表时需要）
+        as_attachment: 是否下载模式
+        download_name: 下载文件名
+
+    Returns:
+        文件响应或目录列表响应
+    """
+    # 1. 验证基础目录
+    if not os.path.exists(base_dir):
+        return error_response(ErrorCode.APP_NOT_FOUND, f"目录不存在: {base_dir}")
+
+    if file_name:
+        # 返回单个文件
+        # --- 路径安全检查 ---
+        # 规范化路径，防止路径穿越
+        safe_base = os.path.realpath(base_dir)
+        target_path = os.path.realpath(os.path.join(base_dir, file_name))
+
+        # 检查目标路径是否在基础目录内
+        if not target_path.startswith(safe_base):
+            return error_response(ErrorCode.INVALID_PARAMETER, "非法的文件路径")
+
+        # --- 返回文件 ---
+        return file_response(
+            file_path=target_path,
+            as_attachment=as_attachment,
+            download_name=download_name or file_name
+        )
+    else:
+        # 返回目录列表
+        files_list = []
+
+        # 递归扫描目录
+        for root, dirs, files in os.walk(base_dir):
+            relative_path = os.path.relpath(root, base_dir)
+
+            for file in files:
+                file_full_path = os.path.join(root, file)
+                file_relative_path = os.path.join(relative_path, file) if relative_path != '.' else file
+
+                # 获取文件信息
+                file_stat = os.stat(file_full_path)
+                mime_type, _ = mimetypes.guess_type(file_full_path)
+
+                # 构建文件信息（路径统一用正斜杠）
+                relative_slash = file_relative_path.replace('\\', '/')
+                file_info = {
+                    'file_name': relative_slash,
+                    'file_size': file_stat.st_size,
+                    'mime_type': mime_type or 'application/octet-stream',
+                    'file_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}',
+                    'preview_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}&mode=preview',
+                    'download_url': f'/api/v1/code/static?deploy_key={deploy_key}&file_name={relative_slash}&mode=download',
+                    'modified_time': file_stat.st_mtime
+                }
+                files_list.append(file_info)
+
+        # 按文件名排序
+        files_list.sort(key=lambda x: x['file_name'])
+
+        return success_response({
+            'total': len(files_list),
+            'files': files_list
+        })
