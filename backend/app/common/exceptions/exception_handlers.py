@@ -35,17 +35,6 @@ def register_error_handlers(app):
             f"Business Exception: code={error.code}, message={error.message}, "
             f"path={request.path}, method={request.method}"
         )
-
-        server_code_to_error_code = {
-            400: ErrorCode.BAD_REQUEST,
-            401: ErrorCode.UNAUTHORIZED,
-            403: ErrorCode.FORBIDDEN,
-            404: ErrorCode.NOT_FOUND,
-            405: ErrorCode.METHOD_NOT_ALLOWED,
-            409: ErrorCode.CONFLICT,
-            429: ErrorCode.TOO_MANY_REQUESTS,
-        }
-
         return BaseResponse.error_response(error.error_code, error.message, error.data)
 
     # ==================== 2. HTTP协议错误处理 ====================

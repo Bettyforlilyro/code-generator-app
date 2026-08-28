@@ -1,11 +1,12 @@
 import os.path
 import shutil
+import subprocess
 from datetime import datetime
 
 from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
+from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
@@ -530,6 +531,42 @@ def deploy_app():
     # 更新应用部署信息
     app.deploy_time = datetime.now()
     db.session.commit()
-    # 构建部署后访问链接
-    deploy_url = f"http://{app.deploy_key}.nginx.10.10.10.10:8080"
+    # 查看当前系统是否已经启动nginx进程，如果不存在需要启动nginx
+    if not is_nginx_running():
+        if not start_nginx():
+            raise BusinessException(ErrorCode.INTERNAL_ERROR, "启动 nginx 失败")
+    # 暂时仅支持在localhost访问，后续可以根据实际情况，添加其他访问方式
+    deploy_url = f"http://localhost/{app.deploy_key}"
     return success_response({"deploy_key": app.deploy_key, "deploy_url": deploy_url})
+
+
+def is_nginx_running():
+    """检查 nginx 进程是否正在运行"""
+    try:
+        result = subprocess.run(
+            ['tasklist', '/FI', 'IMAGENAME eq nginx.exe'],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        # tasklist 输出中包含 "nginx.exe" 字符串即表示正在运行
+        return 'nginx.exe' in result.stdout.lower()
+    except Exception as e:
+        import logging
+        logging.error(f"检查 nginx 进程失败: {str(e)}")
+        return False
+
+
+def start_nginx():
+    """启动 nginx"""
+    try:
+        subprocess.Popen(
+            [NGINX_PATH],
+            cwd=os.path.dirname(NGINX_PATH),  # nginx 启动需要在其安装目录下
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"启动 nginx 失败: {str(e)}")
+        return False
