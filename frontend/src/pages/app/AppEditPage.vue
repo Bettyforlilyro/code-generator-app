@@ -125,7 +125,7 @@ import { getAppVoById, updateApp, updateAppByAdmin } from '@/api/appController'
 import { formatCodeGenType } from '@/utils/codeGenTypes'
 import { formatTime } from '@/utils/time'
 import UserInfo from '@/components/UserInfo.vue'
-import { getStaticPreviewUrl } from '@/config/env'
+import { getStaticListUrl, resolvePreviewUrlFromList } from '@/config/env'
 import type { FormInstance } from 'ant-design-vue'
 
 const route = useRoute()
@@ -261,10 +261,24 @@ const goToChat = () => {
 }
 
 // 打开预览
-const openPreview = () => {
-  if (appInfo.value?.code_gen_type && appInfo.value?.id) {
-    const url = getStaticPreviewUrl(appInfo.value.code_gen_type, String(appInfo.value.id))
-    window.open(url, '_blank')
+const openPreview = async () => {
+  if (!appInfo.value?.code_gen_type || !appInfo.value?.id) return
+  const listUrl = getStaticListUrl(appInfo.value.code_gen_type, String(appInfo.value.id))
+  try {
+    const res = await fetch(listUrl)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.code === 20000 && data.data?.files?.length) {
+        const resolved = resolvePreviewUrlFromList(data.data.files)
+        if (resolved) {
+          window.open(resolved, '_blank')
+          return
+        }
+      }
+    }
+    message.warning('当前内容不支持预览')
+  } catch {
+    message.error('获取预览地址失败')
   }
 }
 

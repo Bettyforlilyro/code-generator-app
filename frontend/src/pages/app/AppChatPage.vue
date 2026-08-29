@@ -59,11 +59,56 @@
               <div class="message-avatar">
                 <a-avatar :src="aiAvatar" />
               </div>
-              <div class="message-content">
-                <MarkdownRenderer v-if="message.content" :content="message.content" />
-                <div v-if="message.loading" class="loading-indicator">
+              <div class="message-content" :class="{ 'code-gen-content': message.codeGen }">
+                <!-- 结构化代码生成结果展示 -->
+                <template v-if="message.codeGen">
+                  <div class="codeGen-info">
+                    <p v-if="message.codeGen.description" class="codeGen-desc">
+                      {{ message.codeGen.description }}
+                    </p>
+                  </div>
+                  <div class="codeGen-viewer" v-if="message.codeGen.files.length > 0">
+                    <div class="codeGen-toolbar">
+                      <span class="codeGen-count" v-if="message.codeGen.isComplete"
+                        >共生成 {{ message.codeGen.files.length }} 个文件</span
+                      >
+                      <span class="codeGen-count streaming" v-else>正在生成代码...</span>
+                      <a-select
+                        v-model:value="message.codeGen.currentFileIndex"
+                        class="codeGen-select"
+                        size="small"
+                      >
+                        <a-select-option
+                          v-for="(file, idx) in message.codeGen.files"
+                          :key="file.name"
+                          :value="idx"
+                        >
+                          {{ file.label }}
+                          <span
+                            v-if="idx === 0 && !message.codeGen.isComplete"
+                            class="streaming-badge"
+                          >
+                            · 流式中</span
+                          >
+                        </a-select-option>
+                      </a-select>
+                    </div>
+                    <div class="codeGen-codeBlock">
+                      <pre class="hljs"><code v-html="getHighlightedCode(message)" /></pre>
+                    </div>
+                  </div>
+                </template>
+                <!-- 普通消息 -->
+                <template v-else>
+                  <MarkdownRenderer v-if="message.content" :content="message.content" />
+                </template>
+                <div v-if="message.loading && !message.codeGen" class="loading-indicator">
                   <a-spin size="small" />
                   <span>AI 正在思考...</span>
+                </div>
+                <div v-if="message.loading && message.codeGen" class="loading-indicator">
+                  <a-spin size="small" />
+                  <span>AI 正在生成代码...</span>
                 </div>
               </div>
             </div>
@@ -172,7 +217,11 @@
           </div>
         </div>
         <div class="preview-content">
-          <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
+          <div v-if="noPreviewAvailable" class="preview-placeholder">
+            <div class="placeholder-icon">📄</div>
+            <p>当前内容不支持预览</p>
+          </div>
+          <div v-else-if="!previewUrl && !isGenerating" class="preview-placeholder">
             <div class="placeholder-icon">🌐</div>
             <p>网站文件生成完成后将在这里展示</p>
           </div>
@@ -210,14 +259,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, onUnmounted, computed } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import {
-  getAppVoById,
-  deployApp as deployAppApi,
   deleteApp as deleteAppApi,
+  deployApp as deployAppApi,
+  getAppVoById,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
@@ -227,22 +276,152 @@ import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
-import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
-import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
+import { API_BASE_URL, getStaticListUrl, resolvePreviewUrlFromList } from '@/config/env'
+import { type ElementInfo, VisualEditor } from '@/utils/visualEditor'
+import 'highlight.js/styles/github-dark.css'
+import hljs from 'highlight.js'
 
 import {
   CloudUploadOutlined,
-  SendOutlined,
-  ExportOutlined,
-  InfoCircleOutlined,
   DownloadOutlined,
   EditOutlined,
+  ExportOutlined,
+  InfoCircleOutlined,
+  SendOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const TOKEN_KEY = 'token'
+
+// 代码文件接口
+interface CodeFile {
+  name: string
+  label: string
+  content: string
+}
+
+// 代码生成结果接口
+interface CodeGenResult {
+  app_name: string
+  description: string
+  files: CodeFile[]
+  currentFileIndex: number
+  isComplete: boolean
+}
+
+// 代码字段名 -> 显示标签映射
+const CODE_FIELD_MAP: Record<string, string> = {
+  html_code: 'HTML',
+  css_code: 'CSS',
+  js_code: 'JavaScript',
+  vue_code: 'Vue',
+  react_code: 'React',
+  python_code: 'Python',
+}
+const CODE_FIELD_ORDER = [
+  'html_code',
+  'css_code',
+  'js_code',
+  'vue_code',
+  'react_code',
+  'python_code',
+]
+
+// 从buffer中找到第一个出现的代码字段名
+function findFirstCodeField(buffer: string): string | null {
+  let firstField = null
+  let firstPos = Infinity
+  for (const name of CODE_FIELD_ORDER) {
+    const pos = buffer.indexOf(`"${name}": "`)
+    if (pos !== -1 && pos < firstPos) {
+      firstPos = pos
+      firstField = name
+    }
+  }
+  return firstField
+}
+
+// 从buffer中提取简单字段（app_name/description）的完整值
+function extractSimpleField(buffer: string, fieldName: string): string | null {
+  const pattern = new RegExp(`"${fieldName}":\\s*"((?:[^"\\\\]|\\\\.)*)"`)
+  const match = buffer.match(pattern)
+  if (match) return unescapeJson(match[1])
+  return null
+}
+
+// 从可能不完整的JSON buffer中提取指定字段的部分内容
+function extractPartialField(buffer: string, fieldName: string): string | null {
+  const keyPattern = `"${fieldName}": "`
+  const keyIdx = buffer.indexOf(keyPattern)
+  if (keyIdx === -1) return null
+  let content = buffer.substring(keyIdx + keyPattern.length)
+  if (content.endsWith('\\') && content.length > 0) content = content.slice(0, -1)
+  return content
+}
+
+// 检查字段值是否完整（有正确的JSON字符串结束）
+function isFieldComplete(buffer: string, fieldName: string): boolean {
+  const keyPattern = `"${fieldName}": "`
+  const keyIdx = buffer.indexOf(keyPattern)
+  if (keyIdx === -1) return false
+  let pos = keyIdx + keyPattern.length
+  while (pos < buffer.length) {
+    const ch = buffer[pos]
+    if (ch === '\\') {
+      pos += 2
+      continue
+    }
+    if (ch === '"') {
+      const after = buffer.substring(pos + 1).trimStart()
+      if (after.startsWith(',') || after.startsWith('}')) return true
+    }
+    pos++
+  }
+  return false
+}
+
+// 剥离 markdown 代码块包裹（```json ... ``` 或 ``` ... ```）
+function stripMarkdownCodeFence(str: string): string {
+  let result = str.trim()
+  // 去除开头的 ```json 或 ```
+  const startFence = result.match(/^```(?:json|javascript|python|html|css|vue|react)?\s*\n?/i)
+  if (startFence) result = result.slice(startFence[0].length)
+  // 去除结尾的 ```
+  const endFence = result.match(/\n?```\s*$/)
+  if (endFence) result = result.slice(0, result.length - endFence[0].length)
+  return result.trim()
+}
+
+// 简单的JSON字符串反转义
+function unescapeJson(str: string): string {
+  return str.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+}
+
+// 尝试解析完整JSON buffer并提取代码生成结果
+function tryParseCodeGenResult(buffer: string): CodeGenResult | null {
+  try {
+    const parsed = JSON.parse(buffer)
+    if (parsed && typeof parsed === 'object' && parsed.app_name !== undefined) {
+      const files: CodeFile[] = []
+      for (const key of Object.keys(parsed)) {
+        if (CODE_FIELD_MAP[key] && typeof parsed[key] === 'string') {
+          files.push({ name: key, label: CODE_FIELD_MAP[key], content: parsed[key] })
+        }
+      }
+      files.sort((a, b) => CODE_FIELD_ORDER.indexOf(a.name) - CODE_FIELD_ORDER.indexOf(b.name))
+      return {
+        app_name: parsed.app_name || '',
+        description: parsed.description || '',
+        files,
+        currentFileIndex: 0,
+        isComplete: true,
+      }
+    }
+  } catch {}
+  return null
+}
 
 // 应用信息
 const appInfo = ref<API.AppVO>()
@@ -251,9 +430,10 @@ const appId = ref<any>()
 // 对话相关
 interface Message {
   type: 'user' | 'ai'
-  content: string
+  content?: string
   loading?: boolean
   createTime?: string
+  codeGen?: CodeGenResult
 }
 
 const messages = ref<Message[]>([])
@@ -270,6 +450,7 @@ const historyLoaded = ref(false)
 // 预览相关
 const previewUrl = ref('')
 const previewReady = ref(false)
+const noPreviewAvailable = ref(false)
 
 // 部署相关
 const deploying = ref(false)
@@ -402,6 +583,46 @@ const fetchAppInfo = async () => {
   }
 }
 
+// 获取当前选中文件的内容
+const getCurrentFileContent = (message: Message): string => {
+  if (!message.codeGen || message.codeGen.files.length === 0) return ''
+  const file = message.codeGen.files[message.codeGen.currentFileIndex]
+  return file?.content || ''
+}
+
+// 根据文件名推断语言
+function getLanguageByFileName(fileName: string): string {
+  const ext = fileName.split('_').pop() || ''
+  const langMap: Record<string, string> = {
+    html: 'html',
+    css: 'css',
+    js: 'javascript',
+    vue: 'html',
+    react: 'jsx',
+    python: 'python',
+    ts: 'typescript',
+    json: 'json',
+    md: 'markdown',
+  }
+  return langMap[ext] || 'plaintext'
+}
+
+// 获取高亮后的代码
+const getHighlightedCode = (message: Message): string => {
+  if (!message.codeGen || message.codeGen.files.length === 0) return ''
+  const file = message.codeGen.files[message.codeGen.currentFileIndex]
+  if (!file) return ''
+  const lang = getLanguageByFileName(file.name)
+  try {
+    if (lang !== 'plaintext' && hljs.getLanguage(lang)) {
+      return hljs.highlight(file.content, { language: lang, ignoreIllegals: true }).value
+    }
+    return hljs.highlightAuto(file.content).value
+  } catch {
+    return file.content
+  }
+}
+
 // 发送初始消息
 const sendInitialMessage = async (prompt: string) => {
   // 添加用户消息
@@ -480,11 +701,10 @@ const sendMessage = async () => {
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
   let streamCompleted = false
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
+  const aiMessage = messages.value[aiMessageIndex]
 
   try {
     const baseURL = request.defaults.baseURL || API_BASE_URL
-
-    // 从 localStorage 获取 token（因为 fetch 不走 axios 拦截器，需要手动加）
     const token = localStorage.getItem(TOKEN_KEY) || ''
 
     const response = await fetch(`${baseURL}/code/generate`, {
@@ -500,44 +720,46 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       }),
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
     reader = response.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-    let fullContent = ''
+    let rawContentBuffer = ''
+    let firstFileName: string | null = null
+    let firstFileDone = false
+
+    const finalizeGeneration = () => {
+      streamCompleted = true
+      isGenerating.value = false
+      // 剥离 markdown 代码块包裹后再解析
+      const cleaned = stripMarkdownCodeFence(rawContentBuffer)
+      const result = tryParseCodeGenResult(cleaned)
+      if (result) {
+        aiMessage.codeGen = result
+      }
+      aiMessage.loading = false
+      setTimeout(async () => {
+        await fetchAppInfo()
+        updatePreview()
+      }, 1000)
+    }
 
     while (true) {
       const { done, value } = await reader.read()
-
       if (done) {
-        // 流结束
-        if (!streamCompleted) {
-          streamCompleted = true
-          isGenerating.value = false
-          setTimeout(async () => {
-            await fetchAppInfo()
-            updatePreview()
-          }, 1000)
-        }
+        if (!streamCompleted) finalizeGeneration()
         break
       }
 
-      // 解码新数据
       buffer += decoder.decode(value, { stream: true })
-
-      // 按 \n\n 分割 SSE 事件（一个事件可能跨多次 read）
       const events = buffer.split('\n\n')
-      // 最后一个可能不完整，保留到下次
       buffer = events.pop() || ''
 
       for (const eventBlock of events) {
         const lines = eventBlock.split('\n')
-        let eventType = 'message' // 默认事件类型
+        let eventType = 'message'
         let dataLines: string[] = []
-
         for (const line of lines) {
           if (line.startsWith('event:')) {
             eventType = line.slice(6).trim()
@@ -545,60 +767,101 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
             dataLines.push(line.slice(5).trim())
           }
         }
-
         const dataStr = dataLines.join('\n')
         if (!dataStr) continue
 
-        // 根据事件类型分别处理
-        switch (eventType) {
-          case 'done':
-            if (!streamCompleted) {
-              streamCompleted = true
-              isGenerating.value = false
-              setTimeout(async () => {
-                await fetchAppInfo()
-                updatePreview()
-              }, 1000)
-            }
-            break
+        if (eventType === 'done') {
+          finalizeGeneration()
+          continue
+        }
 
-          case 'business-error':
-            try {
-              const errorData = JSON.parse(dataStr)
-              const errorMessage = errorData.message || '生成过程中出现错误'
-              messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
-              messages.value[aiMessageIndex].loading = false
-              message.error(errorMessage)
-            } catch {
-              handleError(new Error('服务器返回错误'), aiMessageIndex)
-            }
-            streamCompleted = true
-            isGenerating.value = false
-            break
+        if (eventType === 'business-error') {
+          try {
+            const err = JSON.parse(dataStr)
+            aiMessage.content = `❌ ${err.message || '生成过程中出现错误'}`
+            aiMessage.loading = false
+            message.error(err.message || '生成过程中出现错误')
+          } catch {
+            handleError(new Error('服务器返回错误'), aiMessageIndex)
+          }
+          streamCompleted = true
+          isGenerating.value = false
+          continue
+        }
 
-          case 'message':
-          default:
-            try {
-              const parsed = JSON.parse(dataStr)
-              const content = parsed.d
-              if (content !== undefined && content !== null) {
-                fullContent += content
-                messages.value[aiMessageIndex].content = fullContent
-                messages.value[aiMessageIndex].loading = false
+        // message 事件：累积 token（后端字段名为 "d"）
+        try {
+          const parsed = JSON.parse(dataStr)
+          if (parsed.d !== undefined && parsed.d !== null) {
+            rawContentBuffer += parsed.d
+          }
+        } catch {
+          rawContentBuffer += dataStr
+        }
+
+        // 尝试完整解析（先剥离 markdown 代码块包裹）
+        const fullResult = tryParseCodeGenResult(stripMarkdownCodeFence(rawContentBuffer))
+        if (fullResult) {
+          aiMessage.codeGen = fullResult
+          aiMessage.loading = false
+          firstFileDone = true
+          scrollToBottom()
+          continue
+        }
+
+        // 尝试提取 app_name / description
+        if (!aiMessage.codeGen) {
+          const appName = extractSimpleField(rawContentBuffer, 'app_name')
+          const description = extractSimpleField(rawContentBuffer, 'description')
+          if (appName || description) {
+            aiMessage.codeGen = {
+              app_name: appName || '',
+              description: description || '',
+              files: [],
+              currentFileIndex: 0,
+              isComplete: false,
+            }
+          }
+        } else {
+          if (!aiMessage.codeGen.app_name) {
+            const v = extractSimpleField(rawContentBuffer, 'app_name')
+            if (v) aiMessage.codeGen.app_name = v
+          }
+          if (!aiMessage.codeGen.description) {
+            const v = extractSimpleField(rawContentBuffer, 'description')
+            if (v) aiMessage.codeGen.description = v
+          }
+        }
+
+        // 第一个代码文件的实时流式显示
+        if (!firstFileDone) {
+          if (!firstFileName) firstFileName = findFirstCodeField(rawContentBuffer)
+          if (firstFileName) {
+            const partial = extractPartialField(rawContentBuffer, firstFileName)
+            if (partial !== null) {
+              const display = unescapeJson(partial)
+              if (aiMessage.codeGen) {
+                const existing = aiMessage.codeGen.files.find((f) => f.name === firstFileName)
+                if (existing) existing.content = display
+                else {
+                  aiMessage.codeGen.files.push({
+                    name: firstFileName,
+                    label: CODE_FIELD_MAP[firstFileName] || firstFileName,
+                    content: display,
+                  })
+                }
+                aiMessage.loading = false
                 scrollToBottom()
               }
-            } catch {
-              console.error('解析消息失败:', dataStr)
             }
-            break
+            if (isFieldComplete(rawContentBuffer, firstFileName)) firstFileDone = true
+          }
         }
       }
     }
   } catch (error) {
     console.error('生成代码失败：', error)
-    if (!streamCompleted) {
-      handleError(error, aiMessageIndex)
-    }
+    if (!streamCompleted) handleError(error, aiMessageIndex)
   } finally {
     if (reader) {
       try {
@@ -617,14 +880,35 @@ const handleError = (error: unknown, aiMessageIndex: number) => {
   isGenerating.value = false
 }
 
-// 更新预览
-const updatePreview = () => {
-  if (appId.value) {
-    const codeGenType = appInfo.value?.code_gen_type || CodeGenTypeEnum.HTML
-    const newPreviewUrl = getStaticPreviewUrl(codeGenType, appId.value)
-    previewUrl.value = newPreviewUrl
-    previewReady.value = true
+// 更新预览 - 通过文件列表接口获取 index.html 的真实路径
+const updatePreview = async () => {
+  if (!appId.value) return
+  const codeGenType = appInfo.value?.code_gen_type || CodeGenTypeEnum.HTML
+  const listUrl = getStaticListUrl(codeGenType, appId.value)
+
+  try {
+    const res = await fetch(listUrl)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.code === 20000 && data.data?.files?.length) {
+        const resolved = resolvePreviewUrlFromList(data.data.files)
+        // TODO 调试待删除
+        console.log(resolved)
+        if (resolved) {
+          previewUrl.value = resolved
+          noPreviewAvailable.value = false
+          previewReady.value = true
+          return
+        }
+      }
+    }
+  } catch (e) {
+    console.error('获取预览文件列表失败:', e)
   }
+  // 未能获取有效预览
+  previewUrl.value = ''
+  noPreviewAvailable.value = true
+  previewReady.value = true
 }
 
 // 滚动到底部
@@ -1104,5 +1388,96 @@ onUnmounted(() => {
     background-color: #73d13d !important;
     border-color: #73d13d !important;
   }
+}
+
+/* 代码生成结果样式 */
+.code-gen-content {
+  max-width: 85% !important;
+  width: 100%;
+  padding: 12px 16px !important;
+}
+
+.codeGen-info {
+  margin-bottom: 12px;
+}
+
+.codeGen-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.codeGen-viewer {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.codeGen-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3e3e3e;
+}
+
+.codeGen-count {
+  font-size: 12px;
+  color: #ccc;
+}
+
+.codeGen-count.streaming {
+  color: #4ec9b0;
+}
+
+.codeGen-select {
+  min-width: 140px;
+}
+
+.codeGen-select :deep(.ant-select-selector) {
+  background: #3e3e3e !important;
+  border-color: #555 !important;
+  color: #fff !important;
+}
+
+.codeGen-select :deep(.ant-select-selection-item) {
+  color: #fff;
+}
+
+.codeGen-select :deep(.ant-select-arrow) {
+  color: #aaa;
+}
+
+.streaming-badge {
+  color: #4ec9b0;
+  font-size: 11px;
+}
+
+.codeGen-codeBlock {
+  max-height: 400px;
+  overflow: auto;
+}
+
+.codeGen-codeBlock pre.hljs {
+  margin: 0 !important;
+  padding: 16px !important;
+  background: #0d1117 !important;
+  color: #e6edf3 !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+  border-radius: 0;
+}
+
+.codeGen-codeBlock pre.hljs code {
+  background: transparent !important;
+  padding: 0 !important;
+  font-family: inherit;
+  color: inherit;
 }
 </style>
