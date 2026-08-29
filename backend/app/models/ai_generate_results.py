@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 class BaseCodeResult(BaseModel, ABC):
     """基础代码生成结果模型"""
     description: str = Field(description="简要说明")
+    app_name: str = Field(description="应用名称")
 
     @abstractmethod
     def get_files_dict(self) -> dict[str, str]:
@@ -20,6 +21,7 @@ class HtmlCodeResult(BaseCodeResult):
     """单个HTML文件代码生成结果"""
     html_code: str = Field(description="生成的完整HTML代码")
     description: str = Field(description="简要说明")
+    app_name: str = Field(description="应用名称")
 
     @classmethod
     def get_response_format(cls) -> dict:
@@ -43,6 +45,7 @@ class MultiFileCodeResult(BaseCodeResult):
     css_code: Optional[str] = Field(description="可选的完整CSS代码", default=None)
     js_code: Optional[str] = Field(description="可选的完整JavaScript代码", default=None)
     description: str = Field(description="简要说明")
+    app_name: str = Field(description="应用名称")
 
     @classmethod
     def get_response_format(cls) -> dict:

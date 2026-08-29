@@ -15,8 +15,9 @@ CODE_GENERATE_HTML_SYSTEM_PROMPT = """
 9. 输出格式: 你必须严格按照以下 JSON 格式输出，所有字段都是必填项：
 
 {
-  "html_code": "完整的HTML代码块字符串，包含内联的CSS和JavaScript",
-  "description": "对生成代码的简要说明"
+  "app_name": "给应用起名，用一个词语或者简短的句子描述生成的内容",
+  "description": "对生成代码的简要说明",
+  "html_code": "完整的HTML代码块字符串，包含内联的CSS和JavaScript"
 }
 
 特别注意：
@@ -47,10 +48,11 @@ CODE_GENERATE_MULTI_FILE_SYSTEM_PROMPT = """
 7. 输出格式: 你必须严格按照以下 JSON 格式输出，所有字段都是必填项：
 
 {
+  "app_name": "给应用起名，用一个词语或者简短的句子描述生成的内容",
+  "description": "对生成内容的简要说明",
   "html_code": "index.html的完整代码，通过link引用style.css，通过script引用script.js",
   "css_code": "style.css的完整代码",
-  "js_code": "script.js的完整代码",
-  "description": "对生成内容的简要说明"
+  "js_code": "script.js的完整代码"
 }
 
 特别注意：在生成代码后，用户可能会提出修改要求并给出要修改的元素信息。

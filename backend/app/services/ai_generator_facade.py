@@ -1,5 +1,9 @@
+import logging
+
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.core.code_file_saver import CodeFileSaverFactory
+from backend.app.extensions.db_instance import db
+from backend.app.models.app_model import AppModel
 from backend.app.services.ai_common.LLM_Client import ChatClientBuilder
 
 
@@ -29,9 +33,7 @@ class AICodeGeneratorFacade:
 
         yields:
             dict: 数据块，格式为:
-                  - {"type": "token", "content": "..."}          （token 流式输出）
-                  - {"type": "complete", "file_path": "...", ...} （完成事件）
-                  - {"type": "error", "message": "..."}          （错误事件）
+                  - {"d": "..."}          （token 流式输出）
         """
         pydantic_model = CodeFileType.get_cls_type(code_gen_type)
 
@@ -50,7 +52,7 @@ class AICodeGeneratorFacade:
             for chunk in llm_client.chat_stream(message):
                 full_response += chunk.content
                 # 只产出原始数据，不做 SSE 包装
-                yield {"type": "token", "content": chunk.content}
+                yield {"d": chunk.content}
 
             # 第二阶段：解析完整 JSON 响应，正常情况下系统prompt只允许AI返回JSON格式的文本
             try:
@@ -67,19 +69,18 @@ class AICodeGeneratorFacade:
 
             # 第三阶段：保存文件
             saver = CodeFileSaverFactory.get_saver(code_gen_type)
-            file_save_path = saver.save_code_file(result, app_id)
-
-            # 第四阶段：产出完成事件数据
-            yield {
-                "type": "complete",
-                "file_path": file_save_path,
-                "description": result.description
-            }
+            saver.save_code_file(result, app_id)
+            # 第四阶段，更新应用名称
+            try:
+                app = AppModel.query.filter_by(id=app_id).first()
+                app.app_name = result.app_name
+                db.session.commit()
+            except Exception as e:
+                logging.warning(f"更新应用名称失败，应用ID: {app_id}，错误信息: {str(e)}")
 
         except Exception as e:
             # 产出错误事件数据
             yield {
-                "type": "error",
-                "message": str(e)
+                "d": str(e)
             }
 
