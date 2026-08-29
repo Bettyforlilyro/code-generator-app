@@ -6,13 +6,11 @@ from flask import request
 from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
 from backend.app.common.exceptions.error_codes import ErrorCode
-from backend.app.common.utils.auth import login_required
 from backend.app.models.app_model import AppModel
 from backend.app.schemas.responses.BaseResponse import directory_response, error_response, success_response
 
 
 @code_bp.route('/static', methods=['GET'])
-@login_required
 def get_static_deployed_app_files():
     """
     获取已部署应用的静态资源文件
@@ -137,7 +135,6 @@ def get_static_deployed_app_files():
 
 
 @code_bp.route('/static/<string:generated_path>', methods=['GET'])
-@login_required
 def get_static_generated_app_files_by_path(generated_path: str):
     """
     获取已生成应用的所有静态资源文件，用于预览/下载
@@ -262,7 +259,6 @@ def _handle_static_request(identifier, file_name, search_roots=None):
 
 # 新增：路径参数路由（为了支持相对路径自动解析）
 @code_bp.route('/static/<string:identifier>/<path:file_name>', methods=['GET'])
-@login_required
 def get_static_file_by_path(identifier, file_name):
     """
     路径参数形式的静态资源接口
