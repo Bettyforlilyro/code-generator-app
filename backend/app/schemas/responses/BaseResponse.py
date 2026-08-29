@@ -278,83 +278,36 @@ def file_response(
 
 def directory_response(
         base_dir: str,
-        file_name: str = None,
-        deploy_key: str = None,
         as_attachment: bool = False,
         download_name: str = None
 ):
     """
-    构造目录或文件响应（静态资源统一入口）
+    通用文件响应（单个文件的预览或下载）
 
-    - 有file_name时：返回单个文件（支持在线预览/下载）
-    - 无file_name时：返回目录列表（JSON格式）
-
-    包含路径安全检查，防止路径穿越攻击。
+    作为最底层的通用方法，只负责返回单个文件，不处理目录列表。
+    调用方需确保 base_dir 指向合法的文件绝对路径。
 
     Args:
-        base_dir: 基础目录（绝对路径）
-        file_name: 文件名（支持相对路径，如css/style.css）
-        deploy_key: 部署key（用于构建文件URL，目录列表时需要）
-        as_attachment: 是否下载模式
-        download_name: 下载文件名
+        base_dir: 文件的绝对路径
+        as_attachment: 是否作为附件下载，False为在线预览，True为下载
+        download_name: 下载时的文件名（可选，默认使用原始文件名）
 
     Returns:
-        文件响应或目录列表响应
+        Flask文件响应或错误响应
     """
-    # 1. 验证基础目录
+    # 1. 验证文件存在且为文件
     if not os.path.exists(base_dir):
-        return error_response(ErrorCode.APP_NOT_FOUND, f"目录不存在: {base_dir}")
+        return error_response(ErrorCode.FILE_NOT_FOUND, f"文件不存在: {base_dir}")
+    if not os.path.isfile(base_dir):
+        return error_response(ErrorCode.INVALID_PARAMETER, f"不是文件: {base_dir}")
 
-    if file_name:
-        # 返回单个文件
-        # --- 路径安全检查 ---
-        # 规范化路径，防止路径穿越
-        safe_base = os.path.realpath(base_dir)
-        target_path = os.path.realpath(os.path.join(base_dir, file_name))
+    # 2. 默认下载文件名
+    if not download_name:
+        download_name = os.path.basename(base_dir)
 
-        # 检查目标路径是否在基础目录内
-        if not target_path.startswith(safe_base):
-            return error_response(ErrorCode.INVALID_PARAMETER, "非法的文件路径")
-
-        # --- 返回文件 ---
-        return file_response(
-            file_path=target_path,
-            as_attachment=as_attachment,
-            download_name=download_name or file_name
-        )
-    else:
-        # 返回目录列表
-        files_list = []
-
-        # 递归扫描目录
-        for root, dirs, files in os.walk(base_dir):
-            relative_path = os.path.relpath(root, base_dir)
-
-            for file in files:
-                file_full_path = os.path.join(root, file)
-                file_relative_path = os.path.join(relative_path, file) if relative_path != '.' else file
-
-                # 获取文件信息
-                file_stat = os.stat(file_full_path)
-                mime_type, _ = mimetypes.guess_type(file_full_path)
-
-                # 构建文件信息（路径统一用正斜杠）
-                relative_slash = file_relative_path.replace('\\', '/')
-                file_info = {
-                    'file_name': relative_slash,
-                    'file_size': file_stat.st_size,
-                    'mime_type': mime_type or 'application/octet-stream',
-                    'file_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}',
-                    'preview_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}',
-                    'download_url': f'/api/v1/code/static/{deploy_key}/{relative_slash}&mode=download',
-                    'modified_time': file_stat.st_mtime
-                }
-                files_list.append(file_info)
-
-        # 按文件名排序
-        files_list.sort(key=lambda x: x['file_name'])
-
-        return success_response({
-            'total': len(files_list),
-            'files': files_list
-        })
+    # 3. 委托给 file_response 返回
+    return file_response(
+        file_path=base_dir,
+        as_attachment=as_attachment,
+        download_name=download_name
+    )
