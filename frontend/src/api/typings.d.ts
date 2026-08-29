@@ -1,17 +1,24 @@
 declare namespace API {
   type AppAddRequest = {
     init_prompt?: string
+    app_name?: string
+    app_coverage?: string
+    code_gen_type?: string
   }
 
   type AppAdminUpdateRequest = {
     id?: number
     app_name?: string
-    cover?: string
+    app_coverage?: string
     priority?: number
   }
 
   type AppDeployRequest = {
     app_id?: number
+  }
+
+  type DeleteRequest = {
+    id?: number
   }
 
   type AppQueryRequest = {
@@ -21,30 +28,31 @@ declare namespace API {
     sort_order?: string
     id?: number
     app_name?: string
-    cover?: string
-    init_prompt?: string
     code_gen_type?: string
     deploy_key?: string
     priority?: number
-    user_id?: number
+    user_name?: number
   }
 
   type AppUpdateRequest = {
     id?: number
     app_name?: string
+    app_coverage?: string
   }
 
   type AppVO = {
     id?: number
     app_name?: string
-    cover?: string
+    app_coverage?: string
     init_prompt?: string
     code_gen_type?: string
     deploy_key?: string
     deployed_time?: string
     priority?: number
     user_id?: number
+    user_name?: string
     create_time?: string
+    edit_time?: string
     update_time?: string
     user?: UserVO
   }
@@ -53,6 +61,19 @@ declare namespace API {
     code?: number
     data?: AppVO
     message?: string
+  }
+
+  type BaseResponseAppVO = {
+    code?: number
+    data?: CreateAppResponse
+    message?: string
+  }
+
+  type CreateAppResponse = {
+    app_name?: string
+    id?: number
+    init_prompt?: string
+    user_id?: number
   }
 
   type BaseResponseBoolean = {
@@ -97,18 +118,6 @@ declare namespace API {
     message?: string
   }
 
-  type BaseResponseUser = {
-    code?: number
-    data?: User
-    message?: string
-  }
-
-  type BaseResponseUserVO = {
-    code?: number
-    data?: UserVO
-    message?: string
-  }
-
   type ChatHistory = {
     id?: number
     message?: string
@@ -138,14 +147,6 @@ declare namespace API {
     message: string
   }
 
-  type DeleteRequest = {
-    id?: number
-  }
-
-  type downloadAppCodeParams = {
-    app_id: number
-  }
-
   type getAppVOByIdByAdminParams = {
     id: number
   }
@@ -154,12 +155,8 @@ declare namespace API {
     id: number
   }
 
-  type getUserByIdParams = {
-    id: number
-  }
-
-  type getUserVOByIdParams = {
-    id: number
+  type downloadAppCodeParams = {
+    app_id: number
   }
 
   type listAppChatHistoryParams = {
@@ -181,11 +178,11 @@ declare namespace API {
   }
 
   type PageAppVO = {
-    records?: AppVO[]
+    apps?: AppVO[]
     page?: number
     per_page?: number
-    total_page?: number
-    total_row?: number
+    total_pages?: number
+    total?: number
     optimize_count_query?: boolean
   }
 
@@ -211,20 +208,6 @@ declare namespace API {
 
   type serveStaticResourceParams = {
     deploy_key: string
-  }
-
-  type User = {
-    id?: number
-    user_account?: string
-    user_password?: string
-    user_name?: string
-    user_avatar?: string
-    user_profile?: string
-    user_role?: string
-    edit_time?: string
-    create_time?: string
-    update_time?: string
-    is_delete?: number
   }
 
   type UserAddRequest = {

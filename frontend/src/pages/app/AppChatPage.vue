@@ -16,11 +16,11 @@
           应用详情
         </a-button>
         <a-button
-            type="primary"
-            ghost
-            @click="downloadCode"
-            :loading="downloading"
-            :disabled="!isOwner"
+          type="primary"
+          ghost
+          @click="downloadCode"
+          :loading="downloading"
+          :disabled="!isOwner"
         >
           <template #icon>
             <DownloadOutlined />
@@ -52,7 +52,7 @@
             <div v-if="message.type === 'user'" class="user-message">
               <div class="message-content">{{ message.content }}</div>
               <div class="message-avatar">
-                <a-avatar :src="loginUserStore.loginUser.userAvatar" />
+                <a-avatar :src="loginUserStore.loginUser.user_avatar" />
               </div>
             </div>
             <div v-else class="ai-message">
@@ -72,11 +72,11 @@
 
         <!-- 选中元素信息展示 -->
         <a-alert
-            v-if="selectedElementInfo"
-            class="selected-element-alert"
-            type="info"
-            closable
-            @close="clearSelectedElement"
+          v-if="selectedElementInfo"
+          class="selected-element-alert"
+          type="info"
+          closable
+          @close="clearSelectedElement"
         >
           <template #message>
             <div class="selected-element-info">
@@ -113,29 +113,29 @@
           <div class="input-wrapper">
             <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
               <a-textarea
-                  v-model:value="userInput"
-                  :placeholder="getInputPlaceholder()"
-                  :rows="4"
-                  :maxlength="1000"
-                  @keydown.enter.prevent="sendMessage"
-                  :disabled="isGenerating || !isOwner"
-              />
-            </a-tooltip>
-            <a-textarea
-                v-else
                 v-model:value="userInput"
                 :placeholder="getInputPlaceholder()"
                 :rows="4"
                 :maxlength="1000"
                 @keydown.enter.prevent="sendMessage"
-                :disabled="isGenerating"
+                :disabled="isGenerating || !isOwner"
+              />
+            </a-tooltip>
+            <a-textarea
+              v-else
+              v-model:value="userInput"
+              :placeholder="getInputPlaceholder()"
+              :rows="4"
+              :maxlength="1000"
+              @keydown.enter.prevent="sendMessage"
+              :disabled="isGenerating"
             />
             <div class="input-actions">
               <a-button
-                  type="primary"
-                  @click="sendMessage"
-                  :loading="isGenerating"
-                  :disabled="!isOwner"
+                type="primary"
+                @click="sendMessage"
+                :loading="isGenerating"
+                :disabled="!isOwner"
               >
                 <template #icon>
                   <SendOutlined />
@@ -151,12 +151,12 @@
           <h3>生成后的网页展示</h3>
           <div class="preview-actions">
             <a-button
-                v-if="isOwner && previewUrl"
-                type="link"
-                :danger="isEditMode"
-                @click="toggleEditMode"
-                :class="{ 'edit-mode-active': isEditMode }"
-                style="padding: 0; height: auto; margin-right: 12px"
+              v-if="isOwner && previewUrl"
+              type="link"
+              :danger="isEditMode"
+              @click="toggleEditMode"
+              :class="{ 'edit-mode-active': isEditMode }"
+              style="padding: 0; height: auto; margin-right: 12px"
             >
               <template #icon>
                 <EditOutlined />
@@ -181,11 +181,11 @@
             <p>正在生成网站...</p>
           </div>
           <iframe
-              v-else
-              :src="previewUrl"
-              class="preview-iframe"
-              frameborder="0"
-              @load="onIframeLoad"
+            v-else
+            :src="previewUrl"
+            class="preview-iframe"
+            frameborder="0"
+            @load="onIframeLoad"
           ></iframe>
         </div>
       </div>
@@ -193,18 +193,18 @@
 
     <!-- 应用详情弹窗 -->
     <AppDetailModal
-        v-model:open="appDetailVisible"
-        :app="appInfo"
-        :show-actions="isOwner || isAdmin"
-        @edit="editApp"
-        @delete="deleteApp"
+      v-model:open="appDetailVisible"
+      :app="appInfo"
+      :show-actions="isOwner || isAdmin"
+      @edit="editApp"
+      @delete="deleteApp"
     />
 
     <!-- 部署成功弹窗 -->
     <DeploySuccessModal
-        v-model:open="deployModalVisible"
-        :deploy-url="deployUrl"
-        @open-site="openDeployedSite"
+      v-model:open="deployModalVisible"
+      :deploy-url="deployUrl"
+      @open-site="openDeployedSite"
     />
   </div>
 </template>
@@ -242,6 +242,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const loginUserStore = useLoginUserStore()
+const TOKEN_KEY = 'token'
 
 // 应用信息
 const appInfo = ref<API.AppVO>()
@@ -293,7 +294,7 @@ const isOwner = computed(() => {
 })
 
 const isAdmin = computed(() => {
-  return loginUserStore.loginUser.userRole === 'admin'
+  return loginUserStore.loginUser.user_role === 'admin'
 })
 
 // 应用详情相关
@@ -310,25 +311,25 @@ const loadChatHistory = async (isLoadMore = false) => {
   loadingHistory.value = true
   try {
     const params: API.listAppChatHistoryParams = {
-      appId: appId.value,
-      pageSize: 10,
+      app_id: appId.value,
+      per_page: 10,
     }
     // 如果是加载更多，传递最后一条消息的创建时间作为游标
     if (isLoadMore && lastCreateTime.value) {
-      params.lastCreateTime = lastCreateTime.value
+      params.last_create_time = lastCreateTime.value
     }
     const res = await listAppChatHistory(params)
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data.code === 20000 && res.data.data) {
       const chatHistories = res.data.data.records || []
       if (chatHistories.length > 0) {
         // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
         const historyMessages: Message[] = chatHistories
-            .map((chat) => ({
-              type: (chat.messageType === 'user' ? 'user' : 'ai') as 'user' | 'ai',
-              content: chat.message || '',
-              createTime: chat.createTime,
-            }))
-            .reverse() // 反转数组，让老消息在前
+          .map((chat) => ({
+            type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
+            content: chat.message || '',
+            createTime: chat.create_time,
+          }))
+          .reverse() // 反转数组，让老消息在前
         if (isLoadMore) {
           // 加载更多时，将历史消息添加到开头
           messages.value.unshift(...historyMessages)
@@ -337,7 +338,7 @@ const loadChatHistory = async (isLoadMore = false) => {
           messages.value = historyMessages
         }
         // 更新游标
-        lastCreateTime.value = chatHistories[chatHistories.length - 1]?.createTime
+        lastCreateTime.value = chatHistories[chatHistories.length - 1]?.create_time
         // 检查是否还有更多历史
         hasMoreHistory.value = chatHistories.length === 10
       } else {
@@ -371,7 +372,7 @@ const fetchAppInfo = async () => {
 
   try {
     const res = await getAppVoById({ id: id as unknown as number })
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data.code === 20000 && res.data.data) {
       appInfo.value = res.data.data
 
       // 先加载对话历史
@@ -383,12 +384,12 @@ const fetchAppInfo = async () => {
       // 检查是否需要自动发送初始提示词
       // 只有在是自己的应用且没有对话历史时才自动发送
       if (
-          appInfo.value.initPrompt &&
-          isOwner.value &&
-          messages.value.length === 0 &&
-          historyLoaded.value
+        appInfo.value.init_prompt &&
+        isOwner.value &&
+        messages.value.length === 0 &&
+        historyLoaded.value
       ) {
-        await sendInitialMessage(appInfo.value.initPrompt)
+        await sendInitialMessage(appInfo.value.init_prompt)
       }
     } else {
       message.error('获取应用信息失败')
@@ -475,110 +476,135 @@ const sendMessage = async () => {
   await generateCode(message, aiMessageIndex)
 }
 
-// 生成代码 - 使用 EventSource 处理流式响应
+// 生成代码 - 使用 fetch + ReadableStream 处理 POST 流式响应
 const generateCode = async (userMessage: string, aiMessageIndex: number) => {
-  let eventSource: EventSource | null = null
   let streamCompleted = false
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
 
   try {
-    // 获取 axios 配置的 baseURL
     const baseURL = request.defaults.baseURL || API_BASE_URL
 
-    // 构建URL参数
-    const params = new URLSearchParams({
-      appId: appId.value || '',
-      message: userMessage,
+    // 从 localStorage 获取 token（因为 fetch 不走 axios 拦截器，需要手动加）
+    const token = localStorage.getItem(TOKEN_KEY) || ''
+
+    const response = await fetch(`${baseURL}/code/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        init_prompt: userMessage,
+        code_gen_type: appInfo.value?.code_gen_type || CodeGenTypeEnum.HTML,
+        app_id: appId.value,
+      }),
     })
 
-    const url = `${baseURL}/app/chat/gen/code?${params}`
-
-    // 创建 EventSource 连接
-    eventSource = new EventSource(url, {
-      withCredentials: true,
-    })
-
-    let fullContent = ''
-
-    // 处理接收到的消息
-    eventSource.onmessage = function (event) {
-      if (streamCompleted) return
-
-      try {
-        // 解析JSON包装的数据
-        const parsed = JSON.parse(event.data)
-        const content = parsed.d
-
-        // 拼接内容
-        if (content !== undefined && content !== null) {
-          fullContent += content
-          messages.value[aiMessageIndex].content = fullContent
-          messages.value[aiMessageIndex].loading = false
-          scrollToBottom()
-        }
-      } catch (error) {
-        console.error('解析消息失败:', error)
-        handleError(error, aiMessageIndex)
-      }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
     }
 
-    // 处理done事件
-    eventSource.addEventListener('done', function () {
-      if (streamCompleted) return
+    reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullContent = ''
 
-      streamCompleted = true
-      isGenerating.value = false
-      eventSource?.close()
+    while (true) {
+      const { done, value } = await reader.read()
 
-      // 延迟更新预览，确保后端已完成处理
-      setTimeout(async () => {
-        await fetchAppInfo()
-        updatePreview()
-      }, 1000)
-    })
-
-    // 处理business-error事件（后端限流等错误）
-    eventSource.addEventListener('business-error', function (event: MessageEvent) {
-      if (streamCompleted) return
-
-      try {
-        const errorData = JSON.parse(event.data)
-        console.error('SSE业务错误事件:', errorData)
-
-        // 显示具体的错误信息
-        const errorMessage = errorData.message || '生成过程中出现错误'
-        messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
-        messages.value[aiMessageIndex].loading = false
-        message.error(errorMessage)
-
-        streamCompleted = true
-        isGenerating.value = false
-        eventSource?.close()
-      } catch (parseError) {
-        console.error('解析错误事件失败:', parseError, '原始数据:', event.data)
-        handleError(new Error('服务器返回错误'), aiMessageIndex)
+      if (done) {
+        // 流结束
+        if (!streamCompleted) {
+          streamCompleted = true
+          isGenerating.value = false
+          setTimeout(async () => {
+            await fetchAppInfo()
+            updatePreview()
+          }, 1000)
+        }
+        break
       }
-    })
 
-    // 处理错误
-    eventSource.onerror = function () {
-      if (streamCompleted || !isGenerating.value) return
-      // 检查是否是正常的连接关闭
-      if (eventSource?.readyState === EventSource.CONNECTING) {
-        streamCompleted = true
-        isGenerating.value = false
-        eventSource?.close()
+      // 解码新数据
+      buffer += decoder.decode(value, { stream: true })
 
-        setTimeout(async () => {
-          await fetchAppInfo()
-          updatePreview()
-        }, 1000)
-      } else {
-        handleError(new Error('SSE连接错误'), aiMessageIndex)
+      // 按 \n\n 分割 SSE 事件（一个事件可能跨多次 read）
+      const events = buffer.split('\n\n')
+      // 最后一个可能不完整，保留到下次
+      buffer = events.pop() || ''
+
+      for (const eventBlock of events) {
+        const lines = eventBlock.split('\n')
+        let eventType = 'message' // 默认事件类型
+        let dataLines: string[] = []
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim())
+          }
+        }
+
+        const dataStr = dataLines.join('\n')
+        if (!dataStr) continue
+
+        // 根据事件类型分别处理
+        switch (eventType) {
+          case 'done':
+            if (!streamCompleted) {
+              streamCompleted = true
+              isGenerating.value = false
+              setTimeout(async () => {
+                await fetchAppInfo()
+                updatePreview()
+              }, 1000)
+            }
+            break
+
+          case 'business-error':
+            try {
+              const errorData = JSON.parse(dataStr)
+              const errorMessage = errorData.message || '生成过程中出现错误'
+              messages.value[aiMessageIndex].content = `❌ ${errorMessage}`
+              messages.value[aiMessageIndex].loading = false
+              message.error(errorMessage)
+            } catch {
+              handleError(new Error('服务器返回错误'), aiMessageIndex)
+            }
+            streamCompleted = true
+            isGenerating.value = false
+            break
+
+          case 'message':
+          default:
+            try {
+              const parsed = JSON.parse(dataStr)
+              const content = parsed.d
+              if (content !== undefined && content !== null) {
+                fullContent += content
+                messages.value[aiMessageIndex].content = fullContent
+                messages.value[aiMessageIndex].loading = false
+                scrollToBottom()
+              }
+            } catch {
+              console.error('解析消息失败:', dataStr)
+            }
+            break
+        }
       }
     }
   } catch (error) {
-    console.error('创建 EventSource 失败：', error)
-    handleError(error, aiMessageIndex)
+    console.error('生成代码失败：', error)
+    if (!streamCompleted) {
+      handleError(error, aiMessageIndex)
+    }
+  } finally {
+    if (reader) {
+      try {
+        reader.releaseLock()
+      } catch {}
+    }
   }
 }
 
@@ -659,7 +685,7 @@ const deployApp = async () => {
       app_id: appId.value as unknown as number,
     })
 
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data.code === 20000 && res.data.data) {
       deployUrl.value = res.data.data
       deployModalVisible.value = true
       message.success('部署成功')
@@ -711,7 +737,7 @@ const deleteApp = async () => {
 
   try {
     const res = await deleteAppApi({ id: appInfo.value.id })
-    if (res.data.code === 0) {
+    if (res.data.code === 20000) {
       message.success('删除成功')
       appDetailVisible.value = false
       router.push('/')

@@ -56,10 +56,12 @@ const createApp = async () => {
       init_prompt: userPrompt.value.trim(),
     })
 
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data.code === 20000 && res.data.data) {
       message.success('应用创建成功')
       // 跳转到对话页面，确保ID是字符串类型
-      const appId = String(res.data.data)
+      // TODO 调试待删除
+      console.log(res.data.data)
+      const appId = String(res.data.data.id)
       await router.push(`/app/chat/${appId}`)
     } else {
       message.error('创建失败：' + res.data.message)
@@ -80,15 +82,14 @@ const loadMyApps = async () => {
 
   try {
     const res = await listMyAppVoByPage({
-      page_num: myAppsPage.current,
-      page_size: myAppsPage.pageSize,
-      sort_field: 'createTime',
+      page: myAppsPage.current,
+      per_page: myAppsPage.pageSize,
+      sort_field: 'create_time',
       sort_order: 'desc',
     })
-
-    if (res.data.code === 0 && res.data.data) {
-      myApps.value = res.data.data.records || []
-      myAppsPage.total = res.data.data.totalRow || 0
+    if (res.data.code === 20000 && res.data.data) {
+      myApps.value = res.data.data.apps || []
+      myAppsPage.total = res.data.data.total || 0
     }
   } catch (error) {
     console.error('加载我的应用失败：', error)
@@ -99,15 +100,15 @@ const loadMyApps = async () => {
 const loadFeaturedApps = async () => {
   try {
     const res = await listGoodAppVoByPage({
-      page_num: featuredAppsPage.current,
-      page_size: featuredAppsPage.pageSize,
-      sort_field: 'createTime',
+      page: featuredAppsPage.current,
+      per_page: featuredAppsPage.pageSize,
+      sort_field: 'create_time',
       sort_order: 'desc',
     })
 
-    if (res.data.code === 0 && res.data.data) {
-      featuredApps.value = res.data.data.records || []
-      featuredAppsPage.total = res.data.data.totalRow || 0
+    if (res.data.code === 20000 && res.data.data) {
+      featuredApps.value = res.data.data.apps || []
+      featuredAppsPage.total = res.data.data.total || 0
     }
   } catch (error) {
     console.error('加载精选应用失败：', error)

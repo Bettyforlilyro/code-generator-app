@@ -150,7 +150,7 @@ const formData = reactive({
 
 // 是否为管理员
 const isAdmin = computed(() => {
-  return loginUserStore.loginUser.userRole === 'admin'
+  return loginUserStore.loginUser.user_role === 'admin'
 })
 
 // 表单验证规则
@@ -179,19 +179,19 @@ const fetchAppInfo = async () => {
       appInfo.value = res.data.data
 
       // 检查权限
-      if (!isAdmin.value && appInfo.value.userId !== loginUserStore.loginUser.id) {
+      if (!isAdmin.value && appInfo.value.user_id !== loginUserStore.loginUser.id) {
         message.error('您没有权限编辑此应用')
         router.push('/')
         return
       }
 
       // 填充表单数据
-      formData.appName = appInfo.value.appName || ''
-      formData.cover = appInfo.value.cover || ''
+      formData.appName = appInfo.value.app_name || ''
+      formData.cover = appInfo.value.app_coverage || ''
       formData.priority = appInfo.value.priority || 0
-      formData.initPrompt = appInfo.value.initPrompt || ''
-      formData.codeGenType = appInfo.value.codeGenType || ''
-      formData.deployKey = appInfo.value.deployKey || ''
+      formData.initPrompt = appInfo.value.init_prompt || ''
+      formData.codeGenType = appInfo.value.code_gen_type || ''
+      formData.deployKey = appInfo.value.deploy_key || ''
     } else {
       message.error('获取应用信息失败')
       router.push('/')
@@ -217,7 +217,7 @@ const handleSubmit = async () => {
       res = await updateAppByAdmin({
         id: appInfo.value.id,
         app_name: formData.appName,
-        cover: formData.cover,
+        app_coverage: formData.cover,
         priority: formData.priority,
       })
     } else {
@@ -247,7 +247,7 @@ const handleSubmit = async () => {
 const resetForm = () => {
   if (appInfo.value) {
     formData.appName = appInfo.value.app_name || ''
-    formData.cover = appInfo.value.cover || ''
+    formData.cover = appInfo.value.app_coverage || ''
     formData.priority = appInfo.value.priority || 0
   }
   formRef.value?.clearValidate()
