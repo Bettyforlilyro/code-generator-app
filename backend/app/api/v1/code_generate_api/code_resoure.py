@@ -1,11 +1,14 @@
+import io
 import mimetypes
 import os
+import zipfile
 
-from flask import request
+from flask import request, send_file
 
 from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
 from backend.app.common.exceptions.error_codes import ErrorCode
+from backend.app.common.utils.auth import login_required
 from backend.app.models.app_model import AppModel
 from backend.app.schemas.responses.BaseResponse import directory_response, error_response, success_response
 
@@ -214,9 +217,6 @@ def _list_directory(base_dir: str, identifier: str):
     })
 
 
-# 抽离核心逻辑为公共函数
-# 替换第 220-254 行的 _handle_static_request
-
 def _handle_static_request(identifier, file_name, search_roots=None):
     """
     核心静态资源处理逻辑
@@ -271,3 +271,68 @@ def get_static_file_by_path(identifier, file_name):
     return _handle_static_request(identifier, file_name)
 
 
+@code_bp.route('/app/download/<int:app_id>', methods=['GET'])
+@login_required
+def download_app_code(app_id: int):
+    """
+    打包下载应用的所有代码文件为ZIP压缩包
+    ---
+    tags:
+      - 代码生成
+    summary: 下载应用的代码文件压缩包
+    description: |
+      根据应用ID，将该应用的所有代码文件打包为ZIP格式供浏览器下载。
+      自动搜索 GENERATE_ROOT 和 DEPLOY_ROOT 下的应用目录。
+
+      使用示例：
+      - GET /api/v1/code/app/download/47
+    parameters:
+      - in: header
+        name: Authorization
+        required: true
+        type: string
+        description: JWT Token，格式为 "Bearer <token>"
+      - in: path
+        name: app_id
+        required: true
+        type: integer
+        description: 应用ID
+    responses:
+      200:
+        description: 返回ZIP压缩包文件
+      404:
+        description: 应用不存在或目录不存在
+    """
+    # 1. 查询应用信息
+    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
+    if not app:
+        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
+
+    # 2. 构建目录标识符并定位应用目录
+    generated_path = f"{app.code_gen_type}_{app.id}"
+    app_dir = os.path.join(DEFAULT_GENERATE_ROOT, generated_path)
+
+    if not os.path.exists(app_dir):
+        return error_response(ErrorCode.APP_NOT_FOUND, "应用目录不存在，可能是应用未生成")
+
+    # 3. 在内存中创建ZIP压缩包
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(app_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, app_dir)
+                # 使用正斜杠作为ZIP内部分隔符
+                arcname = arcname.replace('\\', '/')
+                zf.write(file_path, arcname)
+
+    # 4. 准备下载响应
+    memory_file.seek(0)
+    zip_filename = f"{app.app_name}.zip"
+
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=zip_filename
+    )

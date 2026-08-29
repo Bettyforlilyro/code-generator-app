@@ -4,6 +4,7 @@ from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
+from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.schemas.responses.BaseResponse import error_response, stream_response
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
@@ -82,5 +83,8 @@ def generate_code_stream():
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
     if app.user_id != user.id:
         return error_response(ErrorCode.PERMISSION_DENIED, "您没有权限操作该应用")
+    # 设置code_gen_type保存到数据库
+    app.code_gen_type = code_gen_type
+    db.session.commit()
     generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt, CodeFileType(code_gen_type), app_id)
     return stream_response(generator, use_wrapper=False)
