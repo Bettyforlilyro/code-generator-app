@@ -330,9 +330,19 @@ def download_app_code(app_id: int):
     memory_file.seek(0)
     zip_filename = f"{app.app_name}.zip"
 
-    return send_file(
+    # 构建 Content-Disposition 响应头，兼容中文文件名
+    # 同时包含 filename*（RFC 5987 URL编码）和 filename（直接文件名）
+    from urllib.parse import quote
+    encoded_filename = quote(zip_filename)  # URL编码
+    content_disposition = (
+        f'attachment; filename="{encoded_filename}"; '
+        f'filename*=UTF-8\'\'{encoded_filename}'
+    )
+
+    response = send_file(
         memory_file,
         mimetype='application/zip',
-        as_attachment=True,
-        download_name=zip_filename
+        as_attachment=False  # 关闭自动设置，手动控制
     )
+    response.headers['Content-Disposition'] = content_disposition
+    return response
