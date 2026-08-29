@@ -33,12 +33,12 @@ class ErrorCode(Enum):
     # 资源相关错误 (40400-40499)
     NOT_FOUND = (40400, "资源不存在")
     RESOURCE_NOT_FOUND = (40401, "指定的资源未找到")
+    APP_NOT_FOUND = (40403, "应用不存在")
 
     # 业务逻辑错误 (40500-40599)
     METHOD_NOT_ALLOWED = (40500, "请求方法不允许")
     CONFLICT = (40501, "资源冲突")
     DUPLICATE_DATA = (40502, "数据重复")
-    APP_NOT_FOUND = (40503, "应用不存在")
 
     # 限流相关错误 (42900-42999)
     TOO_MANY_REQUESTS = (42900, "请求过于频繁，请稍后重试")
