@@ -35,11 +35,11 @@ def generate_code_stream():
         schema:
           type: object
           required:
-            - prompt
+            - init_prompt
             - code_gen_type
             - app_id
           properties:
-            prompt:
+            init_prompt:
               type: string
               description: 代码生成的提示词
               example: 创建一个现代化的个人博客网站
@@ -68,7 +68,7 @@ def generate_code_stream():
     json_data = request.get_json()
     if not json_data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-    app_id = json_data.get('app_id')
+    app_id = int(json_data.get('app_id'))
     if not app_id or app_id <= 0:
         return error_response(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
     init_prompt = json_data.get('init_prompt')
