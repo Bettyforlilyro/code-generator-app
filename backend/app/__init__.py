@@ -25,7 +25,7 @@ def create_app(config=None):
         origins="*",
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
         allow_headers=["Content-Type", "Authorization", "X-Request-With", "Accept", "Origin"],
-        expose_headers=["Authorization", "Content-Type"],
+        expose_headers=["Authorization", "Content-Type", "Content-Disposition"],
         max_age=600,
     )
 
