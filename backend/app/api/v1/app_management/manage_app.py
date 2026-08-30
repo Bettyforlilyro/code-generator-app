@@ -10,6 +10,7 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEP
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
+from backend.app.common.utils.get_random_avatar import get_random_bz
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.models.user import User
@@ -91,11 +92,12 @@ def create_app():
 
     # TODO 如果没有传app_name，使用init_prompt前20字符作为默认名称或者AI总结生成？后续再决定如何命名
     app_name = req.app_name if req.app_name else req.init_prompt[:20]
+    app_coverage = req.app_coverage if req.app_coverage else get_random_bz()
 
     new_app = AppModel(
         app_name=app_name,
         code_gen_type=req.code_gen_type,
-        app_coverage=req.app_coverage,
+        app_coverage=app_coverage,
         init_prompt=req.init_prompt,
         user_id=user.id
     )
