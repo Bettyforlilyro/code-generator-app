@@ -271,7 +271,7 @@ def get_app_detail(app_id):
     user_info = User.query.filter_by(id=user_id).first()
     user = UserSummaryResponse(**user_info.to_dict())
 
-    app_detail = AppDetailResponse(**app.to_dict(user_name=user.user_name), user=user)
+    app_detail = AppDetailResponse(**app.to_dict(user_name=user.user_name, user=user))
 
     return success_response(app_detail)
 
