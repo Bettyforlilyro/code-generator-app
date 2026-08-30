@@ -1,9 +1,7 @@
 declare namespace API {
+
   type AppAddRequest = {
     init_prompt?: string
-    app_name?: string
-    app_coverage?: string
-    code_gen_type?: string
   }
 
   type AppAdminUpdateRequest = {
@@ -31,7 +29,8 @@ declare namespace API {
     code_gen_type?: string
     deploy_key?: string
     priority?: number
-    user_name?: number
+    user_name?: string
+    is_mine?: boolean
   }
 
   type AppUpdateRequest = {
@@ -47,7 +46,7 @@ declare namespace API {
     init_prompt?: string
     code_gen_type?: string
     deploy_key?: string
-    deployed_time?: string
+    deploy_time?: string
     priority?: number
     user_id?: number
     user_name?: string
@@ -116,6 +115,17 @@ declare namespace API {
     code?: number
     data?: string
     message?: string
+  }
+
+  type AppDeployResponse = {
+    code?: number
+    data?: AppDeployInfo
+    message?: string
+  }
+
+  type AppDeployInfo = {
+    deploy_key?: string
+    deploy_url?: string
   }
 
   type ChatHistory = {

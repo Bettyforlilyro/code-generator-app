@@ -1,7 +1,7 @@
 <template>
   <div class="app-card" :class="{ 'app-card--featured': featured }">
     <div class="app-preview">
-      <img v-if="app.cover" :src="app.cover" :alt="app.app_name" />
+      <img v-if="app.app_coverage" :src="app.app_coverage" :alt="app.app_name" />
       <div v-else class="app-placeholder">
         <span>🤖</span>
       </div>
@@ -14,14 +14,14 @@
     </div>
     <div class="app-info">
       <div class="app-info-left">
-        <a-avatar :src="app.user?.userAvatar" :size="40">
-          {{ app.user?.userName?.charAt(0) || 'U' }}
+        <a-avatar :src="getSafeAvatar(app.user?.user_avatar)" :size="40">
+          {{ app.user?.user_name?.charAt(0) || 'U' }}
         </a-avatar>
       </div>
       <div class="app-info-right">
         <h3 class="app-title">{{ app.app_name || '未命名应用' }}</h3>
         <p class="app-author">
-          {{ app.user?.userName || (featured ? '官方' : '未知用户') }}
+          {{ app.user?.user_name || (featured ? '官方' : '未知用户') }}
         </p>
       </div>
     </div>
@@ -42,6 +42,17 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   featured: false,
 })
+
+const getSafeAvatar = (url?: string) => {
+  if (!url) return ''
+  // 用 encodeURI 编码处理特殊字符（如 URL 中的空格、中文等）
+  // 但要保留 URL 协议和路径分隔符
+  try {
+    return encodeURI(url)
+  } catch {
+    return url
+  }
+}
 
 const emit = defineEmits<Emits>()
 

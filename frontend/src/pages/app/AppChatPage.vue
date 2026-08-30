@@ -999,8 +999,8 @@ const deployApp = async () => {
       app_id: appId.value as unknown as number,
     })
 
-    if (res.data.code === 20000 && res.data.data) {
-      deployUrl.value = res.data.data
+    if (res.data.code === 20000 && res.data.data && res.data.data.deploy_url) {
+      deployUrl.value = res.data.data.deploy_url
       deployModalVisible.value = true
       message.success('部署成功')
     } else {
@@ -1054,7 +1054,7 @@ const deleteApp = async () => {
     if (res.data.code === 20000) {
       message.success('删除成功')
       appDetailVisible.value = false
-      router.push('/')
+      await router.push('/')
     } else {
       message.error('删除失败：' + res.data.message)
     }

@@ -23,7 +23,6 @@
           </a-form-item>
 
           <a-form-item
-            v-if="isAdmin"
             label="应用封面"
             name="cover"
             extra="支持图片链接，建议尺寸：400x300"
@@ -102,7 +101,7 @@
             {{ formatTime(appInfo?.update_time) }}
           </a-descriptions-item>
           <a-descriptions-item label="部署时间">
-            {{ appInfo?.deployed_time ? formatTime(appInfo.deployed_time) : '未部署' }}
+            {{ appInfo?.deploy_time ? formatTime(appInfo.deploy_time) : '未部署' }}
           </a-descriptions-item>
           <a-descriptions-item label="访问链接">
             <a-button v-if="appInfo?.deploy_key" type="link" @click="openPreview" size="small">
@@ -175,7 +174,7 @@ const fetchAppInfo = async () => {
   loading.value = true
   try {
     const res = await getAppVoById({ id: id as unknown as number })
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data.code === 20000 && res.data.data) {
       appInfo.value = res.data.data
 
       // 检查权限
@@ -225,13 +224,16 @@ const handleSubmit = async () => {
       res = await updateApp({
         id: appInfo.value.id,
         app_name: formData.appName,
+        app_coverage: formData.cover,
       })
     }
 
-    if (res.data.code === 0) {
+    if (res.data.code === 20000) {
       message.success('修改成功')
       // 重新获取应用信息
       await fetchAppInfo()
+      // 跳转到上一个页面
+      router.back()
     } else {
       message.error('修改失败：' + res.data.message)
     }

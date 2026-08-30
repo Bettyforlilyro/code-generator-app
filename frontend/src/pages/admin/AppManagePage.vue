@@ -6,15 +6,15 @@
         <a-input v-model:value="searchParams.app_name" placeholder="输入应用名称" />
       </a-form-item>
       <a-form-item label="创建者">
-        <a-input v-model:value="searchParams.user_id" placeholder="输入用户ID" />
+        <a-input v-model:value="searchParams.user_name" placeholder="输入创建用户名" />
       </a-form-item>
       <a-form-item label="生成类型">
         <a-select
           v-model:value="searchParams.code_gen_type"
           placeholder="选择生成类型"
+          allow-clear
           style="width: 150px"
         >
-          <a-select-option value="">全部</a-select-option>
           <a-select-option
             v-for="option in CODE_GEN_TYPE_OPTIONS"
             :key="option.value"
@@ -39,33 +39,28 @@
       :scroll="{ x: 1200 }"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.dataIndex === 'cover'">
-          <a-image v-if="record.cover" :src="record.cover" :width="80" :height="60" />
+        <template v-if="column.dataIndex === 'app_coverage'">
+          <a-image v-if="record.app_coverage" :src="record.app_coverage" :width="80" :height="60" />
           <div v-else class="no-cover">无封面</div>
         </template>
-        <template v-else-if="column.dataIndex === 'initPrompt'">
-          <a-tooltip :title="record.initPrompt">
-            <div class="prompt-text">{{ record.initPrompt }}</div>
-          </a-tooltip>
-        </template>
-        <template v-else-if="column.dataIndex === 'codeGenType'">
-          {{ formatCodeGenType(record.codeGenType) }}
+        <template v-else-if="column.dataIndex === 'code_gen_type'">
+          {{ formatCodeGenType(record.code_gen_type) }}
         </template>
         <template v-else-if="column.dataIndex === 'priority'">
           <a-tag v-if="record.priority === 99" color="gold">精选</a-tag>
           <span v-else>{{ record.priority || 0 }}</span>
         </template>
-        <template v-else-if="column.dataIndex === 'deployedTime'">
-          <span v-if="record.deployedTime">
-            {{ formatTime(record.deployedTime) }}
+        <template v-else-if="column.dataIndex === 'deploy_time'">
+          <span v-if="record.deploy_time">
+            {{ formatTime(record.deploy_time) }}
           </span>
           <span v-else class="text-gray">未部署</span>
         </template>
-        <template v-else-if="column.dataIndex === 'createTime'">
-          {{ formatTime(record.createTime) }}
+        <template v-else-if="column.dataIndex === 'create_time'">
+          {{ formatTime(record.create_time) }}
         </template>
-        <template v-else-if="column.dataIndex === 'user'">
-          <UserInfo :user="record.user" size="small" />
+        <template v-else-if="column.dataIndex === 'user_name'">
+          <UserInfo :user-name="record.user_name" size="small" />
         </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
@@ -104,27 +99,23 @@ const columns = [
     title: 'ID',
     dataIndex: 'id',
     width: 80,
-    fixed: 'left',
+    sorter: true,
   },
   {
     title: '应用名称',
-    dataIndex: 'appName',
+    dataIndex: 'app_name',
     width: 150,
+    sorter: true,
   },
   {
     title: '封面',
-    dataIndex: 'cover',
+    dataIndex: 'app_coverage',
     width: 100,
-  },
-  {
-    title: '初始提示词',
-    dataIndex: 'initPrompt',
-    width: 200,
   },
   {
     title: '生成类型',
-    dataIndex: 'codeGenType',
-    width: 100,
+    dataIndex: 'code_gen_type',
+    width: 120,
   },
   {
     title: '优先级',
@@ -133,24 +124,24 @@ const columns = [
   },
   {
     title: '部署时间',
-    dataIndex: 'deployedTime',
+    dataIndex: 'deploy_time',
     width: 160,
   },
   {
     title: '创建者',
-    dataIndex: 'user',
+    dataIndex: 'user_name',
     width: 120,
   },
   {
     title: '创建时间',
-    dataIndex: 'createTime',
+    dataIndex: 'create_time',
     width: 160,
+    sorter: true,
   },
   {
     title: '操作',
     key: 'action',
     width: 200,
-    fixed: 'right',
   },
 ]
 
@@ -160,8 +151,8 @@ const total = ref(0)
 
 // 搜索条件
 const searchParams = reactive<API.AppQueryRequest>({
-  page_num: 1,
-  page_size: 10,
+  page: 1,
+  per_page: 10,
 })
 
 // 获取数据
@@ -171,8 +162,8 @@ const fetchData = async () => {
       ...searchParams,
     })
     if (res.data.data) {
-      data.value = res.data.data.records ?? []
-      total.value = res.data.data.totalRow ?? 0
+      data.value = res.data.data.apps ?? []
+      total.value = res.data.data.total ?? 0
     } else {
       message.error('获取数据失败，' + res.data.message)
     }
@@ -190,25 +181,38 @@ onMounted(() => {
 // 分页参数
 const pagination = computed(() => {
   return {
-    current: searchParams.page_num ?? 1,
-    pageSize: searchParams.page_size ?? 10,
+    current: searchParams.page ?? 1,
+    pageSize: searchParams.per_page ?? 10,
     total: total.value,
     showSizeChanger: true,
     showTotal: (total: number) => `共 ${total} 条`,
   }
 })
 
-// 表格变化处理
-const doTableChange = (page: { current: number; pageSize: number }) => {
-  searchParams.page_num = page.current
-  searchParams.page_size = page.pageSize
+// 表格变化处理（分页、排序）
+const doTableChange = (
+  page: { current: number; pageSize: number },
+  _filters: any,
+  sorter: { field: string; order: string | null }
+) => {
+  // 分页变化
+  searchParams.page = page.current
+  searchParams.per_page = page.pageSize
+  // 排序变化
+  if (sorter.order) {
+    searchParams.sort_field = sorter.field
+    searchParams.sort_order = sorter.order === 'ascend' ? 'asc' : 'desc'
+  } else {
+    searchParams.sort_field = undefined
+    searchParams.sort_order = undefined
+  }
   fetchData()
 }
 
 // 搜索
 const doSearch = () => {
   // 重置页码
-  searchParams.page_num = 1
+  searchParams.page = 1
   fetchData()
 }
 
@@ -229,9 +233,8 @@ const toggleFeatured = async (app: API.AppVO) => {
       priority: newPriority,
     })
 
-    if (res.data.code === 0) {
+    if (res.data.code === 20000) {
       message.success(newPriority === 99 ? '已设为精选' : '已取消精选')
-      // 刷新数据
       fetchData()
     } else {
       message.error('操作失败：' + res.data.message)
@@ -248,9 +251,8 @@ const deleteApp = async (id: number | undefined) => {
 
   try {
     const res = await deleteAppByAdmin({ id })
-    if (res.data.code === 0) {
+    if (res.data.code === 20000) {
       message.success('删除成功')
-      // 刷新数据
       fetchData()
     } else {
       message.error('删除失败：' + res.data.message)
