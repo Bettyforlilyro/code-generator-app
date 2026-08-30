@@ -4,9 +4,20 @@
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.app_name || '网站生成器' }}</h1>
-        <a-tag v-if="appInfo?.code_gen_type" color="blue" class="code-gen-type-tag">
-          {{ formatCodeGenType(appInfo.code_gen_type) }}
-        </a-tag>
+        <a-select
+          v-model:value="selectedCodeGenType"
+          class="code-gen-type-selector"
+          size="small"
+          :disabled="isGenerating"
+        >
+          <a-select-option
+            v-for="opt in codeGenTypeOptions"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </a-select-option>
+        </a-select>
       </div>
       <div class="header-right">
         <a-button type="default" @click="showAppDetail">
@@ -269,7 +280,7 @@ import {
   getAppVoById,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
-import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
+import { CodeGenTypeEnum, CODE_GEN_TYPE_OPTIONS } from '@/utils/codeGenTypes'
 import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -427,6 +438,10 @@ function tryParseCodeGenResult(buffer: string): CodeGenResult | null {
 const appInfo = ref<API.AppVO>()
 const appId = ref<any>()
 
+// 代码生成类型选择
+const codeGenTypeOptions = CODE_GEN_TYPE_OPTIONS
+const selectedCodeGenType = ref<string>(CodeGenTypeEnum.HTML)
+
 // 对话相关
 interface Message {
   type: 'user' | 'ai'
@@ -555,6 +570,11 @@ const fetchAppInfo = async () => {
     const res = await getAppVoById({ id: id as unknown as number })
     if (res.data.code === 20000 && res.data.data) {
       appInfo.value = res.data.data
+
+      // 初始化代码生成类型选择
+      if (appInfo.value.code_gen_type) {
+        selectedCodeGenType.value = appInfo.value.code_gen_type
+      }
 
       // 先加载对话历史
       await loadChatHistory()
@@ -715,7 +735,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       },
       body: JSON.stringify({
         init_prompt: userMessage,
-        code_gen_type: appInfo.value?.code_gen_type || CodeGenTypeEnum.HTML,
+        code_gen_type: selectedCodeGenType.value,
         app_id: appId.value,
       }),
     })
@@ -883,17 +903,21 @@ const handleError = (error: unknown, aiMessageIndex: number) => {
 // 更新预览 - 通过文件列表接口获取 index.html 的真实路径
 const updatePreview = async () => {
   if (!appId.value) return
-  const codeGenType = appInfo.value?.code_gen_type || CodeGenTypeEnum.HTML
+  const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
   const listUrl = getStaticListUrl(codeGenType, appId.value)
 
   try {
+    // TODO 调试待删除
+    console.log("listUrl: ", listUrl)
     const res = await fetch(listUrl)
     if (res.ok) {
       const data = await res.json()
+      // TODO 调试待删除
+      console.log("fetch(listUrl)响应json: ", data)
       if (data.code === 20000 && data.data?.files?.length) {
         const resolved = resolvePreviewUrlFromList(data.data.files)
         // TODO 调试待删除
-        console.log(resolved)
+        console.log("resolvePreviewUrlFromList: ", resolved)
         if (resolved) {
           previewUrl.value = resolved
           noPreviewAvailable.value = false
@@ -918,7 +942,7 @@ const scrollToBottom = () => {
   }
 }
 
-// 下载代码
+// 下载代码（调用后端打包接口）
 const downloadCode = async () => {
   if (!appId.value) {
     message.error('应用ID不存在')
@@ -926,27 +950,33 @@ const downloadCode = async () => {
   }
   downloading.value = true
   try {
-    const API_BASE_URL = request.defaults.baseURL || ''
-    const url = `${API_BASE_URL}/app/download/${appId.value}`
+    const baseURL = request.defaults.baseURL || API_BASE_URL
+    const token = localStorage.getItem(TOKEN_KEY) || ''
+    const url = `${baseURL}/code/app/download/${appId.value}`
     const response = await fetch(url, {
       method: 'GET',
-      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
     if (!response.ok) {
       throw new Error(`下载失败: ${response.status}`)
     }
-    // 获取文件名
+    // 从 Content-Disposition 获取文件名
     const contentDisposition = response.headers.get('Content-Disposition')
-    const fileName = contentDisposition?.match(/filename="(.+)"/)?.[1] || `app-${appId.value}.zip`
-    // 下载文件
+    let fileName = `app-${appId.value}.zip`
+    if (contentDisposition) {
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+)/i)
+      const directMatch = contentDisposition.match(/filename="?(.+?)"?$/)
+      fileName = utf8Match ? decodeURIComponent(utf8Match[1]) : (directMatch?.[1] || fileName)
+    }
     const blob = await response.blob()
-    const downloadUrl = URL.createObjectURL(blob)
+    const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = downloadUrl
+    link.href = blobUrl
     link.download = fileName
+    document.body.appendChild(link)
     link.click()
-    // 清理
-    URL.revokeObjectURL(downloadUrl)
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
     message.success('代码下载成功')
   } catch (error) {
     console.error('下载失败：', error)
@@ -1102,7 +1132,12 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.code-gen-type-tag {
+.code-gen-type-selector {
+  min-width: 140px;
+}
+
+.code-gen-type-selector :deep(.ant-select-selector) {
+  border-radius: 16px;
   font-size: 12px;
 }
 
