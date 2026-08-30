@@ -25,7 +25,7 @@
           <div v-if="loginUserStore.loginUser.id">
             <a-dropdown>
               <a-space>
-                <a-avatar :src="loginUserStore.loginUser.user_avatar" />
+                <a-avatar :src="getSafeAvatar(loginUserStore.loginUser.user_avatar)" />
                 {{ loginUserStore.loginUser.user_name ?? '无名' }}
               </a-space>
               <template #overlay>
@@ -88,6 +88,15 @@ const originItems = [
     title: '编程导航',
   },
 ]
+
+const getSafeAvatar = (url?: string) => {
+  if (!url) return ''
+  try {
+    return encodeURI(url)
+  } catch {
+    return url
+  }
+}
 
 // 过滤菜单项
 const filterMenus = (menus = [] as MenuProps['items']) => {
