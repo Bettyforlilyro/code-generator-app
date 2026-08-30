@@ -44,6 +44,7 @@ class AppSummaryResponse(BaseModel):
     user_name: Optional[str] = None
     create_time: Optional[str] = None
     update_time: Optional[str] = None
+    user: Optional[UserSummaryResponse] = None
 
 
 class AppListResponse(BaseModel):

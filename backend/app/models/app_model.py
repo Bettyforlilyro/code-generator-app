@@ -20,7 +20,7 @@ class AppModel(db.Model):
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, comment='更新时间：数据库自动更新')
     is_delete = db.Column(db.SmallInteger, default=0, nullable=False, comment='是否删除：0-正常，1-已删除')
 
-    def to_dict(self, include_prompt=True, user_name=None):
+    def to_dict(self, include_prompt=True, user_name=None, user=None):
         """转换为字典"""
         result = {
             'id': self.id,
@@ -32,6 +32,7 @@ class AppModel(db.Model):
             'priority': self.priority,
             'user_id': self.user_id,
             'user_name': user_name,
+            'user': user,
             'edit_time': self.edit_time.isoformat() if self.edit_time else None,
             'create_time': self.create_time.isoformat() if self.create_time else None,
             'update_time': self.update_time.isoformat() if self.update_time else None,
@@ -40,7 +41,7 @@ class AppModel(db.Model):
             result['init_prompt'] = self.init_prompt
         return result
 
-    def to_summary_dict(self, user_name=None):
+    def to_summary_dict(self, user_name=None, user=None):
         """转换为简要信息字典（列表展示用）"""
         return {
             'id': self.id,
@@ -52,6 +53,7 @@ class AppModel(db.Model):
             'priority': self.priority,
             'user_id': self.user_id,
             'user_name': user_name,
+            'user': user,
             'create_time': self.create_time.isoformat() if self.create_time else None,
             'update_time': self.update_time.isoformat() if self.update_time else None
         }

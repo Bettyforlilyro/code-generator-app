@@ -172,9 +172,10 @@ def update_app(app_id):
     if not data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
     # 管理员使用AdminAppUpdateRequest（支持priority），普通用户使用AppUpdateRequest
-    req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
     is_updated = False
+    req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
     if req.app_name is not None and req.app_name != app.app_name:
+        app.app_name = req.app_name
         is_updated = True
     if req.app_coverage is not None and req.app_coverage != app.app_coverage:
         app.app_coverage = req.app_coverage
@@ -294,6 +295,11 @@ def get_app_list():
         default: 1
         description: 页码，可选，默认值1
       - in: query
+        name: is_mine
+        type: boolean
+        default: false
+        description: 是否仅查询自己的应用，可选，默认值false
+      - in: query
         name: per_page
         type: integer
         default: 10
@@ -303,6 +309,11 @@ def get_app_list():
         type: string
         required: false
         description: 应用名称（可选，用于模糊搜索）
+      - in: query
+        name: code_gen_type
+        type: string
+        required: false
+        description: 生成类型（可选，用于模糊搜索）
       - in: query
         name: user_name
         type: string
@@ -355,17 +366,23 @@ def get_app_list():
 
     # 构建查询
     query = AppModel.query.filter_by(is_delete=0)
+    code_gen_type = request.args.get('code_gen_type')
+    if code_gen_type:
+        query = query.filter(AppModel.code_gen_type == code_gen_type)
     if user.user_role == UserRole.ADMIN:
         # 管理员情况下可以根据user_name搜索，这个user_name是请求携带的参数而非current_user
         user_name = request.args.get('user_name')
         if user_name:
             query = query.filter(AppModel.user_name == user_name)
     else:   # 普通用户情况下只能查询自己创建的应用
-        query = query.filter(AppModel.user_name == user.user_name)
+        query = query.filter(AppModel.user_id == user.id)
 
     # 模糊搜索
     if app_name:
         query = query.filter(AppModel.app_name.like(f'%{app_name}%'))
+    is_mine = request.args.get('is_mine', False, type=bool)
+    if is_mine:
+        query = query.filter(AppModel.user_id == user.id)
 
     # 排序
     sort_column = getattr(AppModel, sort_field)
@@ -378,13 +395,13 @@ def get_app_list():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     # 构建响应数据
-    # 如果是管理员，需要返回user_name显示
     apps = [a.to_summary_dict() for a in pagination.items]
-    if user.user_role == UserRole.ADMIN:
-        user_ids = list(set(a["user_id"] for a in apps))
-        user_map = {u.id: u.user_name for u in User.query.filter(User.id.in_(user_ids)).all()}
-        for app in apps:
-            app["user_name"] = user_map.get(app["user_id"], '')
+    user_ids = list(set(a["user_id"] for a in apps))
+    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
+    for app in apps:
+        app["user"] = user_map.get(app["user_id"], None)
+        if app["user"]:
+            app["user_name"] = app["user"]["user_name"]
     app_list = AppListResponse(
         apps=apps,
         total=pagination.total,
@@ -446,9 +463,11 @@ def get_good_app_list():
     # 构建响应数据
     apps = [a.to_summary_dict() for a in pagination.items]
     user_ids = list(set(a["user_id"] for a in apps))
-    user_map = {u.id: u.user_name for u in User.query.filter(User.id.in_(user_ids)).all()}
+    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
     for app in apps:
-        app["user_name"] = user_map.get(app["user_id"], '')
+        app["user"] = user_map.get(app["user_id"], None)
+        if app["user"]:
+            app["user_name"] = app["user"]["user_name"]
     app_list = AppListResponse(
         apps=apps,
         total=pagination.total,

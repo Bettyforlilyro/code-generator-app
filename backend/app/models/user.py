@@ -42,6 +42,17 @@ class User(db.Model):
             'is_delete': self.is_delete
         }
 
+    def to_summary_dict(self):
+        """转换为简要信息字典（不包含密码和敏感信息）"""
+        return {
+            'id': self.id,
+            'user_account': self.user_account,
+            'user_name': self.user_name,
+            'user_avatar': self.user_avatar,
+            'user_profile': self.user_profile,
+            'user_role': self.user_role,
+        }
+
     def __repr__(self):
         """字符串表示"""
         return f'<User {self.user_account}>'
