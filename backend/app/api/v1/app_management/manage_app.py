@@ -10,7 +10,7 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEP
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
-from backend.app.common.utils.get_random_avatar import get_random_bz
+from backend.app.common.utils.get_random_picture import get_random_bz
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.models.user import User

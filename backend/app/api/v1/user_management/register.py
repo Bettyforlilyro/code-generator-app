@@ -7,7 +7,7 @@ from flask import request, after_this_request, current_app
 from backend.app.api.v1.user_management import user_management_bp
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.get_random_avatar import get_random_avatar
+from backend.app.common.utils.get_random_picture import get_random_avatar
 from backend.app.models.user import User
 from backend.app.common.utils.auth import generate_access_token, generate_refresh_token
 from backend.app.extensions.db_instance import db
