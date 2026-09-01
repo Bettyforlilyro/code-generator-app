@@ -139,8 +139,9 @@ def stream_response(
         generator: 生成器对象，每次产出一个数据块（支持同步/异步生成器），低并发请求（<10）建议使用同步生成器
         event_type: SSE事件类型，默认为 'message'
         use_wrapper: 是否将每个数据块包装为统一响应体格式 ApiResponse
-        on_done: 生成器完成后的回调函数（可选）
-        on_error: 生成器发生错误时的回调函数（可选）
+        on_done: 生成器完成后的回调函数（可选），签名为: on_done(chunks: list)
+                 chunks 为生成器产出的所有原始数据块列表
+        on_error: 生成器发生错误时的回调函数（可选），签名为: on_error(error: Exception, chunks: list)
 
     Returns:
         Flask Response 对象（流式）
@@ -173,12 +174,15 @@ def stream_response(
 
     def generate_sync():
         """同步生成器包装（统一处理所有生成器）"""
+        # 收集生成器产出的所有原始数据块，用于回调
+        all_chunks = []
         try:
             for chunk in generator:
+                all_chunks.append(chunk)
                 yield _wrap_chunk(chunk)
         except Exception as e:
             if on_error:
-                error_result = on_error(e)
+                error_result = on_error(e, all_chunks)
                 if error_result:
                     yield _wrap_chunk(error_result)
             else:
@@ -191,7 +195,7 @@ def stream_response(
                 yield f'event: error\ndata: {json_module.dumps(error_response_data.model_dump(mode="json"), ensure_ascii=False)}\n\n'
         finally:
             if on_done:
-                done_result = on_done()
+                done_result = on_done(all_chunks)
                 if done_result:
                     yield _wrap_chunk(done_result)
             # 发送完成事件，前端通过监听 done 事件判断流是否结束
