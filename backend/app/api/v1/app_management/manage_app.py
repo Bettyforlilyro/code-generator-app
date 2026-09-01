@@ -1,3 +1,4 @@
+import logging
 import os.path
 import shutil
 import subprocess
@@ -6,6 +7,7 @@ from datetime import datetime
 from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
+from backend.app.api.v1.chat_history_management.chat_history_service import delete_chat_history_by_app_id
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
@@ -232,6 +234,12 @@ def delete_app(app_id):
     # 校验权限：管理员可以删除任意应用，非管理员只能删除自己的应用
     if not user.user_role == UserRole.ADMIN and app.user_id != user.id:
         raise BusinessException(ErrorCode.PERMISSION_DENIED, message="无权删除此应用")
+
+    # 删除关联应用对话历史
+    try:
+        delete_chat_history_by_app_id(app_id)
+    except Exception as e:
+        logging.error(f"删除应用对话历史失败，应用ID: {app_id}, 错误信息: {str(e)}")
 
     # 软删除
     app.is_delete = 1

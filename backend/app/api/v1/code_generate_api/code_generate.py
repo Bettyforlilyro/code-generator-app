@@ -1,6 +1,8 @@
 from flask import request, g
 
+from backend.app.api.v1.chat_history_management.chat_history_service import create_chat_history
 from backend.app.api.v1.code_generate_api import code_bp
+from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
@@ -86,5 +88,52 @@ def generate_code_stream():
     # 设置code_gen_type保存到数据库
     app.code_gen_type = code_gen_type
     db.session.commit()
+    # 将用户消息添加到对话历史
+    create_chat_history(
+        message=init_prompt,
+        message_type=ChatMessageType.USER.value,
+        app_id=app_id,
+        user_id=user.id,
+    )
     generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt, CodeFileType(code_gen_type), app_id)
-    return stream_response(generator, use_wrapper=False)
+
+    def on_done(chunks: list):
+        """生成器完成回调：将完整 AI 回复写入对话历史"""
+        # 收集所有 token 片段（生成器产出格式为 {"d": "token片段"}）
+        full_ai_response = ''.join(
+            chunk['d'] for chunk in chunks
+            if isinstance(chunk, dict) and 'd' in chunk
+        )
+        if full_ai_response:
+            try:
+                create_chat_history(
+                    message=full_ai_response,
+                    message_type=ChatMessageType.AI.value,
+                    app_id=app_id,
+                    user_id=user.id,
+                )
+            except Exception as e:
+                import logging
+                logging.warning(f"保存AI对话历史失败: {str(e)}")
+
+    def on_error(error: Exception, chunks: list):
+        """生成器错误回调：记录错误信息，也保存到数据库，同时需要记录日志"""
+        full_ai_response = ''.join(
+            chunk['d'] for chunk in chunks
+            if isinstance(chunk, dict) and 'd' in chunk
+        )
+        try:
+            create_chat_history(
+                message=full_ai_response,
+                message_type=ChatMessageType.AI.value,
+                app_id=app_id,
+                user_id=user.id,
+            )
+        except Exception as e:
+            import logging
+            logging.warning(f"保存AI对话历史失败: {str(e)}")
+        err_message = f"AI回复异常，错误信息：{str(error)}, 已回复内容：{full_ai_response}"
+        import logging
+        logging.error(err_message)
+
+    return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)

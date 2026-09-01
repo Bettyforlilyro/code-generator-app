@@ -14,8 +14,8 @@ import time
 from dotenv import load_dotenv
 
 from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.core.code_file_saver import CodeFileSaverFactory
-from backend.app.models.ai_generate_results import HtmlCodeResult, MultiFileCodeResult
+from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
+from backend.app.models.ai_generate_results import HtmlCodeResult
 from backend.app.services.ai_common.LLM_Client import ChatClientBuilder, create_default_chat_client
 from backend.app.services.ai_common.advisor import (
     PreAdvisor, PostAdvisor, StreamPostAdvisor,
@@ -106,7 +106,7 @@ def test_custom_build():
     print("=" * 60)
     print("测试2: 自定义参数构建 + 结构化输出")
     print("=" * 60)
-    from backend.app.services.ai_common.prompts import CODE_GENERATE_HTML_SYSTEM_PROMPT, CODE_GENERATE_MULTI_FILE_SYSTEM_PROMPT
+    from backend.app.services.ai_common.prompts import CODE_GENERATE_HTML_SYSTEM_PROMPT
     client = (ChatClientBuilder()
         .set_temperature(0.3)
         .set_max_tokens(50000)
