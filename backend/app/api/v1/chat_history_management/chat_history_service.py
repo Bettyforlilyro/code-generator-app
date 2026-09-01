@@ -7,10 +7,13 @@ from datetime import datetime
 from typing import Optional
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
+from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.exceptions.exception_handlers import logger
 from backend.app.extensions.db_instance import db
+from backend.app.models.app_model import AppModel
 from backend.app.models.chat_history_model import ChatHistory
+from backend.app.models.user import User
 
 
 # ==================== Create ====================
@@ -186,53 +189,41 @@ def delete_chat_history_by_user_id(user_id: int) -> bool:
 
 def list_chat_history(
     page: int = 1,
-    per_page: int = 20,
+    per_page: int = 10,
     app_id: Optional[int] = None,
-    user_id: Optional[int] = None,
     message_type: Optional[str] = None,
     sort_order: str = 'asc',
+    last_create_time: Optional[datetime] = None,
 ) -> dict:
     """
-    分页查询对话历史列表
+    分页查询对话历史列表，只能按照时间排序，默认按时间从早到晚排序
 
     Args:
         page: 页码，默认 1
-        per_page: 每页数量，默认 20
+        per_page: 每页数量，默认 10
         app_id: 按应用 ID 过滤（可选）
-        user_id: 按用户 ID 过滤（可选）
-        message_type: 按消息类型过滤（可选），可选值：user / ai
+        message_type: 按消息类型过滤（可选），可选值：user / ai，若不选，默认查询所有消息类型"ALL"
         sort_order: 排序方向，asc-正序（时间从早到晚），desc-倒序（时间从晚到早），默认 asc
+        last_create_time: 最后创建时间，若不选，默认查询所有记录
 
     Returns:
-        分页结果字典，包含 items / total / page / per_page / total_pages / has_next / has_prev
+        分页结果字典，包含 chat_records / total / page / per_page / total_pages / has_next / has_prev
 
     Raises:
         BusinessException: 参数校验失败时抛出
     """
-    # 参数校验
-    if page < 1:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "页码必须大于等于1")
-    if per_page < 1 or per_page > 100:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
-    if sort_order not in ('asc', 'desc'):
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
-    if message_type and not ChatMessageType.is_valid_message_type(message_type):
-        raise BusinessException(
-            ErrorCode.INVALID_PARAMETER,
-            f"消息类型无效，可选值：{ChatMessageType.get_all_message_types()}"
-        )
-
     # 构建查询
     query = ChatHistory.query.filter_by(is_delete=0)
 
     if app_id is not None:
         query = query.filter(ChatHistory.app_id == app_id)
-    if user_id is not None:
-        query = query.filter(ChatHistory.user_id == user_id)
-    if message_type:
+    if message_type is not None and message_type != "ALL":
         query = query.filter(ChatHistory.message_type == message_type)
 
     # 按创建时间排序
+    if last_create_time is not None:
+        query = query.filter(ChatHistory.create_time > last_create_time)
+
     sort_column = ChatHistory.create_time
     if sort_order == 'desc':
         query = query.order_by(sort_column.desc())
@@ -243,7 +234,7 @@ def list_chat_history(
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return {
-        'items': [r.to_dict() for r in pagination.items],
+        'chat_records': [r.to_dict() for r in pagination.items],
         'total': pagination.total,
         'page': page,
         'per_page': per_page,

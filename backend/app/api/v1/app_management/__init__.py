@@ -11,4 +11,4 @@ def register_app_routes():
     这个函数应该在蓝图被注册到app之前调用
     """
     # 延迟导入路由，确保在蓝图注册前完成所有路由定义
-    from backend.app.api.v1.app_management import manage_app
+    from backend.app.api.v1.app_management import manage_app, chat_history_api

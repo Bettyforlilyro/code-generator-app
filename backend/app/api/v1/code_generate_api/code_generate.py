@@ -96,9 +96,10 @@ def generate_code_stream():
         user_id=user.id,
     )
     generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt, CodeFileType(code_gen_type), app_id)
+    user_id = user.id
 
     def on_done(chunks: list):
-        """生成器完成回调：将完整 AI 回复写入对话历史"""
+        """生成器完成回调：将完整 AI 回复写入对话历史，入参要拿到AI回复的流内容"""
         # 收集所有 token 片段（生成器产出格式为 {"d": "token片段"}）
         full_ai_response = ''.join(
             chunk['d'] for chunk in chunks
@@ -110,7 +111,7 @@ def generate_code_stream():
                     message=full_ai_response,
                     message_type=ChatMessageType.AI.value,
                     app_id=app_id,
-                    user_id=user.id,
+                    user_id=user_id,
                 )
             except Exception as e:
                 import logging
