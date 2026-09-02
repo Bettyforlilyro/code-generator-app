@@ -2,6 +2,7 @@ declare namespace API {
 
   type AppAddRequest = {
     init_prompt?: string
+    code_gen_type?: string
   }
 
   type AppAdminUpdateRequest = {
@@ -142,7 +143,6 @@ declare namespace API {
   type ChatHistoryQueryRequest = {
     page?: number
     per_page?: number
-    sort_field?: string
     sort_order?: string
     id?: number
     message?: string
@@ -197,11 +197,11 @@ declare namespace API {
   }
 
   type PageChatHistory = {
-    records?: ChatHistory[]
+    chat_records?: ChatHistory[]
     page?: number
     per_page?: number
-    total_page?: number
-    total_row?: number
+    total_pages?: number
+    total?: number
     optimize_count_query?: boolean
   }
 

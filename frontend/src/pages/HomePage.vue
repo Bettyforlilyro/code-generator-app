@@ -5,6 +5,7 @@ import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
+import { CodeGenTypeEnum, CODE_GEN_TYPE_OPTIONS } from '@/utils/codeGenTypes'
 import AppCard from '@/components/AppCard.vue'
 
 const router = useRouter()
@@ -13,6 +14,10 @@ const loginUserStore = useLoginUserStore()
 // 用户提示词
 const userPrompt = ref('')
 const creating = ref(false)
+
+// 代码生成类型选择
+const codeGenTypeOptions = CODE_GEN_TYPE_OPTIONS
+const selectedCodeGenType = ref<string>(CodeGenTypeEnum.HTML)
 
 // 我的应用数据
 const myApps = ref<API.AppVO[]>([])
@@ -54,6 +59,7 @@ const createApp = async () => {
   try {
     const res = await addApp({
       init_prompt: userPrompt.value.trim(),
+      code_gen_type: selectedCodeGenType.value,
     })
 
     if (res.data.code === 20000 && res.data.data) {
@@ -176,6 +182,19 @@ onMounted(() => {
           class="prompt-input"
         />
         <div class="input-actions">
+          <a-select
+            v-model:value="selectedCodeGenType"
+            class="code-gen-type-selector"
+            size="middle"
+          >
+            <a-select-option
+              v-for="opt in codeGenTypeOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </a-select-option>
+          </a-select>
           <a-button type="primary" size="large" @click="createApp" :loading="creating">
             <template #icon>
               <span>↑</span>
@@ -473,6 +492,35 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.input-actions .code-gen-type-selector {
+  min-width: 140px;
+}
+
+.input-actions .code-gen-type-selector :deep(.ant-select-selector) {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 0 12px;
+  height: 38px;
+  transition: all 0.3s;
+}
+
+.input-actions .code-gen-type-selector :deep(.ant-select-selector:hover) {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.input-actions .code-gen-type-selector :deep(.ant-select-selection-item) {
+  font-size: 14px;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.input-actions .code-gen-type-selector :deep(.ant-select-arrow) {
+  color: #94a3b8;
 }
 
 /* 快捷按钮 */

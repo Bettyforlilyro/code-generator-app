@@ -70,58 +70,58 @@
               <div class="message-avatar">
                 <a-avatar :src="aiAvatar" />
               </div>
-              <div class="message-content" :class="{ 'code-gen-content': message.codeGen }">
-                <!-- 结构化代码生成结果展示 -->
+              <div class="message-content">
+                <!-- 代码生成类消息：只展示 description 文本，代码块在独立面板 -->
                 <template v-if="message.codeGen">
-                  <div class="codeGen-info">
-                    <p v-if="message.codeGen.description" class="codeGen-desc">
-                      {{ message.codeGen.description }}
-                    </p>
-                  </div>
-                  <div class="codeGen-viewer" v-if="message.codeGen.files.length > 0">
-                    <div class="codeGen-toolbar">
-                      <span class="codeGen-count" v-if="message.codeGen.isComplete"
-                        >共生成 {{ message.codeGen.files.length }} 个文件</span
-                      >
-                      <span class="codeGen-count streaming" v-else>正在生成代码...</span>
-                      <a-select
-                        v-model:value="message.codeGen.currentFileIndex"
-                        class="codeGen-select"
-                        size="small"
-                      >
-                        <a-select-option
-                          v-for="(file, idx) in message.codeGen.files"
-                          :key="file.name"
-                          :value="idx"
-                        >
-                          {{ file.label }}
-                          <span
-                            v-if="idx === 0 && !message.codeGen.isComplete"
-                            class="streaming-badge"
-                          >
-                            · 流式中</span
-                          >
-                        </a-select-option>
-                      </a-select>
-                    </div>
-                    <div class="codeGen-codeBlock">
-                      <pre class="hljs"><code v-html="getHighlightedCode(message)" /></pre>
-                    </div>
+                  <p v-if="message.codeGen.description">{{ message.codeGen.description }}</p>
+                  <div v-if="message.loading" class="loading-indicator">
+                    <a-spin size="small" />
+                    <span>AI 正在生成代码...</span>
                   </div>
                 </template>
                 <!-- 普通消息 -->
                 <template v-else>
                   <MarkdownRenderer v-if="message.content" :content="message.content" />
+                  <div v-if="message.loading" class="loading-indicator">
+                    <a-spin size="small" />
+                    <span>AI 正在思考...</span>
+                  </div>
                 </template>
-                <div v-if="message.loading && !message.codeGen" class="loading-indicator">
-                  <a-spin size="small" />
-                  <span>AI 正在思考...</span>
-                </div>
-                <div v-if="message.loading && message.codeGen" class="loading-indicator">
-                  <a-spin size="small" />
-                  <span>AI 正在生成代码...</span>
-                </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下半部分：独立代码展示面板（展示最新的代码生成结果） -->
+        <div v-if="latestCodeGen" class="code-viewer-panel">
+          <div class="codeGen-viewer">
+            <div class="codeGen-toolbar">
+              <span class="codeGen-count" v-if="latestCodeGen.isComplete"
+                >共生成 {{ latestCodeGen.files.length }} 个文件</span
+              >
+              <span class="codeGen-count streaming" v-else>正在生成代码...</span>
+              <a-select
+                v-model:value="latestCodeGen.currentFileIndex"
+                class="codeGen-select"
+                size="small"
+              >
+                <a-select-option
+                  v-for="(file, idx) in latestCodeGen.files"
+                  :key="file.name"
+                  :value="idx"
+                >
+                  {{ file.label }}
+                  <span
+                    v-if="idx === 0 && !latestCodeGen.isComplete"
+                    class="streaming-badge"
+                  >
+                    · 流式中</span
+                  >
+                </a-select-option>
+              </a-select>
+            </div>
+            <div class="codeGen-codeBlock">
+              <pre class="hljs"><code v-html="getHighlightedCodeFromGen(latestCodeGen)" /></pre>
             </div>
           </div>
         </div>
@@ -290,7 +290,8 @@ import aiAvatar from '@/assets/aiAvatar.png'
 import { API_BASE_URL, getStaticListUrl, resolvePreviewUrlFromList } from '@/config/env'
 import { type ElementInfo, VisualEditor } from '@/utils/visualEditor'
 import 'highlight.js/styles/github-dark.css'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/common'
+
 
 import {
   CloudUploadOutlined,
@@ -410,6 +411,20 @@ function unescapeJson(str: string): string {
   return str.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
 }
 
+// 将 ISO 时间字符串转换为后端期望的格式 YYYY&mm&dd&HH&MM&SS
+function formatTimeForApi(isoStr: string): string {
+  if (!isoStr) return ''
+  // 匹配 ISO 格式中的年月日时分秒部分，兼容带 T 分隔符和无 T 的情况
+  const match = isoStr.match(/(\d{4})[-&:\/](\d{1,2})[-&:\/](\d{1,2})[T\s]?(\d{1,2})[:&](\d{1,2})[:&](\d{1,2})/)
+  if (match) {
+    const [, y, mo, d, h, mi, s] = match
+    // 补零
+    const pad = (n: string) => n.length === 1 ? '0' + n : n
+    return `${y}&${pad(mo)}&${pad(d)}&${pad(h)}&${pad(mi)}&${pad(s)}`
+  }
+  return isoStr
+}
+
 // 尝试解析完整JSON buffer并提取代码生成结果
 function tryParseCodeGenResult(buffer: string): CodeGenResult | null {
   try {
@@ -447,7 +462,7 @@ interface Message {
   type: 'user' | 'ai'
   content?: string
   loading?: boolean
-  createTime?: string
+  create_time?: string
   codeGen?: CodeGenResult
 }
 
@@ -455,6 +470,17 @@ const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
+
+// 找到最新的带 codeGen 的 AI 消息，用于下半部分独立代码面板展示
+const latestCodeGen = computed(() => {
+  const msgs = messages.value
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].type === 'ai' && msgs[i].codeGen) {
+      return msgs[i].codeGen
+    }
+  }
+  return null
+})
 
 // 对话历史相关
 const loadingHistory = ref(false)
@@ -516,16 +542,29 @@ const loadChatHistory = async (isLoadMore = false) => {
     }
     const res = await listAppChatHistory(params)
     if (res.data.code === 20000 && res.data.data) {
-      const chatHistories = res.data.data.records || []
+      const chatHistories = res.data.data.chat_records || []
       if (chatHistories.length > 0) {
         // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
         const historyMessages: Message[] = chatHistories
-          .map((chat) => ({
-            type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
-            content: chat.message || '',
-            createTime: chat.create_time,
-          }))
-          .reverse() // 反转数组，让老消息在前
+          .map((chat) => {
+            const base: Message = {
+              type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
+              content: chat.message || '',
+              create_time: chat.create_time,
+            }
+            // AI 消息尝试解析代码生成结果 JSON
+            if (base.type === 'ai' && chat.message) {
+              const stripped = stripMarkdownCodeFence(chat.message)
+              const parsed = tryParseCodeGenResult(stripped)
+              if (parsed) {
+                base.content = parsed.description || ''
+                base.codeGen = parsed
+              }
+            }
+            return base
+          })
+        // TODO 调试待删除
+        console.log('historyMessages: ', historyMessages)
         if (isLoadMore) {
           // 加载更多时，将历史消息添加到开头
           messages.value.unshift(...historyMessages)
@@ -534,7 +573,9 @@ const loadChatHistory = async (isLoadMore = false) => {
           messages.value = historyMessages
         }
         // 更新游标
-        lastCreateTime.value = chatHistories[chatHistories.length - 1]?.create_time
+        lastCreateTime.value = formatTimeForApi(<string>chatHistories[chatHistories.length - 1]?.create_time)
+        // TODO 调试待删除
+        console.log('lastCreateTime: ', lastCreateTime.value)
         // 检查是否还有更多历史
         hasMoreHistory.value = chatHistories.length === 10
       } else {
@@ -603,13 +644,6 @@ const fetchAppInfo = async () => {
   }
 }
 
-// 获取当前选中文件的内容
-const getCurrentFileContent = (message: Message): string => {
-  if (!message.codeGen || message.codeGen.files.length === 0) return ''
-  const file = message.codeGen.files[message.codeGen.currentFileIndex]
-  return file?.content || ''
-}
-
 // 根据文件名推断语言
 function getLanguageByFileName(fileName: string): string {
   const ext = fileName.split('_').pop() || ''
@@ -627,10 +661,10 @@ function getLanguageByFileName(fileName: string): string {
   return langMap[ext] || 'plaintext'
 }
 
-// 获取高亮后的代码
-const getHighlightedCode = (message: Message): string => {
-  if (!message.codeGen || message.codeGen.files.length === 0) return ''
-  const file = message.codeGen.files[message.codeGen.currentFileIndex]
+// 获取高亮后的代码（从 CodeGenResult 中，供独立代码面板使用）
+const getHighlightedCodeFromGen = (codeGen: CodeGenResult): string => {
+  if (!codeGen || codeGen.files.length === 0) return ''
+  const file = codeGen.files[codeGen.currentFileIndex]
   if (!file) return ''
   const lang = getLanguageByFileName(file.name)
   try {
@@ -1174,7 +1208,8 @@ onUnmounted(() => {
 }
 
 .messages-container {
-  flex: 0.9;
+  flex: 1;
+  min-height: 0;
   padding: 16px;
   overflow-y: auto;
   scroll-behavior: smooth;
@@ -1233,6 +1268,24 @@ onUnmounted(() => {
   text-align: center;
   padding: 8px 0;
   margin-bottom: 16px;
+}
+
+/* 独立代码展示面板 */
+.code-viewer-panel {
+  flex: 2;
+  min-height: 0;
+  padding: 8px 16px 16px;
+  border-top: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.code-viewer-panel .codeGen-viewer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 输入区域 */
@@ -1492,7 +1545,8 @@ onUnmounted(() => {
 }
 
 .codeGen-codeBlock {
-  max-height: 400px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 

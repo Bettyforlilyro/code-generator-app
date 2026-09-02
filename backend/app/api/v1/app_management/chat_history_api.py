@@ -15,6 +15,55 @@ from backend.app.schemas.responses.BaseResponse import success_response
 @app_management_bp.route('/<string:app_id>/chat_history', methods=['GET'])
 @login_required
 def get_chat_history(app_id: str):
+    """
+    获取应用对话历史记录
+    ---
+    tags:
+      - 对话历史
+    summary: 分页获取指定应用的对话历史（需登录，管理员或应用创建者可访问）
+    description: 管理员或应用创建者可分页查询该应用下的 AI 对话历史记录，支持按时间排序
+    parameters:
+      - in: header
+        name: Authorization
+        required: true
+        type: string
+        description: JWT Token，格式为 "Bearer <token>"
+      - in: path
+        name: app_id
+        required: true
+        type: string
+        description: 应用ID
+      - in: query
+        name: page
+        type: integer
+        default: 1
+        description: 页码，可选，默认值1
+      - in: query
+        name: per_page
+        type: integer
+        default: 10
+        description: 每页数量，可选，默认值10
+      - in: query
+        name: sort_order
+        type: string
+        default: asc
+        description: 排序方向，可选，默认值asc（按创建时间从早到晚），可选值 asc/desc
+      - in: query
+        name: last_create_time
+        type: string
+        description: 上一次分页返回的最后一条记录的创建时间（可选，格式为 YYYY&mm&dd&HH&MM&SS，用于滚动加载）
+    responses:
+      200:
+        description: 返回对话历史分页列表
+      400:
+        description: 请求参数错误
+      401:
+        description: 未登录或Token无效
+      403:
+        description: 权限不足（非管理员且非应用创建者）
+      404:
+        description: 应用不存在
+    """
     user = g.current_user
     # 解析并校验分页参数
     page = request.args.get('page', 1, type=int)
