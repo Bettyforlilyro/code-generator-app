@@ -120,8 +120,8 @@ const total = ref(0)
 
 // 搜索条件
 const searchParams = reactive<API.ChatHistoryQueryRequest>({
-  page_num: 1,
-  page_size: 10,
+  page: 1,
+  per_page: 10,
 })
 
 // 获取数据
@@ -131,8 +131,8 @@ const fetchData = async () => {
       ...searchParams,
     })
     if (res.data.data) {
-      data.value = res.data.data.records ?? []
-      total.value = res.data.data.totalRow ?? 0
+      data.value = res.data.data.chat_records ?? []
+      total.value = res.data.data.total ?? 0
     } else {
       message.error('获取数据失败，' + res.data.message)
     }
@@ -150,8 +150,8 @@ onMounted(() => {
 // 分页参数
 const pagination = computed(() => {
   return {
-    current: searchParams.page_num ?? 1,
-    pageSize: searchParams.page_size ?? 10,
+    current: searchParams.page ?? 1,
+    pageSize: searchParams.per_page ?? 10,
     total: total.value,
     showSizeChanger: true,
     showTotal: (total: number) => `共 ${total} 条`,
@@ -160,15 +160,15 @@ const pagination = computed(() => {
 
 // 表格变化处理
 const doTableChange = (page: { current: number; pageSize: number }) => {
-  searchParams.page_num = page.current
-  searchParams.page_size = page.pageSize
+  searchParams.page = page.current
+  searchParams.per_page = page.pageSize
   fetchData()
 }
 
 // 搜索
 const doSearch = () => {
   // 重置页码
-  searchParams.page_num = 1
+  searchParams.page = 1
   fetchData()
 }
 
