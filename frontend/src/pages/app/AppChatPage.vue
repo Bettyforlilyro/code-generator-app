@@ -92,36 +92,39 @@
           </div>
         </div>
 
-        <!-- 下半部分：独立代码展示面板（展示最新的代码生成结果） -->
-        <div v-if="latestCodeGen" class="code-viewer-panel">
-          <div class="codeGen-viewer">
-            <div class="codeGen-toolbar">
-              <span class="codeGen-count" v-if="latestCodeGen.isComplete"
-                >共生成 {{ latestCodeGen.files.length }} 个文件</span
+        <!-- 用户消息输入框（固定在中间） -->
+        <div class="input-container">
+          <div class="input-wrapper">
+            <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
+              <a-textarea
+                v-model:value="userInput"
+                :placeholder="getInputPlaceholder()"
+                :rows="4"
+                :maxlength="1000"
+                @keydown.enter.prevent="sendMessage"
+                :disabled="isGenerating || !isOwner"
+              />
+            </a-tooltip>
+            <a-textarea
+              v-else
+              v-model:value="userInput"
+              :placeholder="getInputPlaceholder()"
+              :rows="4"
+              :maxlength="1000"
+              @keydown.enter.prevent="sendMessage"
+              :disabled="isGenerating"
+            />
+            <div class="input-actions">
+              <a-button
+                type="primary"
+                @click="sendMessage"
+                :loading="isGenerating"
+                :disabled="!isOwner"
               >
-              <span class="codeGen-count streaming" v-else>正在生成代码...</span>
-              <a-select
-                v-model:value="latestCodeGen.currentFileIndex"
-                class="codeGen-select"
-                size="small"
-              >
-                <a-select-option
-                  v-for="(file, idx) in latestCodeGen.files"
-                  :key="file.name"
-                  :value="idx"
-                >
-                  {{ file.label }}
-                  <span
-                    v-if="idx === 0 && !latestCodeGen.isComplete"
-                    class="streaming-badge"
-                  >
-                    · 流式中</span
-                  >
-                </a-select-option>
-              </a-select>
-            </div>
-            <div class="codeGen-codeBlock">
-              <pre class="hljs"><code v-html="getHighlightedCodeFromGen(latestCodeGen)" /></pre>
+                <template #icon>
+                  <SendOutlined />
+                </template>
+              </a-button>
             </div>
           </div>
         </div>
@@ -164,39 +167,49 @@
           </template>
         </a-alert>
 
-        <!-- 用户消息输入框 -->
-        <div class="input-container">
-          <div class="input-wrapper">
-            <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
-              <a-textarea
-                v-model:value="userInput"
-                :placeholder="getInputPlaceholder()"
-                :rows="4"
-                :maxlength="1000"
-                @keydown.enter.prevent="sendMessage"
-                :disabled="isGenerating || !isOwner"
-              />
-            </a-tooltip>
-            <a-textarea
-              v-else
-              v-model:value="userInput"
-              :placeholder="getInputPlaceholder()"
-              :rows="4"
-              :maxlength="1000"
-              @keydown.enter.prevent="sendMessage"
-              :disabled="isGenerating"
-            />
-            <div class="input-actions">
-              <a-button
-                type="primary"
-                @click="sendMessage"
-                :loading="isGenerating"
-                :disabled="!isOwner"
+        <!-- 可拖拽分割线 -->
+        <div
+          v-if="latestCodeGen"
+          class="resize-handle"
+          @mousedown="startResize"
+          :class="{ active: isResizing }"
+        ></div>
+
+        <!-- 独立代码展示面板（最下面，可调节高度） -->
+        <div
+          v-if="latestCodeGen"
+          ref="codePanelRef"
+          class="code-viewer-panel"
+          :style="codePanelStyle"
+        >
+          <div class="codeGen-viewer">
+            <div class="codeGen-toolbar">
+              <span class="codeGen-count" v-if="latestCodeGen.isComplete"
+                >共生成 {{ latestCodeGen.files.length }} 个文件</span
               >
-                <template #icon>
-                  <SendOutlined />
-                </template>
-              </a-button>
+              <span class="codeGen-count streaming" v-else>正在生成代码...</span>
+              <a-select
+                v-model:value="latestCodeGen.currentFileIndex"
+                class="codeGen-select"
+                size="small"
+              >
+                <a-select-option
+                  v-for="(file, idx) in latestCodeGen.files"
+                  :key="file.name"
+                  :value="idx"
+                >
+                  {{ file.label }}
+                  <span
+                    v-if="idx === 0 && !latestCodeGen.isComplete"
+                    class="streaming-badge"
+                  >
+                    · 流式中</span
+                  >
+                </a-select-option>
+              </a-select>
+            </div>
+            <div class="codeGen-codeBlock">
+              <pre class="hljs"><code v-html="getHighlightedCodeFromGen(latestCodeGen)" /></pre>
             </div>
           </div>
         </div>
@@ -429,21 +442,42 @@ function formatTimeForApi(isoStr: string): string {
 function tryParseCodeGenResult(buffer: string): CodeGenResult | null {
   try {
     const parsed = JSON.parse(buffer)
-    if (parsed && typeof parsed === 'object' && parsed.app_name !== undefined) {
-      const files: CodeFile[] = []
-      for (const key of Object.keys(parsed)) {
-        if (CODE_FIELD_MAP[key] && typeof parsed[key] === 'string') {
-          files.push({ name: key, label: CODE_FIELD_MAP[key], content: parsed[key] })
+    // 判断是否为代码生成结果：只要 JSON 对象里包含任意一个代码文件字段就算
+    // （第一次回复可能带 app_name，后续修改回复可能不带）
+    if (parsed && typeof parsed === 'object') {
+      const codeKeys = CODE_FIELD_ORDER.filter((name) => typeof parsed[name] === 'string')
+      if (codeKeys.length > 0) {
+        const files: CodeFile[] = codeKeys.map((name) => ({
+          name,
+          label: CODE_FIELD_MAP[name],
+          content: parsed[name],
+        }))
+        return {
+          app_name: parsed.app_name || '',
+          description: parsed.description || '',
+          files,
+          currentFileIndex: 0,
+          isComplete: true,
         }
       }
-      files.sort((a, b) => CODE_FIELD_ORDER.indexOf(a.name) - CODE_FIELD_ORDER.indexOf(b.name))
-      return {
-        app_name: parsed.app_name || '',
-        description: parsed.description || '',
-        files,
-        currentFileIndex: 0,
-        isComplete: true,
-      }
+    }
+  } catch {}
+  return null
+}
+
+// 专门从只有 description（无代码文件）的 JSON 里提取纯文本
+// 比如后端返回 {"description": "您刚刚让我写一个简单的登录页面..."}
+function tryExtractDescription(buffer: string): string | null {
+  try {
+    const stripped = stripMarkdownCodeFence(buffer)
+    const parsed = JSON.parse(stripped)
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof parsed.description === 'string' &&
+      parsed.description.trim().length > 0
+    ) {
+      return parsed.description
     }
   } catch {}
   return null
@@ -470,6 +504,62 @@ const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
+
+// 代码面板拖拽调节高度相关
+const codePanelRef = ref<HTMLElement>()
+const isResizing = ref(false)
+const codePanelHeight = ref<number | null>(null) // null = 自适应
+const START_RESIZE_Y = ref(0)
+const START_PANEL_HEIGHT = ref(0)
+
+const MIN_PANEL_HEIGHT = 120
+const MAX_PANEL_RATIO = 0.6 // 最多占 60%
+
+// 代码面板的动态样式：有固定高度就用固定高度，没有就自适应（flex-grow + max-height）
+const codePanelStyle = computed<Record<string, string>>( () => {
+  if (codePanelHeight.value !== null) {
+    return { height: codePanelHeight.value + 'px' }
+  }
+  return {}
+})
+
+// 开始拖拽
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  START_RESIZE_Y.value = e.clientY
+  if (codePanelRef.value) {
+    START_PANEL_HEIGHT.value = codePanelRef.value.getBoundingClientRect().height
+  }
+  document.addEventListener('mousemove', doResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'row-resize'
+  document.body.style.userSelect = 'none'
+}
+
+// 拖拽中
+function doResize(e: MouseEvent) {
+  if (!isResizing.value || !codePanelRef.value) return
+  const chatSection = codePanelRef.value.parentElement
+  if (!chatSection) return
+
+  const delta = START_RESIZE_Y.value - e.clientY // 鼠标向上拖 → 面板变高
+  const sectionHeight = chatSection.getBoundingClientRect().height
+  const maxHeight = sectionHeight * MAX_PANEL_RATIO
+  const minHeight = MIN_PANEL_HEIGHT
+
+  let newHeight = START_PANEL_HEIGHT.value + delta
+  newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
+  codePanelHeight.value = Math.round(newHeight)
+}
+
+// 停止拖拽
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', doResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
 
 // 找到最新的带 codeGen 的 AI 消息，用于下半部分独立代码面板展示
 const latestCodeGen = computed(() => {
@@ -559,6 +649,10 @@ const loadChatHistory = async (isLoadMore = false) => {
               if (parsed) {
                 base.content = parsed.description || ''
                 base.codeGen = parsed
+              } else {
+                // fallback: 可能是只有 description 的 JSON（无代码文件）
+                const desc = tryExtractDescription(stripped)
+                if (desc) base.content = desc
               }
             }
             return base
@@ -791,6 +885,10 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       const result = tryParseCodeGenResult(cleaned)
       if (result) {
         aiMessage.codeGen = result
+      } else {
+        // fallback: 可能是只有 description 的 JSON（无代码文件）
+        const desc = tryExtractDescription(cleaned)
+        if (desc) aiMessage.content = desc
       }
       aiMessage.loading = false
       setTimeout(async () => {
@@ -1272,10 +1370,10 @@ onUnmounted(() => {
 
 /* 独立代码展示面板 */
 .code-viewer-panel {
-  flex: 2;
-  min-height: 0;
+  flex: 1;
+  min-height: 120px;
+  max-height: 60%;
   padding: 8px 16px 16px;
-  border-top: 1px solid #e8e8e8;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1286,6 +1384,39 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* 可拖拽分割线 */
+.resize-handle {
+  height: 6px;
+  cursor: row-resize;
+  background: transparent;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 4px;
+  background: #d9d9d9;
+  border-radius: 2px;
+  transition: background 0.2s, width 0.2s;
+}
+
+.resize-handle:hover::before,
+.resize-handle.active::before {
+  background: #3b82f6;
+  width: 56px;
+}
+
+.resize-handle:hover {
+  background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.15), transparent);
 }
 
 /* 输入区域 */

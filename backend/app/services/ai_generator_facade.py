@@ -63,7 +63,7 @@ class AICodeGeneratorFacade:
             # 第二阶段：解析完整 JSON 响应，正常情况下系统prompt只允许AI返回JSON格式的文本
             try:
                 result = pydantic_model.model_validate_json(full_response)
-            except Exception:
+            except Exception as e:
                 import re, json
                 json_match = re.search(r'\{.*\}', full_response, re.DOTALL)
                 if json_match:
@@ -71,16 +71,18 @@ class AICodeGeneratorFacade:
                         json.loads(json_match.group())
                     )
                 else:
-                    raise ValueError(f"无法解析AI响应为{pydantic_model.__name__}:\n原始响应: {full_response}")
+                    raise ValueError(f"无法解析AI响应为{pydantic_model.__name__}:\n原始响应: {full_response}, 错误信息: {str(e)}")
 
             # 第三阶段：保存文件
-            saver = CodeFileSaverFactory.get_saver(code_gen_type)
-            saver.save_code_file(result, app_id)
+            if result.is_code_modified():
+                saver = CodeFileSaverFactory.get_saver(code_gen_type)
+                saver.save_code_file(result, app_id)
             # 第四阶段，更新应用名称
             try:
-                app = AppModel.query.filter_by(id=app_id).first()
-                app.app_name = result.app_name
-                db.session.commit()
+                if result.is_name_modified():
+                    app = AppModel.query.filter_by(id=app_id).first()
+                    app.app_name = result.app_name
+                    db.session.commit()
             except Exception as e:
                 logging.warning(f"更新应用名称失败，应用ID: {app_id}，错误信息: {str(e)}")
 
