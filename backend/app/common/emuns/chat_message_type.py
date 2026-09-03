@@ -3,7 +3,7 @@ from enum import Enum
 
 class ChatMessageType(Enum):
     USER = "user"
-    AI = "ai"
+    AI = "assistant"
     SYSTEM = "system"
 
     @classmethod

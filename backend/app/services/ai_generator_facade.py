@@ -5,6 +5,7 @@ from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.services.ai_common.LLM_Client import ChatClientBuilder
+from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 
 
 class AICodeGeneratorFacade:
@@ -12,15 +13,18 @@ class AICodeGeneratorFacade:
     @staticmethod
     def generate_code_and_save_file(user_message: str, code_gen_type: CodeFileType, app_id: int):
         """生成代码并保存文件，返回保存路径"""
+        pydantic_model = CodeFileType.get_cls_type(code_gen_type)
+        memory_manager = get_chat_memory_manager()
+        messages = memory_manager.get_llm_messages(
+            app_id=app_id,
+            extra_messages=[{"role": "user", "content": user_message}]
+        )
         # 1. 调用AI模型生成代码
         llm_client = (ChatClientBuilder()
-                      .set_response_format(CodeFileType.get_cls_type(code_gen_type).get_response_format())
-                      .set_system_prompt(CodeFileType.get_system_prompt(code_gen_type))
+                      .set_response_format(pydantic_model.get_response_format())
+                      .set_system_prompt("")    # system_prompt已经存到数据库中了，从messages中已经有了
                       .build())
-        message = [
-            {"role": "user", "content": user_message}
-        ]
-        response = llm_client.chat_structured(message, CodeFileType.get_cls_type(code_gen_type))
+        response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
         saver = CodeFileSaverFactory.get_saver(code_gen_type)
         file_save_path = saver.save_code_file(response, app_id)
@@ -36,20 +40,22 @@ class AICodeGeneratorFacade:
                   - {"d": "..."}          （token 流式输出）
         """
         pydantic_model = CodeFileType.get_cls_type(code_gen_type)
-
+        memory_manager = get_chat_memory_manager()
+        messages = memory_manager.get_llm_messages(
+            app_id=app_id,
+            extra_messages=[{"role": "user", "content": user_message}]
+        )
         # 关键区别：流式模式下不设置 response_format（结构化输出）
         # 只设置 system_prompt，让 AI 按 prompt 要求输出 JSON 格式文本
         llm_client = (ChatClientBuilder()
-                      .set_system_prompt(CodeFileType.get_system_prompt(code_gen_type))
+                      .set_system_prompt("")    # system_prompt已经存到数据库中了，从messages中已经有了
                       .build())
-
-        message = [{"role": "user", "content": user_message}]
 
         full_response = ""
 
         try:
             # 第一阶段：流式输出 token
-            for chunk in llm_client.chat_stream(message):
+            for chunk in llm_client.chat_stream(messages):
                 full_response += chunk.content
                 # 只产出原始数据，不做 SSE 包装
                 yield {"d": chunk.content}

@@ -1,6 +1,7 @@
 from flask import request, g
 
-from backend.app.api.v1.chat_history_management.chat_history_service import create_chat_history
+from backend.app.api.v1.chat_history_management.chat_history_service import create_chat_history, \
+    get_system_prompt_by_app_id
 from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
@@ -9,6 +10,7 @@ from backend.app.common.utils.auth import login_required
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.schemas.responses.BaseResponse import error_response, stream_response
+from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 
 
@@ -88,21 +90,18 @@ def generate_code_stream():
     # 设置code_gen_type保存到数据库
     app.code_gen_type = code_gen_type
     db.session.commit()
-    # 将系统消息添加到对话历史
-    create_chat_history(
-        message=CodeFileType.get_system_prompt(code_gen_type),
-        message_type=ChatMessageType.SYSTEM.value,
-        app_id=app_id,
-        user_id=user.id,
-    )
-    # 将用户消息添加到对话历史
-    create_chat_history(
-        message=init_prompt,
-        message_type=ChatMessageType.USER.value,
-        app_id=app_id,
-        user_id=user.id,
-    )
-    generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt, CodeFileType(code_gen_type), app_id)
+    memory_manager = get_chat_memory_manager()
+    # 将系统消息添加到对话历史，检查当前app是否有系统消息，没有则添加，系统提示词只添加一次
+    current_app_system_prompt = get_system_prompt_by_app_id(app_id)
+    if not current_app_system_prompt:
+        create_chat_history(
+            message=CodeFileType.get_system_prompt(code_gen_type),
+            message_type=ChatMessageType.SYSTEM.value,
+            app_id=app_id,
+            user_id=user.id,
+        )
+    generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt,
+                                                                            CodeFileType(code_gen_type), app_id)
     user_id = user.id
 
     def on_done(chunks: list):
@@ -114,11 +113,33 @@ def generate_code_stream():
         )
         if full_ai_response:
             try:
-                create_chat_history(
+                # 将此轮对话消息添加到对话历史
+                user_record = create_chat_history(
+                    message=init_prompt,
+                    message_type=ChatMessageType.USER.value,
+                    app_id=app_id,
+                    user_id=user_id,
+                )
+                ai_record = create_chat_history(
                     message=full_ai_response,
                     message_type=ChatMessageType.AI.value,
                     app_id=app_id,
                     user_id=user_id,
+                )
+                # 将此轮对话消息添加到内存中
+                memory_manager.add_message(
+                    app_id=app_id,
+                    role=ChatMessageType.USER.value,
+                    content=user_record.message,
+                    db_id=user_record.id,
+                    token_count=user_record.token_count
+                )
+                memory_manager.add_message(
+                    app_id=app_id,
+                    role=ChatMessageType.AI.value,
+                    content=ai_record.message,
+                    db_id=ai_record.id,
+                    token_count=ai_record.token_count
                 )
             except Exception as e:
                 import logging
@@ -131,11 +152,33 @@ def generate_code_stream():
             if isinstance(chunk, dict) and 'd' in chunk
         )
         try:
-            create_chat_history(
+            # 将此轮对话消息添加到对话历史
+            user_record = create_chat_history(
+                message=init_prompt,
+                message_type=ChatMessageType.USER.value,
+                app_id=app_id,
+                user_id=user_id,
+            )
+            ai_record = create_chat_history(
                 message=full_ai_response,
                 message_type=ChatMessageType.AI.value,
                 app_id=app_id,
-                user_id=user.id,
+                user_id=user_id,
+            )
+            # 将此轮对话消息添加到内存中
+            memory_manager.add_message(
+                app_id=app_id,
+                role=ChatMessageType.USER.value,
+                content=user_record.message,
+                db_id=user_record.id,
+                token_count=user_record.token_count
+            )
+            memory_manager.add_message(
+                app_id=app_id,
+                role=ChatMessageType.AI.value,
+                content=ai_record.message,
+                db_id=ai_record.id,
+                token_count=ai_record.token_count
             )
         except Exception as e:
             import logging

@@ -185,9 +185,12 @@ class ChatClient:
         Returns:
             AI回复的文本内容
         """
-        full_messages = [
-                            {'role': 'system', 'content': self._system_prompt}
-                        ] + messages
+        if self._system_prompt:
+            full_messages = [
+                                {'role': 'system', 'content': self._system_prompt}
+                            ] + messages
+        else:
+            full_messages = messages
 
         context = AdvisorContext(messages=full_messages, conversation_id=conversation_id)
 
@@ -257,9 +260,12 @@ class ChatClient:
         Yields:
             StreamChunk: 流式响应数据块
         """
-        full_messages = [
-                            {'role': 'system', 'content': self._system_prompt}
-                        ] + messages
+        if self._system_prompt:
+            full_messages = [
+                                {'role': 'system', 'content': self._system_prompt}
+                            ] + messages
+        else:
+            full_messages = messages
 
         context = AdvisorContext(messages=full_messages, conversation_id=conversation_id)
 

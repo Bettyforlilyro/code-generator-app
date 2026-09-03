@@ -361,3 +361,46 @@ def batch_delete_chat_history(
     except Exception as e:
         db.session.rollback()
         raise BusinessException(ErrorCode.DATABASE_ERROR, f"批量删除对话记录失败: {str(e)}")
+
+
+def list_all_chat_history_by_app_id(app_id: int) -> list:
+    """
+    获取某个应用的全部对话历史（不分页，包含 system 消息，按 create_time 升序）
+
+    Args:
+        app_id: 应用 ID
+
+    Returns:
+        ChatHistory 对象列表（已按 create_time 升序）
+    """
+    if not app_id:
+        raise BusinessException(ErrorCode.MISSING_PARAMETER, "应用 ID 不能为空")
+
+    records = (
+        ChatHistory.query
+        .filter_by(app_id=app_id, is_delete=0)
+        .order_by(ChatHistory.create_time.asc())
+        .all()
+    )
+    return [r.to_dict() for r in records]
+
+
+def get_system_prompt_by_app_id(app_id: int) -> str:
+    """
+    获取某个应用的系统提示词
+
+    Args:
+        app_id: 应用 ID
+
+    Returns:
+        系统提示词字符串
+    """
+    if not app_id:
+        raise BusinessException(ErrorCode.MISSING_PARAMETER, "应用 ID 不能为空")
+
+    system_prompt = ChatHistory.query.filter_by(
+        app_id=app_id,
+        message_type=ChatMessageType.SYSTEM.value,
+        is_delete=0,
+    ).first()
+    return system_prompt.message if system_prompt else ""
