@@ -8,7 +8,7 @@
           v-model:value="selectedCodeGenType"
           class="code-gen-type-selector"
           size="small"
-          :disabled="isGenerating"
+          disabled
         >
           <a-select-option
             v-for="opt in codeGenTypeOptions"
