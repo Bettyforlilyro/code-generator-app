@@ -26,3 +26,7 @@ COMMENT ON COLUMN chat_history.id IS 'id';
 CREATE INDEX idx_create_time ON chat_history (create_time);
 CREATE INDEX idx_app_id_create_time ON chat_history (app_id, create_time);
 CREATE INDEX idx_app_id ON chat_history (app_id);
+
+-- 新增token_count字段
+ALTER TABLE chat_history ADD COLUMN token_count INTEGER NOT NULL DEFAULT 0;
+COMMENT ON COLUMN chat_history.token_count IS 'token数量';

@@ -194,6 +194,7 @@ def list_chat_history(
     message_type: Optional[str] = None,
     sort_order: str = 'asc',
     last_create_time: Optional[datetime] = None,
+    include_system: bool = False,
 ) -> dict:
     """
     分页查询对话历史列表，只能按照时间排序，默认按时间从早到晚排序
@@ -205,6 +206,7 @@ def list_chat_history(
         message_type: 按消息类型过滤（可选），可选值：user / ai，若不选，默认查询所有消息类型"ALL"
         sort_order: 排序方向，asc-正序（时间从早到晚），desc-倒序（时间从晚到早），默认 asc
         last_create_time: 最后创建时间，若不选，默认查询所有记录
+        include_system: 是否包含系统消息，默认 False
 
     Returns:
         分页结果字典，包含 chat_records / total / page / per_page / total_pages / has_next / has_prev
@@ -229,6 +231,8 @@ def list_chat_history(
         query = query.order_by(sort_column.desc())
     else:
         query = query.order_by(sort_column.asc())
+    if not include_system:
+        query = query.filter(ChatHistory.message_type != ChatMessageType.SYSTEM.value)
 
     # 执行分页查询
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)

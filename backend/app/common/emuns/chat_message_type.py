@@ -4,6 +4,7 @@ from enum import Enum
 class ChatMessageType(Enum):
     USER = "user"
     AI = "ai"
+    SYSTEM = "system"
 
     @classmethod
     def get_all_message_types(cls):

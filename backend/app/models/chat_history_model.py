@@ -14,6 +14,7 @@ class ChatHistory(db.Model):
     create_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='创建时间')
     update_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='更新时间')
     is_delete = db.Column(db.SmallInteger, default=0, nullable=False, comment='是否删除')
+    token_count = db.Column(db.Integer, default=0, nullable=False, comment='token数量')
 
     def to_dict(self):
         """转换为字典"""
@@ -25,7 +26,8 @@ class ChatHistory(db.Model):
             'user_id': self.user_id,
             'create_time': self.create_time.isoformat() if self.create_time else None,
             'update_time': self.update_time.isoformat() if self.update_time else None,
-            'is_delete': self.is_delete
+            'is_delete': self.is_delete,
+            'token_count': self.token_count,
         }
 
     def to_summary_dict(self):
@@ -37,6 +39,7 @@ class ChatHistory(db.Model):
             'app_id': self.app_id,
             'user_id': self.user_id,
             'create_time': self.create_time.isoformat() if self.create_time else None,
+            'token_count': self.token_count,
         }
 
     def __repr__(self):

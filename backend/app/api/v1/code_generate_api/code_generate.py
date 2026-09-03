@@ -88,6 +88,13 @@ def generate_code_stream():
     # 设置code_gen_type保存到数据库
     app.code_gen_type = code_gen_type
     db.session.commit()
+    # 将系统消息添加到对话历史
+    create_chat_history(
+        message=CodeFileType.get_system_prompt(code_gen_type),
+        message_type=ChatMessageType.SYSTEM.value,
+        app_id=app_id,
+        user_id=user.id,
+    )
     # 将用户消息添加到对话历史
     create_chat_history(
         message=init_prompt,
