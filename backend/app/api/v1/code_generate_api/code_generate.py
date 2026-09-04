@@ -1,6 +1,6 @@
 from flask import request, g
 
-from backend.app.api.v1.chat_history_management.chat_history_service import create_chat_history, \
+from backend.app.services.chat_history_service import create_chat_history, \
     get_system_prompt_by_app_id
 from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.chat_message_type import ChatMessageType

@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
-from backend.app.api.v1.chat_history_management.chat_history_service import list_chat_history
+from backend.app.services.chat_history_service import list_chat_history
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required

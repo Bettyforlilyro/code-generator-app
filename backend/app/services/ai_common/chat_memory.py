@@ -12,7 +12,7 @@ import threading
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.utils.estimate_tokens import estimate_tokens
@@ -202,7 +202,7 @@ class ChatMemoryManager:
 
         try:
             # 延迟 import：首次调用时才解析模块，此时所有模块都已加载完毕
-            from backend.app.api.v1.chat_history_management.chat_history_service import (
+            from backend.app.services.chat_history_service import (
                 list_all_chat_history_by_app_id,
             )
 
