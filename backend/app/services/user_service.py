@@ -25,6 +25,7 @@ from backend.app.schemas.responses.user_management_response import (
     UserLoginResponse,
     UserRegisterResponse,
 )
+from backend.app.services.common import validate_sort_params
 
 
 # ==================== 账号生成 ====================
@@ -61,12 +62,12 @@ def register_user_svc(req: UserRegisterRequest) -> UserRegisterResponse:
     Raises:
         BusinessException: 用户名已存在等业务异常
     """
-    # 2. 检查账号是否已存在
+    # 检查账号是否已存在
     existing_user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
     if existing_user:
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "用户名已存在")
 
-    # 3. 创建新用户
+    # 创建新用户
     user_account = generate_user_account(req.user_name)
     user_avatar = get_random_avatar()
 
@@ -153,7 +154,7 @@ def get_login_user_info_svc(auth_token: str) -> UserLoginResponse | None:
     except Exception:
         return None
 
-    user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
+    user = get_user_by_id_svc(payload['user_id'], raise_if_not_found=False)
     if not user:
         return None
 
@@ -186,7 +187,7 @@ def refresh_access_token_svc(refresh_token_str: str) -> str:
 
     try:
         payload = verify_refresh_token(refresh_token_str)
-        user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
+        user = get_user_by_id_svc(payload['user_id'])
         if not user:
             raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
     except BusinessException:
@@ -199,12 +200,21 @@ def refresh_access_token_svc(refresh_token_str: str) -> str:
 
 # ==================== 用户信息维护 ====================
 
-def get_user_by_id(user_id: int) -> User:
-    """根据用户 ID 获取用户信息"""
+def get_user_by_id_svc(user_id: int, raise_if_not_found: bool = True) -> User | None:
+    """根据用户 ID 获取用户信息（统一的软删除过滤查询）
+
+    Args:
+        user_id: 用户 ID
+        raise_if_not_found: 不存在时是否抛异常，默认 True
+
+    Raises:
+        BusinessException: 用户不存在（raise_if_not_found=True 时）
+    """
     user = User.query.filter_by(id=user_id, is_delete=0).first()
-    if not user:
+    if not user and raise_if_not_found:
         raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
     return user
+
 
 def update_current_user_info(user: User, req) -> None:
     """更新当前登录用户的昵称、头像、简介"""
@@ -249,12 +259,10 @@ def admin_get_user_list(
     Raises:
         BusinessException: 排序字段无效或排序方向无效
     """
-    ALLOWED_SORT_FIELDS = {'id', 'user_name', 'user_account', 'create_time', 'update_time', 'user_role'}
-    if sort_field not in ALLOWED_SORT_FIELDS:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER,
-                                f"排序字段无效，允许的字段: {', '.join(ALLOWED_SORT_FIELDS)}")
-    if sort_order not in ('asc', 'desc'):
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
+    validate_sort_params(
+        sort_field, sort_order,
+        allowed_fields={'id', 'user_name', 'user_account', 'create_time', 'update_time', 'user_role'},
+    )
 
     query = User.query.filter_by(is_delete=0)
     if user_name:
@@ -306,7 +314,7 @@ def admin_create_user(req: UserRegisterRequest, role: UserRole = UserRole.USER.v
     # 检查用户名是否已存在
     existing_user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
     if existing_user:
-        raise BusinessException(ErrorCode.DUPLICATE_DATA, "用户名已存在")
+        raise BusinessException(ErrorCode.USER_NAME_EXISTS, message="用户名已存在，请选择其他用户名")
 
     user_account = generate_user_account(req.user_name)
     new_user = User(
@@ -338,9 +346,7 @@ def admin_update_user(user_id: int, req, user_role: UserRole | None = None) -> N
     Raises:
         BusinessException: 用户不存在
     """
-    user = User.query.filter_by(id=user_id, is_delete=0).first()
-    if not user:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
+    user = get_user_by_id_svc(user_id)
 
     is_updated = False
     if req.user_name is not None and req.user_name != user.user_name:
@@ -363,9 +369,7 @@ def admin_update_user(user_id: int, req, user_role: UserRole | None = None) -> N
 
 def admin_delete_user(user_id: int) -> None:
     """管理员软删除用户"""
-    user = User.query.filter_by(id=user_id, is_delete=0).first()
-    if not user:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
+    user = get_user_by_id_svc(user_id)
     user.is_delete = 1
     db.session.commit()
 

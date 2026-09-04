@@ -8,9 +8,9 @@ from typing import Optional
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.exceptions.exception_handlers import logger
 from backend.app.extensions.db_instance import db
 from backend.app.models.chat_history_model import ChatHistory
+from backend.app.services.common import db_transaction
 
 
 # ==================== Create ====================
@@ -50,27 +50,29 @@ def create_chat_history(
             f"消息类型无效，可选值：{ChatMessageType.get_all_message_types()}"
         )
 
-    try:
-        record = ChatHistory(
-            message=message.strip(),
-            message_type=message_type,
-            app_id=app_id,
-            user_id=user_id,
-        )
-        db.session.add(record)
-        db.session.commit()
-        return record
-    except BusinessException:
-        db.session.rollback()
-        raise
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"创建对话记录失败: {str(e)}")
+    return _do_create_chat_history(
+        message=message.strip(),
+        message_type=message_type,
+        app_id=app_id,
+        user_id=user_id,
+    )
+
+
+@db_transaction("创建对话记录失败")
+def _do_create_chat_history(message, message_type, app_id, user_id):
+    record = ChatHistory(
+        message=message,
+        message_type=message_type,
+        app_id=app_id,
+        user_id=user_id,
+    )
+    db.session.add(record)
+    return record
 
 
 def batch_create_chat_history(messages: list) -> list:
     """
-    批量创建对话历史记录
+    批量创建对话历史记录（这里未采用事务提交，请调用者确保批量插入的完整性）
 
     Args:
         messages: 消息列表，每个元素为 dict，需包含：message, message_type, app_id, user_id
@@ -84,23 +86,18 @@ def batch_create_chat_history(messages: list) -> list:
     if not messages:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "消息列表不能为空")
 
+    # 每条消息各自调用 create_chat_history（带事务），循环外不再额外套事务
+    # 因为批量语义为：已成功的保留，失败的抛出异常让调用方处理
     records = []
-    try:
-        for item in messages:
-            record = create_chat_history(
-                message=item.get('message'),
-                message_type=item.get('message_type'),
-                app_id=item.get('app_id'),
-                user_id=item.get('user_id'),
-            )
-            records.append(record)
-        return records
-    except BusinessException:
-        db.session.rollback()
-        raise
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"批量创建对话记录失败: {str(e)}")
+    for item in messages:
+        record = create_chat_history(
+            message=item.get('message'),
+            message_type=item.get('message_type'),
+            app_id=item.get('app_id'),
+            user_id=item.get('user_id'),
+        )
+        records.append(record)
+    return records
 
 
 # ==================== Read ====================
@@ -139,16 +136,13 @@ def delete_chat_history_by_app_id(app_id: int) -> bool:
     """
     if not app_id:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "应用 ID不能为空")
-    try:
-        ChatHistory.query.filter_by(app_id=app_id, is_delete=0).update({'is_delete': 1})
-        db.session.commit()
-        return True
-    except BusinessException:
-        db.session.rollback()
-        logger.error(f"删除应用 ID 为 {app_id} 的所有对话记录失败.")
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"删除对话记录失败: {str(e)}")
+    _do_delete_by_app_id(app_id)
+    return True
+
+
+@db_transaction("删除对话记录失败")
+def _do_delete_by_app_id(app_id):
+    ChatHistory.query.filter_by(app_id=app_id, is_delete=0).update({'is_delete': 1})
 
 
 def delete_chat_history_by_user_id(user_id: int) -> bool:
@@ -166,16 +160,13 @@ def delete_chat_history_by_user_id(user_id: int) -> bool:
     """
     if not user_id:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "用户 ID不能为空")
-    try:
-        ChatHistory.query.filter_by(user_id=user_id, is_delete=0).update({'is_delete': 1})
-        db.session.commit()
-        return True
-    except BusinessException:
-        db.session.rollback()
-        raise
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"删除对话记录失败: {str(e)}")
+    _do_delete_by_user_id(user_id)
+    return True
+
+
+@db_transaction("删除对话记录失败")
+def _do_delete_by_user_id(user_id):
+    ChatHistory.query.filter_by(user_id=user_id, is_delete=0).update({'is_delete': 1})
 
 
 def list_chat_history(
@@ -274,13 +265,15 @@ def update_chat_history(
 
     if is_updated:
         record.update_time = datetime.utcnow()
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            raise BusinessException(ErrorCode.DATABASE_ERROR, f"更新对话记录失败: {str(e)}")
+        _commit_update()
 
     return record
+
+
+@db_transaction("更新对话历史失败")
+def _commit_update():
+    """占位函数：让装饰器统一处理 commit/rollback"""
+    pass
 
 
 # ==================== Delete ====================
@@ -298,11 +291,7 @@ def delete_chat_history(chat_id: int) -> None:
     record = get_chat_history_by_id(chat_id)
     record.is_delete = 1
     record.update_time = datetime.utcnow()
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"删除对话记录失败: {str(e)}")
+    _commit_update()
 
 
 def batch_delete_chat_history(
@@ -339,12 +328,8 @@ def batch_delete_chat_history(
         record.is_delete = 1
         record.update_time = now
 
-    try:
-        db.session.commit()
-        return len(records)
-    except Exception as e:
-        db.session.rollback()
-        raise BusinessException(ErrorCode.DATABASE_ERROR, f"批量删除对话记录失败: {str(e)}")
+    _commit_update()
+    return len(records)
 
 
 def list_all_chat_history_by_app_id(app_id: int) -> list:

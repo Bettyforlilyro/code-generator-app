@@ -26,6 +26,7 @@ from backend.app.schemas.responses.app_management_response import (
     AppDetailResponse, AppListResponse, AppCreateResponse
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
+from backend.app.services.common import validate_sort_params
 
 logger = logging.getLogger(__name__)
 
@@ -182,12 +183,10 @@ def list_apps_svc(
     Raises:
         BusinessException: 排序字段无效或方向无效
        """
-    ALLOWED_SORT_FIELDS = {'id', 'app_name', 'create_time', 'update_time', 'priority'}
-    if sort_field not in ALLOWED_SORT_FIELDS:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER,
-                                f"排序字段无效，允许的字段: {', '.join(ALLOWED_SORT_FIELDS)}")
-    if sort_order not in ('asc', 'desc'):
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
+    validate_sort_params(
+        sort_field, sort_order,
+        allowed_fields={'id', 'app_name', 'create_time', 'update_time', 'priority'},
+    )
 
     query = AppModel.query.filter_by(is_delete=0)
 
@@ -219,15 +218,7 @@ def list_apps_svc(
     query = query.order_by(sort_column.desc() if sort_order == 'desc' else sort_column.asc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    # 组装响应（附带 user 简略信息）
-    apps = [a.to_summary_dict() for a in pagination.items]
-    user_ids = list(set(a["user_id"] for a in apps))
-    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
-    for app_dict in apps:
-        app_dict["user"] = user_map.get(app_dict["user_id"], None)
-        if app_dict["user"]:
-            app_dict["user_name"] = app_dict["user"]["user_name"]
-
+    apps = _attach_user_name_to_apps(pagination.items)
     return AppListResponse(
         apps=apps,
         total=pagination.total,
@@ -259,14 +250,7 @@ def list_featured_apps_svc(page: int, per_page: int) -> AppListResponse:
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    apps = [a.to_summary_dict() for a in pagination.items]
-    user_ids = list(set(a["user_id"] for a in apps))
-    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
-    for app_dict in apps:
-        app_dict["user"] = user_map.get(app_dict["user_id"], None)
-        if app_dict["user"]:
-            app_dict["user_name"] = app_dict["user"]["user_name"]
-
+    apps = _attach_user_name_to_apps(pagination.items)
     return AppListResponse(
         apps=apps,
         total=pagination.total,
@@ -274,6 +258,25 @@ def list_featured_apps_svc(page: int, per_page: int) -> AppListResponse:
         has_next=pagination.has_next,
         has_prev=pagination.has_prev,
     )
+
+
+def _attach_user_name_to_apps(app_items) -> list[dict]:
+    """给应用列表批量附加创建者简略信息（user + user_name）
+
+    消除 list_apps_svc / list_featured_apps_svc 里重复的 7 行代码。
+    """
+    apps = [a.to_summary_dict() for a in app_items]
+    user_ids = list(set(a["user_id"] for a in apps))
+    user_map = {
+        u.id: u.to_summary_dict()
+        for u in User.query.filter(User.id.in_(user_ids)).all()
+    }
+    for app_dict in apps:
+        user_summary = user_map.get(app_dict["user_id"])
+        app_dict["user"] = user_summary
+        if user_summary:
+            app_dict["user_name"] = user_summary["user_name"]
+    return apps
 
 
 # ==================== 部署 ====================
