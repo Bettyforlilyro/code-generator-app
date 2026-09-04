@@ -1,6 +1,7 @@
 from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
+from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required, role_required
 from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
@@ -332,7 +333,7 @@ def create_user_by_admin():
     except Exception as e:
         raise BusinessException(ErrorCode.INVALID_PARAMETER, str(e))
 
-    role = json_data.get('user_role', 'user')
+    role = json_data.get('user_role', UserRole.USER.value)
     result = admin_create_user(req, role)
     return success_response(result, 201)
 
@@ -355,9 +356,9 @@ def update_user_by_admin(user_id):
       200:
         description: 修改成功
     """
-    data = parse_json_body()
-    req = UserUpdateRequest(**data)
-    admin_update_user(user_id, req, data)
+    json_data = parse_json_body()
+    req = UserUpdateRequest(**json_data)
+    admin_update_user(user_id, req, json_data.get('user_role'))
     return success_response({'message': '用户信息更新成功'})
 
 
