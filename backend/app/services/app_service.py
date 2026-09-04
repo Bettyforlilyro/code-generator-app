@@ -362,11 +362,21 @@ def _start_nginx() -> bool:
         return False
 
 
-# ==================== 内部辅助 ====================
+# ==================== 查询辅助（供其他 Service / 路由层复用）====================
+
+def get_app_by_deploy_key(deploy_key: str) -> AppModel | None:
+    """根据 deploy_key 查询应用（含软删除过滤），不存在返回 None"""
+    return AppModel.query.filter_by(deploy_key=deploy_key, is_delete=0).first()
+
+
+def get_app_by_id(app_id: int) -> AppModel | None:
+    """根据 ID 查询应用（含软删除过滤），不存在返回 None"""
+    return AppModel.query.filter_by(id=app_id, is_delete=0).first()
+
 
 def _get_app_or_raise(app_id: int) -> AppModel:
     """查询应用，不存在则抛出 BusinessException"""
-    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
+    app = get_app_by_id(app_id)
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND, message="应用不存在")
     return app
