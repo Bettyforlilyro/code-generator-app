@@ -83,6 +83,9 @@ def generate_code_stream():
     if not code_gen_type:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "code_gen_type不能为空")
 
+    if not CodeFileType.is_valid_file_type(code_gen_type):
+        raise BusinessException(ErrorCode.INVALID_PARAMETER, "code_gen_type无效")
+
     # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 注入
     validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
 
