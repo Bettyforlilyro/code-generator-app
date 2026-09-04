@@ -1,9 +1,10 @@
 """
 AI生成结果的各种Pydantic模型定义
 """
-from pydantic import BaseModel, Field
-from typing import Optional
 from abc import ABC, abstractmethod
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class BaseCodeResult(BaseModel, ABC):

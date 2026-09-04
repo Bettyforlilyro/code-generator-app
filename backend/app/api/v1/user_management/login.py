@@ -1,13 +1,11 @@
-from flask import request, g, after_this_request, current_app
+from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.models.user import User
-from backend.app.common.utils.auth import login_required, generate_access_token, generate_refresh_token, \
-    verify_refresh_token, verify_access_token
-from backend.app.schemas.requests.user_management_request import UserLoginRequest
+from backend.app.common.utils.auth import login_required
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
-from backend.app.schemas.responses.user_management_response import UserLoginResponse
+from backend.app.services.user_service import login_user, get_login_user_info_svc, get_user_by_id, \
+    refresh_access_token_svc, clear_refresh_token_cookie
 
 
 @user_management_bp.route('/login', methods=['POST'])
@@ -133,45 +131,12 @@ def login():
     pass_word = json_data.get('user_password')
     if not user_name or not pass_word:
         return error_response(ErrorCode.MISSING_PARAMETER, "用户名和密码不能为空")
-    req = UserLoginRequest(**json_data)
 
-    user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
-
-    if not user or not user.check_password(req.user_password):
-        raise BusinessException(ErrorCode.UNAUTHORIZED, message="账号或密码错误")
-
-    # 生成双 Token
-    access_token = generate_access_token(user.id, user.user_role)
-    ref_token = generate_refresh_token(user.id)
-
-    def set_refresh_cookie(resp):
-        is_debug = current_app.config.get('DEBUG', False)
-        resp.set_cookie(
-            'refresh_token',
-            ref_token,
-            httponly=True,
-            secure=not is_debug,    # is_debug 开发环境使用 False，生产环境使用 True
-            samesite='Lax',
-            max_age=7 * 24 * 60 * 60,
-            path='/api/v1/user/refresh'
-        )
-        return resp
-
-    # 注册回调函数设置Cookie返回给前端，主要是为了保存 Refresh Token
-    after_this_request(set_refresh_cookie)
-
-    # 创建包含 Access Token 的响应
-    response_data = UserLoginResponse(
-        id=user.id,
-        user_account=user.user_account,
-        user_name=user.user_name,
-        user_avatar=user.user_avatar,
-        user_profile=user.user_profile,
-        user_role=user.user_role,
-        token=access_token
-    )
-
-    return success_response(response_data.model_dump())
+    try:
+        result = login_user(user_name, pass_word)
+        return success_response(result.model_dump())
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @user_management_bp.route('/login', methods=['GET'])
@@ -189,27 +154,12 @@ def get_login_user_info():
       200:
         description: 成功获取当前登录用户信息（如果有）
     """
-    # 根据当前请求信息是否携带token判断用户是否已登录，如果已登录，返回登录用户信息响应，如果未登录，返回空数据但是返回响应码都是200
     auth_token = request.headers.get('Authorization', "")
-    if auth_token.startswith('Bearer '):
-        auth_token = auth_token[7:]
-    try:
-        payload = verify_access_token(auth_token)
-        user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
-        if user:
-            g.current_user = user
-            response_data = UserLoginResponse(
-                id=user.id,
-                user_account=user.user_account,
-                user_name=user.user_name,
-                user_avatar=user.user_avatar,
-                user_profile=user.user_profile,
-                user_role=user.user_role,
-                token=auth_token
-            )
-            return success_response(response_data.model_dump())
-    except Exception:
-        return success_response()
+    result = get_login_user_info_svc(auth_token)
+    if result:
+        g.current_user = get_user_by_id(result.id)
+        return success_response(result.model_dump())
+    return success_response()
 
 
 @user_management_bp.route('/refresh', methods=['POST'])
@@ -276,27 +226,11 @@ def refresh_token():
               example: 服务器内部错误
     """
     ref_token = request.cookies.get('refresh_token')
-
-    if not ref_token:
-        raise BusinessException(ErrorCode.UNAUTHORIZED, message="未登录或登录已过期")
-
     try:
-        payload = verify_refresh_token(ref_token)
-        user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
-
-        if not user:
-            raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
-
-        new_access_token = generate_access_token(user.id, user.user_role)
-
-        return success_response({
-            'token': new_access_token
-        })
-
-    except BusinessException:
-        raise
-    except Exception as e:
-        raise BusinessException(ErrorCode.INTERNAL_ERROR, message=f"刷新Token失败: {str(e)}")
+        new_token = refresh_access_token_svc(ref_token)
+        return success_response({'token': new_token})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @user_management_bp.route('/logout', methods=['POST'])
@@ -363,13 +297,5 @@ def logout():
               type: string
               example: 服务器内部错误
     """
-    # 定义 after_request 回调函数来删除 Cookie
-    def delete_refresh_cookie(response):
-        response.delete_cookie('refresh_token', path='/api/v1/user/refresh')
-        return response
-
-    # 注册回调
-    after_this_request(delete_refresh_cookie)
-
+    clear_refresh_token_cookie()
     return success_response({'message': '登出成功'})
-

@@ -1,17 +1,12 @@
 from flask import request, g
 
-from backend.app.services.chat_history_service import create_chat_history, \
-    get_system_prompt_by_app_id
 from backend.app.api.v1.code_generate_api import code_bp
-from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.common.exceptions.error_codes import ErrorCode
+from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
-from backend.app.extensions.db_instance import db
-from backend.app.models.app_model import AppModel
 from backend.app.schemas.responses.BaseResponse import error_response, stream_response
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
+from backend.app.services.code_generate_service import validate_and_prepare_code_generation, build_code_generator, \
+    persist_chat_after_generation
 
 
 @code_bp.route('/generate', methods=['POST'])
@@ -73,8 +68,8 @@ def generate_code_stream():
     json_data = request.get_json()
     if not json_data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-    app_id = int(json_data.get('app_id'))
-    if not app_id or app_id <= 0:
+    app_id = json_data.get('app_id')
+    if not app_id or int(app_id) <= 0:
         return error_response(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
     init_prompt = json_data.get('init_prompt')
     if not init_prompt:
@@ -82,109 +77,25 @@ def generate_code_stream():
     code_gen_type = json_data.get('code_gen_type')
     if not code_gen_type:
         return error_response(ErrorCode.MISSING_PARAMETER, "code_gen_type不能为空")
-    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
-    if not app:
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
-    if app.user_id != user.id:
-        return error_response(ErrorCode.PERMISSION_DENIED, "您没有权限操作该应用")
-    # 设置code_gen_type保存到数据库
-    app.code_gen_type = code_gen_type
-    db.session.commit()
-    memory_manager = get_chat_memory_manager()
-    # 将系统消息添加到对话历史，检查当前app是否有系统消息，没有则添加，系统提示词只添加一次
-    current_app_system_prompt = get_system_prompt_by_app_id(app_id)
-    if not current_app_system_prompt:
-        create_chat_history(
-            message=CodeFileType.get_system_prompt(code_gen_type),
-            message_type=ChatMessageType.SYSTEM.value,
-            app_id=app_id,
-            user_id=user.id,
-        )
-    generator = AICodeGeneratorFacade.generate_code_and_save_file_streaming(init_prompt,
-                                                                            CodeFileType(code_gen_type), app_id)
+
+    try:
+        # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 注入
+        validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
+
+    # 2. 构建流式生成器
+    generator = build_code_generator(init_prompt, CodeFileType(code_gen_type), int(app_id))
+
     user_id = user.id
 
     def on_done(chunks: list):
-        """生成器完成回调：将完整 AI 回复写入对话历史，入参要拿到AI回复的流内容"""
-        # 收集所有 token 片段（生成器产出格式为 {"d": "token片段"}）
-        full_ai_response = ''.join(
-            chunk['d'] for chunk in chunks
-            if isinstance(chunk, dict) and 'd' in chunk
-        )
-        if full_ai_response:
-            try:
-                # 将此轮对话消息添加到对话历史
-                user_record = create_chat_history(
-                    message=init_prompt,
-                    message_type=ChatMessageType.USER.value,
-                    app_id=app_id,
-                    user_id=user_id,
-                )
-                ai_record = create_chat_history(
-                    message=full_ai_response,
-                    message_type=ChatMessageType.AI.value,
-                    app_id=app_id,
-                    user_id=user_id,
-                )
-                # 将此轮对话消息添加到内存中
-                memory_manager.add_message(
-                    app_id=app_id,
-                    role=ChatMessageType.USER.value,
-                    content=user_record.message,
-                    db_id=user_record.id,
-                    token_count=user_record.token_count
-                )
-                memory_manager.add_message(
-                    app_id=app_id,
-                    role=ChatMessageType.AI.value,
-                    content=ai_record.message,
-                    db_id=ai_record.id,
-                    token_count=ai_record.token_count
-                )
-            except Exception as e:
-                import logging
-                logging.warning(f"保存AI对话历史失败: {str(e)}")
+        persist_chat_after_generation(int(app_id), user_id, init_prompt, chunks)
 
     def on_error(error: Exception, chunks: list):
-        """生成器错误回调：记录错误信息，也保存到数据库，同时需要记录日志"""
-        full_ai_response = ''.join(
-            chunk['d'] for chunk in chunks
-            if isinstance(chunk, dict) and 'd' in chunk
-        )
-        try:
-            # 将此轮对话消息添加到对话历史
-            user_record = create_chat_history(
-                message=init_prompt,
-                message_type=ChatMessageType.USER.value,
-                app_id=app_id,
-                user_id=user_id,
-            )
-            ai_record = create_chat_history(
-                message=full_ai_response,
-                message_type=ChatMessageType.AI.value,
-                app_id=app_id,
-                user_id=user_id,
-            )
-            # 将此轮对话消息添加到内存中
-            memory_manager.add_message(
-                app_id=app_id,
-                role=ChatMessageType.USER.value,
-                content=user_record.message,
-                db_id=user_record.id,
-                token_count=user_record.token_count
-            )
-            memory_manager.add_message(
-                app_id=app_id,
-                role=ChatMessageType.AI.value,
-                content=ai_record.message,
-                db_id=ai_record.id,
-                token_count=ai_record.token_count
-            )
-        except Exception as e:
-            import logging
-            logging.warning(f"保存AI对话历史失败: {str(e)}")
-        err_message = f"AI回复异常，错误信息：{str(error)}, 已回复内容：{full_ai_response}"
+        persist_chat_after_generation(int(app_id), user_id, init_prompt, chunks)
         import logging
-        logging.error(err_message)
+        full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
+        logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
 
     return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)

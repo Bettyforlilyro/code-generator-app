@@ -1,13 +1,17 @@
 from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.models.user import User
 from backend.app.common.utils.auth import login_required, role_required
-from backend.app.extensions.db_instance import db
 from backend.app.schemas.requests.user_management_request import UserUpdateRequest, UserRegisterRequest
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.services.user_service import (
+    update_current_user_info,
+    admin_get_user_list,
+    admin_create_user,
+    admin_update_user,
+    admin_delete_user,
+)
 
 
 @user_management_bp.route('/', methods=['PUT'])
@@ -117,17 +121,13 @@ def update_user_self_info():
     data = request.get_json()
     if not data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-    req = UserUpdateRequest(**data)
-    if req.user_name is not None:
-        user.user_name = req.user_name
-    if req.user_avatar is not None:
-        user.user_avatar = req.user_avatar
-    if req.user_profile is not None:
-        user.user_profile = req.user_profile
 
-    db.session.commit()
-
-    return success_response({'message': '更新成功'})
+    try:
+        req = UserUpdateRequest(**data)
+        update_current_user_info(user, req)
+        return success_response({'message': '更新成功'})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 # ==================== 管理员接口部分 ====================
@@ -303,76 +303,28 @@ def get_user_list_page():
               nullable: true
               example: null
     """
-    # ==================== 1. 解析并校验分页参数 ====================
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
-
-    # 校验分页参数合法性
     if page < 1:
         return error_response(ErrorCode.INVALID_PARAMETER, "页码必须大于等于1")
     if per_page < 1 or per_page > 100:
         return error_response(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
 
-    # ==================== 2. 解析筛选参数 ====================
     user_name = request.args.get('user_name')
     user_account = request.args.get('user_account')
     user_role = request.args.get('user_role')
-
-    # ==================== 3. 解析排序参数 ====================
     sort_field = request.args.get('sort_field', 'create_time')
     sort_order = request.args.get('sort_order', 'desc')
 
-    # 白名单校验排序字段，防止SQL注入或字段错误
-    ALLOWED_SORT_FIELDS = {'id', 'user_name', 'user_account', 'create_time', 'update_time', 'user_role'}
-    if sort_field not in ALLOWED_SORT_FIELDS:
-        return error_response(ErrorCode.INVALID_PARAMETER, f"排序字段无效，允许的字段: {', '.join(ALLOWED_SORT_FIELDS)}")
-
-    # 校验排序方向
-    if sort_order not in ('asc', 'desc'):
-        return error_response(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
-
-    # ==================== 4. 构建查询 ====================
-    query = User.query.filter_by(is_delete=0)
-
-    # 模糊搜索
-    if user_name:
-        query = query.filter(User.user_name.like(f'%{user_name}%'))
-    if user_account:
-        query = query.filter(User.user_account.like(f'%{user_account}%'))
-    if user_role:
-        query = query.filter(User.user_role.like(f'%{user_role}%'))
-
-    # 排序
-    sort_column = getattr(User, sort_field)
-    if sort_order == 'desc':
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
-
-    # ==================== 5. 执行分页查询 ====================
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    # ==================== 6. 构建响应数据 ====================
-    users = [
-        {
-            'id': u.id,
-            'user_account': u.user_account,
-            'user_name': u.user_name,
-            'user_avatar': u.user_avatar,
-            'user_profile': u.user_profile,
-            'user_role': u.user_role,
-            'create_time': u.create_time.isoformat() if u.create_time else None
-        }
-        for u in pagination.items
-    ]
-
-    return success_response({
-        'users': users,
-        'total': pagination.total,
-        'total_pages': pagination.pages,
-        'has_next': pagination.has_next,
-        'has_prev': pagination.has_prev
-    })
+    try:
+        result = admin_get_user_list(
+            page=page, per_page=per_page,
+            user_name=user_name, user_account=user_account, user_role=user_role,
+            sort_field=sort_field, sort_order=sort_order,
+        )
+        return success_response(result)
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @user_management_bp.route('/', methods=['POST'])
@@ -397,34 +349,14 @@ def create_user_by_admin():
         req = UserRegisterRequest(**json_data)
     except Exception as e:
         return error_response(ErrorCode.INVALID_PARAMETER, str(e))
-    role = json_data.get('user_role', UserRole.USER.value)
 
-    # 检查账号是否已存在
-    existing_user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
-    if existing_user:
-        return error_response(ErrorCode.DUPLICATE_DATA, "用户名已存在")
+    role = json_data.get('user_role', 'user')
 
-    # 生成账号逻辑可以复用 register.py 中的函数，或者简单处理
-    import time, uuid
-    timestamp_suffix = str(int(time.time() * 1000))[-6:]
-    random_suffix = str(uuid.uuid4()).replace('-', '')[:4]
-    user_account = f"user_{timestamp_suffix}{random_suffix}"
-
-    new_user = User(
-        user_account=user_account,
-        user_name=req.user_name,
-        user_role=role
-    )
-    new_user.set_password(req.user_password)
-
-    db.session.add(new_user)
-    db.session.commit()
-
-    return success_response({
-        'id': new_user.id,
-        'user_account': new_user.user_account,
-        'message': '用户创建成功'
-    }, 201)
+    try:
+        result = admin_create_user(req, role)
+        return success_response(result, 201)
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @user_management_bp.route('/<int:user_id>', methods=['PUT'])
@@ -445,60 +377,23 @@ def update_user_by_admin(user_id):
       200:
         description: 修改成功
     """
-    user = User.query.filter_by(id=user_id, is_delete=0).first()
-    if not user:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
-
     data = request.get_json()
     if not data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
 
-    data = request.get_json()
-    req = UserUpdateRequest(**data)
-
-    is_updated = False
-
-    if req.user_name is not None and req.user_name != user.user_name:
-        user.user_name = req.user_name
-        is_updated = True
-    if req.user_avatar is not None and req.user_avatar != user.user_avatar:
-        user.user_avatar = req.user_avatar
-        is_updated = True
-    if req.user_profile is not None and req.user_profile != user.user_profile:
-        user.user_profile = req.user_profile
-        is_updated = True
-    # UserUpdateRequest没有user_role参数，从request中获取是否有修改权限
-    if data.get('user_role') is not None and data.get('user_role') != user.user_role:
-        user.user_role = data.get('user_role')
-        is_updated = True
-    if is_updated:  # 降低提交次数，有更新才提交
-        db.session.commit()
-    return success_response({'message': '用户信息更新成功'})
+    try:
+        req = UserUpdateRequest(**data)
+        admin_update_user(user_id, req, data)
+        return success_response({'message': '用户信息更新成功'})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @user_management_bp.route('/<int:user_id>', methods=['DELETE'])
 @role_required('admin')
 def delete_user_by_admin(user_id):
-    """
-    管理员删除用户（软删除）
-    ---
-    tags:
-      - 管理员-用户管理
-    summary: 删除用户
-    parameters:
-      - in: path
-        name: user_id
-        type: integer
-        required: true
-    responses:
-      200:
-        description: 删除成功
-    """
-    user = User.query.filter_by(id=user_id, is_delete=0).first()
-    if not user:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, message="用户不存在")
-
-    # 软删除：标记 is_delete 为 1
-    user.is_delete = 1
-    db.session.commit()
-    return success_response({'message': '用户删除成功'})
+    try:
+        admin_delete_user(user_id)
+        return success_response({'message': '用户删除成功'})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)

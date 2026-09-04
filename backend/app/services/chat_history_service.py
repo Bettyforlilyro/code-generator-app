@@ -7,13 +7,10 @@ from datetime import datetime
 from typing import Optional
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
-from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.exceptions.exception_handlers import logger
 from backend.app.extensions.db_instance import db
-from backend.app.models.app_model import AppModel
 from backend.app.models.chat_history_model import ChatHistory
-from backend.app.models.user import User
 
 
 # ==================== Create ====================
@@ -39,7 +36,6 @@ def create_chat_history(
     Raises:
         BusinessException: 参数校验失败时抛出
     """
-    # 参数校验
     if not message or not message.strip():
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "消息内容不能为空")
     if not message_type:
@@ -91,15 +87,11 @@ def batch_create_chat_history(messages: list) -> list:
     records = []
     try:
         for item in messages:
-            message = item.get('message')
-            message_type = item.get('message_type')
-            app_id = item.get('app_id')
-            user_id = item.get('user_id')
             record = create_chat_history(
-                message=message,
-                message_type=message_type,
-                app_id=app_id,
-                user_id=user_id,
+                message=item.get('message'),
+                message_type=item.get('message_type'),
+                app_id=item.get('app_id'),
+                user_id=item.get('user_id'),
             )
             records.append(record)
         return records
@@ -153,7 +145,6 @@ def delete_chat_history_by_app_id(app_id: int) -> bool:
         return True
     except BusinessException:
         db.session.rollback()
-        # 记录日志但是不抛出异常
         logger.error(f"删除应用 ID 为 {app_id} 的所有对话记录失败.")
     except Exception as e:
         db.session.rollback()
@@ -214,27 +205,21 @@ def list_chat_history(
     Raises:
         BusinessException: 参数校验失败时抛出
     """
-    # 构建查询
     query = ChatHistory.query.filter_by(is_delete=0)
 
     if app_id is not None:
         query = query.filter(ChatHistory.app_id == app_id)
     if message_type is not None and message_type != "ALL":
         query = query.filter(ChatHistory.message_type == message_type)
-
-    # 按创建时间排序
     if last_create_time is not None:
         query = query.filter(ChatHistory.create_time > last_create_time)
 
     sort_column = ChatHistory.create_time
-    if sort_order == 'desc':
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
+    query = query.order_by(sort_column.desc() if sort_order == 'desc' else sort_column.asc())
+
     if not include_system:
         query = query.filter(ChatHistory.message_type != ChatMessageType.SYSTEM.value)
 
-    # 执行分页查询
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return {
@@ -270,7 +255,6 @@ def update_chat_history(
         BusinessException: 记录不存在或参数校验失败时抛出
     """
     record = get_chat_history_by_id(chat_id)
-
     is_updated = False
 
     if message is not None:

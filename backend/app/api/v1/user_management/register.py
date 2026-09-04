@@ -1,19 +1,11 @@
-import asyncio
-import time
-import uuid
-
-from flask import request, after_this_request, current_app
+from flask import request
 
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.get_random_picture import get_random_avatar
-from backend.app.models.user import User
-from backend.app.common.utils.auth import generate_access_token, generate_refresh_token
 from backend.app.extensions.db_instance import db
 from backend.app.schemas.requests.user_management_request import UserRegisterRequest
-from backend.app.schemas.responses.BaseResponse import success_response, error_response, stream_response
-from backend.app.schemas.responses.user_management_response import UserRegisterResponse
+from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.services.user_service import register_user_svc
 
 
 @user_management_bp.route('/register', methods=['POST'])
@@ -127,61 +119,9 @@ def register():
         # 使用Pydantic验证请求数据，里面已经实现了密码复杂度检查和确认密码检查
         req = UserRegisterRequest(**json_data)
 
-        # 2. 生成唯一的用户账号
-        user_account = generate_user_account(req.user_name)
+        register_response = register_user_svc(req)
 
-        # 3. 检查账号是否已存在（理论上不会重复，但为了安全还是检查一下）
-        existing_user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
-        if existing_user:
-            return error_response(ErrorCode.INVALID_PARAMETER, "用户名已存在")
-
-        # 随机调用API获取一个用户头像
-        user_avatar = get_random_avatar()
-
-        # 4. 创建新用户
-        new_user = User(
-            user_account=user_account,
-            user_name=req.user_name,
-            user_avatar=user_avatar,
-            user_role=UserRole.USER.value
-        )
-
-        # 5. 设置加密密码
-        new_user.set_password(req.user_password)
-
-        # 6. 保存到数据库
-        db.session.add(new_user)
-        db.session.commit()
-
-        # 7. 注册后自动以当前用户登录，生成双Token
-        access_token = generate_access_token(new_user.id, new_user.user_role)
-        ref_token = generate_refresh_token(new_user.id)
-
-        def set_refresh_cookie(resp):
-            is_debug = current_app.config.get('DEBUG', False)
-            resp.set_cookie(
-                'refresh_token',
-                ref_token,
-                httponly=True,
-                secure=not is_debug,    # is_debug 开发环境使用 False，生产环境使用 True
-                samesite='Lax',
-                max_age=7 * 24 * 60 * 60,
-                path='/api/v1/user/refresh'
-            )
-            return resp
-        # 注册回调函数设置Cookie返回给前端，主要是为了保存 Refresh Token
-        after_this_request(set_refresh_cookie)
-
-        # 8. 创建包含 Access Token 的响应
-        response_data = UserRegisterResponse(
-            id=new_user.id,
-            user_account=new_user.user_account,
-            user_name=new_user.user_name,
-            user_role=new_user.user_role,
-            token=access_token
-        )
-
-        return success_response(response_data.model_dump())
+        return success_response(register_response.model_dump())
 
     except BusinessException as e:
         db.session.rollback()
@@ -190,24 +130,3 @@ def register():
     except Exception as e:
         db.session.rollback()
         return error_response(ErrorCode.INTERNAL_ERROR, f"注册失败: {str(e)}")
-
-
-def generate_user_account(user_name: str) -> str:
-    """
-    生成唯一的用户账号
-
-    规则：user_ + 时间戳后6位 + 随机4位字符
-
-    Args:
-        user_name: 用户昵称（可用于调试日志，但不直接用于账号生成）
-
-    Returns:
-        唯一的用户账号字符串
-    """
-    # 使用时间戳后6位 + UUID的前4位作为唯一标识
-    timestamp_suffix = str(int(time.time() * 1000))[-6:]
-    random_suffix = str(uuid.uuid4()).replace('-', '')[:4]
-
-    user_account = f"user_{timestamp_suffix}{random_suffix}"
-
-    return user_account

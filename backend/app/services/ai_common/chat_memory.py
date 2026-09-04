@@ -8,9 +8,9 @@
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
-import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 

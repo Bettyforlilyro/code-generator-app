@@ -1,27 +1,29 @@
-import logging
-import os.path
-import shutil
-import subprocess
-from datetime import datetime
-
 from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
-from backend.app.services.chat_history_service import delete_chat_history_by_app_id
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
-from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
-from backend.app.common.utils.get_random_picture import get_random_bz
-from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
-from backend.app.models.user import User
 from backend.app.schemas.requests.app_management_request import (
     AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
 )
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
-from backend.app.schemas.responses.app_management_response import AppDetailResponse, AppListResponse, AppCreateResponse
-from backend.app.schemas.responses.user_management_response import UserSummaryResponse
+from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
+    list_apps_svc, list_featured_apps_svc, deploy_app_svc
+from backend.app.services.chat_history_service import delete_chat_history_by_app_id
+from flask import request, g
+
+from backend.app.api.v1.app_management import app_management_bp
+from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
+from backend.app.common.utils.auth import login_required
+from backend.app.models.app_model import AppModel
+from backend.app.schemas.requests.app_management_request import (
+    AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
+)
+from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
+    list_apps_svc, list_featured_apps_svc, deploy_app_svc
+from backend.app.services.chat_history_service import delete_chat_history_by_app_id
 
 
 # ==================== 用户接口部分 ====================
@@ -90,25 +92,12 @@ def create_app():
     if 'init_prompt' not in data:
         return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
 
-    req = AppCreateRequest(**data)
-
-    # TODO 如果没有传app_name，使用init_prompt前20字符作为默认名称或者AI总结生成？后续再决定如何命名
-    app_name = req.app_name if req.app_name else req.init_prompt[:20]
-    app_coverage = req.app_coverage if req.app_coverage else get_random_bz()
-
-    new_app = AppModel(
-        app_name=app_name,
-        code_gen_type=req.code_gen_type,
-        app_coverage=app_coverage,
-        init_prompt=req.init_prompt,
-        user_id=user.id
-    )
-
-    db.session.add(new_app)
-    db.session.commit()
-    app_info = AppCreateResponse(**new_app.to_dict())
-
-    return success_response(app_info, 201)
+    try:
+        req = AppCreateRequest(**data)
+        result = create_app_svc(user.id, req)
+        return success_response(result, 201)
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['PUT'])
@@ -164,34 +153,17 @@ def update_app(app_id):
         description: 应用不存在
     """
     user = g.current_user
-    # 检查应用是否存在
-    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
-    if not app:
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
-    is_admin = user.user_role == UserRole.ADMIN
-    # 权限校验：非管理员只能修改自己的应用
-    if not is_admin and app.user_id != user.id:
-        return error_response(ErrorCode.PERMISSION_DENIED, "无权修改此应用")
     data = request.get_json()
     if not data:
         return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-    # 管理员使用AdminAppUpdateRequest（支持priority），普通用户使用AppUpdateRequest
-    is_updated = False
-    req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
-    if req.app_name is not None and req.app_name != app.app_name:
-        app.app_name = req.app_name
-        is_updated = True
-    if req.app_coverage is not None and req.app_coverage != app.app_coverage:
-        app.app_coverage = req.app_coverage
-        is_updated = True
-    # 仅管理员可修改priority
-    if is_admin and req.priority is not None and req.priority != app.priority:
-        app.priority = req.priority
-        is_updated = True
-    if is_updated:
-        app.edit_time = datetime.utcnow()
-        db.session.commit()
-    return success_response({'message': '应用更新成功'})
+
+    try:
+        is_admin = user.user_role == 'admin'
+        req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
+        update_app_svc(app_id, user, req)
+        return success_response({'message': '应用更新成功'})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['DELETE'])
@@ -226,26 +198,11 @@ def delete_app(app_id):
     """
     user = g.current_user
 
-    # 查找应用
-    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
-    if not app:
-        raise BusinessException(ErrorCode.RESOURCE_NOT_FOUND, message="应用不存在")
-
-    # 校验权限：管理员可以删除任意应用，非管理员只能删除自己的应用
-    if not user.user_role == UserRole.ADMIN and app.user_id != user.id:
-        raise BusinessException(ErrorCode.PERMISSION_DENIED, message="无权删除此应用")
-
-    # 删除关联应用对话历史
     try:
-        delete_chat_history_by_app_id(app_id)
-    except Exception as e:
-        logging.error(f"删除应用对话历史失败，应用ID: {app_id}, 错误信息: {str(e)}")
-
-    # 软删除
-    app.is_delete = 1
-    db.session.commit()
-
-    return success_response({'message': '应用删除成功'})
+        delete_app_svc(app_id, user, delete_chat_history_by_app_id)
+        return success_response({'message': '应用删除成功'})
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['GET'])
@@ -274,14 +231,10 @@ def get_app_detail(app_id):
         raise BusinessException(ErrorCode.APP_NOT_FOUND)
     if not app_id or app_id <= 0:
         raise BusinessException(ErrorCode.BAD_REQUEST, message="应用ID必须为大于0的整数")
-    # 应该返回应用详情，包含应用创建者简略信息
-    user_id = app.user_id
-    user_info = User.query.filter_by(id=user_id).first()
-    user = UserSummaryResponse(**user_info.to_dict())
-
-    app_detail = AppDetailResponse(**app.to_dict(user_name=user.user_name, user=user))
-
-    return success_response(app_detail)
+    try:
+        return success_response(get_app_detail_svc(app_id))
+    except BusinessException as e:
+        return error_response(e.error_code, e.message, e.data)
 
 
 @app_management_bp.route('/list', methods=['GET'])
@@ -366,65 +319,30 @@ def get_app_list():
     sort_field = request.args.get('sort_field', 'create_time')
     sort_order = request.args.get('sort_order', 'desc')
 
-    # 白名单校验排序字段
-    ALLOWED_SORT_FIELDS = {'id', 'app_name', 'create_time', 'update_time', 'priority'}
-    if sort_field not in ALLOWED_SORT_FIELDS:
-        return error_response(ErrorCode.INVALID_PARAMETER, f"排序字段无效，允许的字段: {', '.join(ALLOWED_SORT_FIELDS)}")
+    code_gen_type = request.args.get('code_gen_type', None)
 
-    if sort_order not in ('asc', 'desc'):
-        return error_response(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
-
-    # 构建查询
-    query = AppModel.query.filter_by(is_delete=0)
-    code_gen_type = request.args.get('code_gen_type')
-    if code_gen_type:
-        query = query.filter(AppModel.code_gen_type == code_gen_type)
-    if user.user_role == UserRole.ADMIN:
-        # 管理员情况下可以根据user_name搜索，这个user_name是请求携带的参数而非current_user
-        user_name = request.args.get('user_name')
-        if user_name:
-            query = query.filter(AppModel.user_name == user_name)
-    else:   # 普通用户情况下只能查询自己创建的应用
-        query = query.filter(AppModel.user_id == user.id)
-
-    # 模糊搜索
-    if app_name:
-        query = query.filter(AppModel.app_name.like(f'%{app_name}%'))
+    user_name = request.args.get('user_name', None)
     is_mine = request.args.get('is_mine', False, type=bool)
-    if is_mine:
-        query = query.filter(AppModel.user_id == user.id)
 
-    # 排序
-    sort_column = getattr(AppModel, sort_field)
-    if sort_order == 'desc':
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
-
-    # 执行分页查询
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    # 构建响应数据
-    apps = [a.to_summary_dict() for a in pagination.items]
-    user_ids = list(set(a["user_id"] for a in apps))
-    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
-    for app in apps:
-        app["user"] = user_map.get(app["user_id"], None)
-        if app["user"]:
-            app["user_name"] = app["user"]["user_name"]
-    app_list = AppListResponse(
-        apps=apps,
-        total=pagination.total,
-        total_pages=pagination.pages,
-        has_next=pagination.has_next,
-        has_prev=pagination.has_prev
-    )
-
-    return success_response(app_list)
+    try:
+        app_list = list_apps_svc(
+            user=user,
+            page=page,
+            per_page=per_page,
+            app_name=app_name,
+            code_gen_type=code_gen_type,
+            user_name=user_name,
+            is_mine=is_mine,
+            sort_field=sort_field,
+            sort_order=sort_order,
+        )
+        return success_response(app_list)
+    except BusinessException as e:
+        return error_response(e.code, e.message)
 
 
 @app_management_bp.route('/good/list', methods=['GET'])
-def get_good_app_list():
+def get_featured_app_list():
     """
     分页查询精选应用列表，无需登录
     ---
@@ -464,38 +382,11 @@ def get_good_app_list():
     if per_page < 1 or per_page > 100:
         return error_response(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
 
-    # 构建查询，priority>50才是精选应用，并且按照priority降序排序
-    query = AppModel.query.filter(AppModel.is_delete == 0, AppModel.priority > 50).order_by(AppModel.priority.desc())
-
-    # 执行分页查询
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-
-    # 构建响应数据
-    apps = [a.to_summary_dict() for a in pagination.items]
-    user_ids = list(set(a["user_id"] for a in apps))
-    user_map = {u.id: u.to_summary_dict() for u in User.query.filter(User.id.in_(user_ids)).all()}
-    for app in apps:
-        app["user"] = user_map.get(app["user_id"], None)
-        if app["user"]:
-            app["user_name"] = app["user"]["user_name"]
-    app_list = AppListResponse(
-        apps=apps,
-        total=pagination.total,
-        total_pages=pagination.pages,
-        has_next=pagination.has_next,
-        has_prev=pagination.has_prev
-    )
-
-    return success_response(app_list)
-
-
-def generate_deploy_key():
-    """
-    生成唯一的部署键，6位随机大小写字母或数字组合
-    """
-    import random
-    import string
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    try:
+        app_list = list_featured_apps_svc(page, per_page)
+        return success_response(app_list)
+    except BusinessException as e:
+        return error_response(e.code, e.message)
 
 
 @app_management_bp.route('/deploy', methods=['POST'])
@@ -532,70 +423,7 @@ def deploy_app():
     if not deploy_request or 'app_id' not in deploy_request:
         return error_response(ErrorCode.INVALID_PARAMETER, "请求参数错误")
     app_id = deploy_request.get('app_id')
-    # 校验应用是否存在
-    app = AppModel.query.filter(AppModel.id == app_id, AppModel.is_delete == 0).first()
-    if not app:
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
-    # 仅本人可以部署
-    if app.user_id != user.id:
-        return error_response(ErrorCode.FORBIDDEN, "没有权限部署该应用")
-    if not app.code_gen_type:
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用实际未生成，请确认是否已生成")
-    # 检查是否已经存在deploy_key，如果存在，也能重新覆盖式部署，如果不存在，重新生成deploy_key并保存到数据库
-    if not app.deploy_key:
-        app.deploy_key = generate_deploy_key()
-
-    # 目前所谓的部署仅仅是将后端生成的代码文件保存到指定目录
-    # TODO 后续可以根据实际情况，添加其他部署逻辑，比如调用其他服务部署应用等
-    # 构建部署目录并复制代码文件
-    source_dir = os.path.join(DEFAULT_GENERATE_ROOT, app.code_gen_type + '_' + str(app.id))
-    if not os.path.exists(source_dir) or not os.path.isdir(source_dir):
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用代码不存在，请确认是否已生成")
-    target_dir = os.path.join(DEFAULT_DEPLOY_ROOT, app.deploy_key)
-    # 复制代码文件到部署目录
     try:
-        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
-    except Exception as e:
-        raise BusinessException(ErrorCode.INTERNAL_ERROR, f"部署应用失败: {str(e)}")
-    # 更新应用部署信息
-    app.deploy_time = datetime.now()
-    db.session.commit()
-    # 查看当前系统是否已经启动nginx进程，如果不存在需要启动nginx
-    if not is_nginx_running():
-        if not start_nginx():
-            raise BusinessException(ErrorCode.INTERNAL_ERROR, "启动 nginx 失败")
-    # 暂时仅支持在localhost访问，后续可以根据实际情况，添加其他访问方式
-    deploy_url = f"http://localhost/{app.deploy_key}"
-    return success_response({"deploy_key": app.deploy_key, "deploy_url": deploy_url})
-
-
-def is_nginx_running():
-    """检查 nginx 进程是否正在运行"""
-    try:
-        result = subprocess.run(
-            ['tasklist', '/FI', 'IMAGENAME eq nginx.exe'],
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        # tasklist 输出中包含 "nginx.exe" 字符串即表示正在运行
-        return 'nginx.exe' in result.stdout.lower()
-    except Exception as e:
-        import logging
-        logging.error(f"检查 nginx 进程失败: {str(e)}")
-        return False
-
-
-def start_nginx():
-    """启动 nginx"""
-    try:
-        subprocess.Popen(
-            [NGINX_PATH],
-            cwd=os.path.dirname(NGINX_PATH),  # nginx 启动需要在其安装目录下
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        return True
-    except Exception as e:
-        import logging
-        logging.error(f"启动 nginx 失败: {str(e)}")
-        return False
+        return success_response(deploy_app_svc(app_id, user.id))
+    except BusinessException as e:
+        return error_response(e.code, e.message)
