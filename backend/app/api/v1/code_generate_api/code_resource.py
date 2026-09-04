@@ -126,11 +126,6 @@ def get_static_deployed_app_files():
     if not app:
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在，请确认是否已生成")
 
-    # 校验部署目录存在
-    app_dir = os.path.join(DEFAULT_DEPLOY_ROOT, deploy_key)
-    if not os.path.exists(app_dir):
-        return error_response(ErrorCode.APP_NOT_FOUND, "应用目录不存在，请确认是否已部署")
-
     try:
         is_response, data = build_static_response(
             identifier=deploy_key,
