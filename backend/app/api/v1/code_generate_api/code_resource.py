@@ -207,18 +207,15 @@ def get_static_file_by_path(identifier, file_name):
     - 浏览器会自动将HTML中的href="css/style.css"解析为：
       /api/v1/code/static/8qEDDL/css/style.css
     """
-    try:
-        is_response, data = build_static_response(
-            identifier=identifier,
-            file_name=file_name,
-            search_roots=[DEFAULT_DEPLOY_ROOT, DEFAULT_GENERATE_ROOT],
-            mode=request.args.get('mode', 'preview'),
-        )
-        if is_response:
-            return data
-        return success_response(data)
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    is_response, data = build_static_response(
+        identifier=identifier,
+        file_name=file_name,
+        search_roots=[DEFAULT_DEPLOY_ROOT, DEFAULT_GENERATE_ROOT],
+        mode=request.args.get('mode', 'preview'),
+    )
+    if is_response:
+        return data
+    return success_response(data)
 
 
 @code_bp.route('/app/download/<int:app_id>', methods=['GET'])

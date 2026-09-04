@@ -3,26 +3,13 @@ from flask import request, g
 from backend.app.api.v1.app_management import app_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
-from backend.app.models.app_model import AppModel
+from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
 from backend.app.schemas.requests.app_management_request import (
     AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
 )
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
 from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
-    list_apps_svc, list_featured_apps_svc, deploy_app_svc
-from backend.app.services.chat_history_service import delete_chat_history_by_app_id
-from flask import request, g
-
-from backend.app.api.v1.app_management import app_management_bp
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.auth import login_required
-from backend.app.models.app_model import AppModel
-from backend.app.schemas.requests.app_management_request import (
-    AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
-)
-from backend.app.schemas.responses.BaseResponse import success_response, error_response
-from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
-    list_apps_svc, list_featured_apps_svc, deploy_app_svc
+    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id
 from backend.app.services.chat_history_service import delete_chat_history_by_app_id
 
 
@@ -86,18 +73,13 @@ def create_app():
         description: 服务器内部错误
     """
     user = g.current_user
-    data = request.get_json()
-    if not data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
+    data = parse_json_body()
     if 'init_prompt' not in data:
         return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
 
-    try:
-        req = AppCreateRequest(**data)
-        result = create_app_svc(user.id, req)
-        return success_response(result, 201)
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    req = AppCreateRequest(**data)
+    result = create_app_svc(user.id, req)
+    return success_response(result, 201)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['PUT'])
@@ -153,17 +135,12 @@ def update_app(app_id):
         description: 应用不存在
     """
     user = g.current_user
-    data = request.get_json()
-    if not data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
+    data = parse_json_body()
 
-    try:
-        is_admin = user.user_role == 'admin'
-        req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
-        update_app_svc(app_id, user, req)
-        return success_response({'message': '应用更新成功'})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    is_admin = user.user_role == 'admin'
+    req = AdminAppUpdateRequest(**data) if is_admin else AppUpdateRequest(**data)
+    update_app_svc(app_id, user, req)
+    return success_response({'message': '应用更新成功'})
 
 
 @app_management_bp.route('/<int:app_id>', methods=['DELETE'])
@@ -198,11 +175,8 @@ def delete_app(app_id):
     """
     user = g.current_user
 
-    try:
-        delete_app_svc(app_id, user, delete_chat_history_by_app_id)
-        return success_response({'message': '应用删除成功'})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    delete_app_svc(app_id, user, delete_chat_history_by_app_id)
+    return success_response({'message': '应用删除成功'})
 
 
 @app_management_bp.route('/<int:app_id>', methods=['GET'])
@@ -226,15 +200,12 @@ def get_app_detail(app_id):
       404:
         description: 应用不存在
     """
-    app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
-    if not app:
-        raise BusinessException(ErrorCode.APP_NOT_FOUND)
     if not app_id or app_id <= 0:
         raise BusinessException(ErrorCode.BAD_REQUEST, message="应用ID必须为大于0的整数")
-    try:
-        return success_response(get_app_detail_svc(app_id))
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    app = get_app_by_id(app_id)
+    if not app:
+        raise BusinessException(ErrorCode.APP_NOT_FOUND)
+    return success_response(get_app_detail_svc(app_id))
 
 
 @app_management_bp.route('/list', methods=['GET'])
@@ -305,12 +276,7 @@ def get_app_list():
     user = g.current_user
 
     # 解析并校验分页参数
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    if page < 1:
-        return error_response(ErrorCode.INVALID_PARAMETER, "页码必须大于等于1")
-    if per_page < 1 or per_page > 100:
-        return error_response(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
+    page, per_page = parse_pagination_args()
 
     # 解析筛选参数
     app_name = request.args.get('app_name')
@@ -324,21 +290,18 @@ def get_app_list():
     user_name = request.args.get('user_name', None)
     is_mine = request.args.get('is_mine', False, type=bool)
 
-    try:
-        app_list = list_apps_svc(
-            user=user,
-            page=page,
-            per_page=per_page,
-            app_name=app_name,
-            code_gen_type=code_gen_type,
-            user_name=user_name,
-            is_mine=is_mine,
-            sort_field=sort_field,
-            sort_order=sort_order,
-        )
-        return success_response(app_list)
-    except BusinessException as e:
-        return error_response(e.code, e.message)
+    app_list = list_apps_svc(
+        user=user,
+        page=page,
+        per_page=per_page,
+        app_name=app_name,
+        code_gen_type=code_gen_type,
+        user_name=user_name,
+        is_mine=is_mine,
+        sort_field=sort_field,
+        sort_order=sort_order,
+    )
+    return success_response(app_list)
 
 
 @app_management_bp.route('/good/list', methods=['GET'])
@@ -375,18 +338,10 @@ def get_featured_app_list():
     """
 
     # 解析并校验分页参数
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    if page < 1:
-        return error_response(ErrorCode.INVALID_PARAMETER, "页码必须大于等于1")
-    if per_page < 1 or per_page > 100:
-        return error_response(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
+    page, per_page = parse_pagination_args()
 
-    try:
-        app_list = list_featured_apps_svc(page, per_page)
-        return success_response(app_list)
-    except BusinessException as e:
-        return error_response(e.code, e.message)
+    app_list = list_featured_apps_svc(page, per_page)
+    return success_response(app_list)
 
 
 @app_management_bp.route('/deploy', methods=['POST'])
@@ -423,7 +378,5 @@ def deploy_app():
     if not deploy_request or 'app_id' not in deploy_request:
         return error_response(ErrorCode.INVALID_PARAMETER, "请求参数错误")
     app_id = deploy_request.get('app_id')
-    try:
-        return success_response(deploy_app_svc(app_id, user.id))
-    except BusinessException as e:
-        return error_response(e.code, e.message)
+
+    return success_response(deploy_app_svc(app_id, user.id))

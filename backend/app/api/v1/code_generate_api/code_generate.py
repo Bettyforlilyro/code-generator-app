@@ -1,12 +1,16 @@
-from flask import request, g
+from flask import g
 
 from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
-from backend.app.schemas.responses.BaseResponse import error_response, stream_response
-from backend.app.services.code_generate_service import validate_and_prepare_code_generation, build_code_generator, \
-    persist_chat_after_generation
+from backend.app.common.utils.request_helpers import parse_json_body
+from backend.app.schemas.responses.BaseResponse import stream_response
+from backend.app.services.code_generate_service import (
+    validate_and_prepare_code_generation,
+    build_code_generator,
+    persist_chat_after_generation,
+)
 
 
 @code_bp.route('/generate', methods=['POST'])
@@ -65,24 +69,22 @@ def generate_code_stream():
         description: 服务器内部错误
     """
     user = g.current_user
-    json_data = request.get_json()
-    if not json_data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
+    json_data = parse_json_body()
+
     app_id = json_data.get('app_id')
     if not app_id or int(app_id) <= 0:
-        return error_response(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
+        raise BusinessException(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
+
     init_prompt = json_data.get('init_prompt')
     if not init_prompt:
-        return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
+        raise BusinessException(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
+
     code_gen_type = json_data.get('code_gen_type')
     if not code_gen_type:
-        return error_response(ErrorCode.MISSING_PARAMETER, "code_gen_type不能为空")
+        raise BusinessException(ErrorCode.MISSING_PARAMETER, "code_gen_type不能为空")
 
-    try:
-        # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 注入
-        validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 注入
+    validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
 
     # 2. 构建流式生成器
     generator = build_code_generator(init_prompt, CodeFileType(code_gen_type), int(app_id))

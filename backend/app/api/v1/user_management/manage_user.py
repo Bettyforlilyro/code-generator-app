@@ -3,8 +3,9 @@ from flask import request, g
 from backend.app.api.v1.user_management import user_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required, role_required
+from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
 from backend.app.schemas.requests.user_management_request import UserUpdateRequest, UserRegisterRequest
-from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.schemas.responses.BaseResponse import success_response
 from backend.app.services.user_service import (
     update_current_user_info,
     admin_get_user_list,
@@ -118,16 +119,11 @@ def update_user_self_info():
               example: 服务器内部错误
     """
     user = g.current_user
-    data = request.get_json()
-    if not data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
+    data = parse_json_body()
 
-    try:
-        req = UserUpdateRequest(**data)
-        update_current_user_info(user, req)
-        return success_response({'message': '更新成功'})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    req = UserUpdateRequest(**data)
+    update_current_user_info(user, req)
+    return success_response({'message': '更新成功'})
 
 
 # ==================== 管理员接口部分 ====================
@@ -303,28 +299,17 @@ def get_user_list_page():
               nullable: true
               example: null
     """
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
-    if page < 1:
-        return error_response(ErrorCode.INVALID_PARAMETER, "页码必须大于等于1")
-    if per_page < 1 or per_page > 100:
-        return error_response(ErrorCode.INVALID_PARAMETER, "每页数量必须在1-100之间")
+    page, per_page = parse_pagination_args()
 
-    user_name = request.args.get('user_name')
-    user_account = request.args.get('user_account')
-    user_role = request.args.get('user_role')
-    sort_field = request.args.get('sort_field', 'create_time')
-    sort_order = request.args.get('sort_order', 'desc')
-
-    try:
-        result = admin_get_user_list(
-            page=page, per_page=per_page,
-            user_name=user_name, user_account=user_account, user_role=user_role,
-            sort_field=sort_field, sort_order=sort_order,
-        )
-        return success_response(result)
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    result = admin_get_user_list(
+        page=page, per_page=per_page,
+        user_name=request.args.get('user_name'),
+        user_account=request.args.get('user_account'),
+        user_role=request.args.get('user_role'),
+        sort_field=request.args.get('sort_field', 'create_time'),
+        sort_order=request.args.get('sort_order', 'desc'),
+    )
+    return success_response(result)
 
 
 @user_management_bp.route('/', methods=['POST'])
@@ -341,22 +326,15 @@ def create_user_by_admin():
       200:
         description: 创建成功
     """
-    json_data = request.get_json()
-    if not json_data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-
+    json_data = parse_json_body()
     try:
         req = UserRegisterRequest(**json_data)
     except Exception as e:
-        return error_response(ErrorCode.INVALID_PARAMETER, str(e))
+        raise BusinessException(ErrorCode.INVALID_PARAMETER, str(e))
 
     role = json_data.get('user_role', 'user')
-
-    try:
-        result = admin_create_user(req, role)
-        return success_response(result, 201)
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    result = admin_create_user(req, role)
+    return success_response(result, 201)
 
 
 @user_management_bp.route('/<int:user_id>', methods=['PUT'])
@@ -377,23 +355,14 @@ def update_user_by_admin(user_id):
       200:
         description: 修改成功
     """
-    data = request.get_json()
-    if not data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-
-    try:
-        req = UserUpdateRequest(**data)
-        admin_update_user(user_id, req, data)
-        return success_response({'message': '用户信息更新成功'})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    data = parse_json_body()
+    req = UserUpdateRequest(**data)
+    admin_update_user(user_id, req, data)
+    return success_response({'message': '用户信息更新成功'})
 
 
 @user_management_bp.route('/<int:user_id>', methods=['DELETE'])
 @role_required('admin')
 def delete_user_by_admin(user_id):
-    try:
-        admin_delete_user(user_id)
-        return success_response({'message': '用户删除成功'})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    admin_delete_user(user_id)
+    return success_response({'message': '用户删除成功'})

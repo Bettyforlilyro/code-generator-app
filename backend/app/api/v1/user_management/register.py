@@ -1,10 +1,8 @@
-from flask import request
-
 from backend.app.api.v1.user_management import user_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.extensions.db_instance import db
+from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.requests.user_management_request import UserRegisterRequest
-from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.schemas.responses.BaseResponse import success_response
 from backend.app.services.user_service import register_user_svc
 
 
@@ -105,28 +103,14 @@ def register():
               type: string
               example: 服务器内部错误
     """
-    try:
-        # 1. 获取并验证请求数据
-        json_data = request.get_json()
-        if not json_data:
-            return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
-        user_name = json_data.get('user_name')
-        pass_word = json_data.get('user_password')
-        confirm_password = json_data.get('confirm_password')
-        if not user_name or not pass_word or not confirm_password:
-            return error_response(ErrorCode.INVALID_PARAMETER, "用户名和密码不能为空")
+    json_data = parse_json_body()
+    user_name = json_data.get('user_name')
+    pass_word = json_data.get('user_password')
+    confirm_password = json_data.get('confirm_password')
+    if not user_name or not pass_word or not confirm_password:
+        raise BusinessException(ErrorCode.INVALID_PARAMETER, "用户名和密码不能为空")
 
-        # 使用Pydantic验证请求数据，里面已经实现了密码复杂度检查和确认密码检查
-        req = UserRegisterRequest(**json_data)
+    req = UserRegisterRequest(**json_data)
+    register_response = register_user_svc(req)
 
-        register_response = register_user_svc(req)
-
-        return success_response(register_response.model_dump())
-
-    except BusinessException as e:
-        db.session.rollback()
-        return error_response(e.error_code, e.message, e.data)
-
-    except Exception as e:
-        db.session.rollback()
-        return error_response(ErrorCode.INTERNAL_ERROR, f"注册失败: {str(e)}")
+    return success_response(register_response.model_dump())

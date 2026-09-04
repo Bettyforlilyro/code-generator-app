@@ -1,11 +1,17 @@
 from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
+from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
+from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
-from backend.app.services.user_service import login_user, get_login_user_info_svc, get_user_by_id, \
-    refresh_access_token_svc, clear_refresh_token_cookie
+from backend.app.services.user_service import (
+    login_user,
+    get_login_user_info_svc,
+    get_user_by_id_svc,
+    refresh_access_token_svc,
+    clear_refresh_token_cookie,
+)
 
 
 @user_management_bp.route('/login', methods=['POST'])
@@ -124,19 +130,14 @@ def login():
               type: string
               example: 服务器内部错误
     """
-    json_data = request.get_json()
-    if not json_data:
-        return error_response(ErrorCode.BAD_REQUEST, "请求体不能为空")
+    json_data = parse_json_body()
     user_name = json_data.get('user_name')
     pass_word = json_data.get('user_password')
     if not user_name or not pass_word:
         return error_response(ErrorCode.MISSING_PARAMETER, "用户名和密码不能为空")
 
-    try:
-        result = login_user(user_name, pass_word)
-        return success_response(result.model_dump())
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    result = login_user(user_name, pass_word)
+    return success_response(result.model_dump())
 
 
 @user_management_bp.route('/login', methods=['GET'])
@@ -157,7 +158,7 @@ def get_login_user_info():
     auth_token = request.headers.get('Authorization', "")
     result = get_login_user_info_svc(auth_token)
     if result:
-        g.current_user = get_user_by_id(result.id)
+        g.current_user = get_user_by_id_svc(result.id)
         return success_response(result.model_dump())
     return success_response()
 
@@ -226,11 +227,8 @@ def refresh_token():
               example: 服务器内部错误
     """
     ref_token = request.cookies.get('refresh_token')
-    try:
-        new_token = refresh_access_token_svc(ref_token)
-        return success_response({'token': new_token})
-    except BusinessException as e:
-        return error_response(e.error_code, e.message, e.data)
+    new_token = refresh_access_token_svc(ref_token)
+    return success_response({'token': new_token})
 
 
 @user_management_bp.route('/logout', methods=['POST'])
