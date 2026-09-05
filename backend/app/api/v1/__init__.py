@@ -4,6 +4,23 @@ from flask import Blueprint
 api_v1_bp = Blueprint('api_v1', __name__, url_prefix='/api/v1')
 
 
+@api_v1_bp.route("/health")
+def health_check():
+    from flask import jsonify
+    try:
+        from backend.app.extensions.db_instance import db
+        from sqlalchemy import select
+        db.session.execute(select(1))
+        db_status = "ok"
+    except Exception:
+        db_status = "fail"
+    return jsonify({
+        "status": "ok",
+        "db": db_status,
+        "version": "0.1.0",
+    })
+
+
 def register_v1_blueprints(app):
     """
     注册v1版本的所有子蓝图

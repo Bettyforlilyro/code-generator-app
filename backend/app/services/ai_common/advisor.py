@@ -3,8 +3,12 @@ Advisor拦截器模块
 提供链式拦截器机制，支持前置和后置处理
 """
 
+import logging
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any, Generator
+from typing import List, Optional, Dict, Any
+
+
+logger = logging.getLogger(__name__)
 
 
 class AdvisorContext:
@@ -124,7 +128,7 @@ class AdvisorChain:
             try:
                 context = advisor.pre_handle(context)
             except Exception as e:
-                print(f"前置拦截器 {advisor.name} 执行失败: {str(e)}")
+                logger.error("前置拦截器 %s 执行失败: %s", advisor.name, e)
                 raise
         return context
 
@@ -134,7 +138,7 @@ class AdvisorChain:
             try:
                 context = advisor.post_handle(context)
             except Exception as e:
-                print(f"后置拦截器 {advisor.name} 执行失败: {str(e)}")
+                logger.error("后置拦截器 %s 执行失败: %s", advisor.name, e)
                 raise
         return context
 
@@ -145,7 +149,7 @@ class AdvisorChain:
             try:
                 processed_chunk = advisor.post_handle_stream(processed_chunk, context)
             except Exception as e:
-                print(f"流式后置拦截器 {advisor.name} 执行失败: {str(e)}")
+                logger.error("流式后置拦截器 %s 执行失败: %s", advisor.name, e)
                 raise
         return processed_chunk
 

@@ -1,7 +1,8 @@
-from flask import Flask, make_response, request
+from flask import Flask
+from flask_cors import CORS
+
 from backend.app.common.exceptions.exception_handlers import register_error_handlers
 from backend.app.swagger import init_swagger
-from flask_cors import CORS
 
 
 def create_app(config=None):

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # ==================== 配置 ====================
 
 # 默认的上下文窗口 token 上限（根据具体模型调整，通义 qwen 系列通常 8k/32k/128k，这里是qwen-max最大128k）
-DEFAULT_MAX_TOKENS = 1000000
+DEFAULT_MAX_TOKENS = 128000
 
 # 每条 AI 回复的预留 token 数（避免对话历史占满窗口导致 AI 无输出空间）
 DEFAULT_RESERVED_TOKENS_FOR_REPLY = 1000
@@ -250,7 +250,8 @@ class ChatMemoryManager:
             self._cache[app_id] = session
             return session
 
-    def get_llm_messages(self, app_id: int, extra_messages: Optional[List[Dict[str, str]]] = None) -> List[Dict[str, str]]:
+    def get_llm_messages(self, app_id: int, extra_messages: Optional[List[Dict[str, str]]] = None) \
+            -> List[Dict[str, str]]:
         """
         获取裁剪好的、可直接传给 LLM 的完整消息列表
 
