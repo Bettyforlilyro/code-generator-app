@@ -21,7 +21,7 @@ config = {
     'PORT': int(os.getenv('FLASK_PORT', '5000')),
     'SECRET_KEY': os.getenv('SECRET_KEY'),
     'REFRESH_SECRET_KEY': os.getenv('REFRESH_SECRET_KEY'),
-    'SQLALCHEMY_DATABASE_URI': f'postgresql://{db_user}:{db_password}@{db_host}:{db_post}/{db_name}',
+    'SQLALCHEMY_DATABASE_URI': f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}',
     'SQLALCHEMY_TRACK_MODIFICATIONS': False
 }
 
