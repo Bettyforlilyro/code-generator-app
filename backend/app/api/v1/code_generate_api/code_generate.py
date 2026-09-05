@@ -1,3 +1,5 @@
+import logging
+
 from flask import g
 
 from backend.app.api.v1.code_generate_api import code_bp
@@ -99,7 +101,6 @@ def generate_code_stream():
 
     def on_error(error: Exception, chunks: list):
         persist_chat_after_generation(int(app_id), user_id, init_prompt, chunks)
-        import logging
         full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
         logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
 

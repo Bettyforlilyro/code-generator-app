@@ -56,7 +56,7 @@ def register_user_svc(req: UserRegisterRequest) -> UserRegisterResponse:
     # 检查账号是否已存在
     existing_user = User.query.filter_by(user_name=req.user_name, is_delete=0).first()
     if existing_user:
-        raise BusinessException(ErrorCode.INVALID_PARAMETER, "用户名已存在")
+        raise BusinessException(ErrorCode.USER_NAME_EXISTS, "用户名已存在")
 
     # 创建新用户
     user_account = generate_user_account()

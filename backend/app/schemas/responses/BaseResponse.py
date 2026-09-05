@@ -8,7 +8,7 @@ from typing import Optional, Any, Generic, TypeVar, Union, Generator, AsyncGener
 from flask import jsonify, Response, stream_with_context, after_this_request
 from pydantic import BaseModel, Field
 
-from backend.app.common.exceptions.error_codes import ErrorCode
+from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 
 T = TypeVar('T')
 
@@ -187,11 +187,16 @@ def stream_response(
                     yield _wrap_chunk(error_result)
             else:
                 # 默认错误处理
-                error_response_data = ApiResponse(
-                    code=50000,
-                    message=str(e),
-                    data=None
-                )
+                if isinstance(e, BusinessException):
+                    error_response_data = ApiResponse(
+                        code=e.code, message=e.message, data=e.data
+                    )
+                else:
+                    error_response_data = ApiResponse(
+                        code=ErrorCode.INTERNAL_ERROR.code,
+                        message=str(e) or ErrorCode.INTERNAL_ERROR.message,
+                        data=None
+                    )
                 yield f'event: error\ndata: {json_module.dumps(error_response_data.model_dump(mode="json"), ensure_ascii=False)}\n\n'
         finally:
             if on_done:

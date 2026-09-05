@@ -117,7 +117,7 @@ def get_chat_history_by_id(chat_id: int) -> ChatHistory:
     """
     record = ChatHistory.query.filter_by(id=chat_id, is_delete=0).first()
     if not record:
-        raise BusinessException(ErrorCode.RESOURCE_NOT_FOUND, f"对话记录不存在: id={chat_id}")
+        raise BusinessException(ErrorCode.CHAT_HISTORY_NOT_FOUND, f"对话记录不存在: id={chat_id}")
     return record
 
 

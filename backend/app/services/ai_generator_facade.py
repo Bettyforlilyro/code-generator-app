@@ -1,9 +1,18 @@
+import json
+import logging
+import re
+
 from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.common.exceptions.error_codes import (
+    ErrorCode, AIServiceError, AIResponseParseError, FileOperationError, BusinessException,
+)
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
-from backend.app.services.ai_common.llm_client import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.ai_common.llm_client import ChatClientBuilder
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
+
+logger = logging.getLogger(__name__)
 
 
 class AICodeGeneratorFacade:
@@ -57,30 +66,56 @@ class AICodeGeneratorFacade:
                 full_response += chunk.content
                 # 只产出原始数据，不做 SSE 包装
                 yield {"d": chunk.content}
+        except BusinessException:
+            # 如果下游已经抛出了明确的业务异常，直接上抛
+            raise
+        except Exception as e:
+            # AI 服务调用异常（网络、超时、服务不可用等）
+            logger.error(f"AI流式生成调用失败: {e}")
+            raise AIServiceError(f"AI服务调用失败: {e}") from e
 
-            # 第二阶段：解析完整 JSON 响应，正常情况下系统prompt只允许AI返回JSON格式的文本
-            try:
-                result = pydantic_model.model_validate_json(full_response)
-            except Exception as e:
-                import re, json
-                json_match = re.search(r'\{.*\}', full_response, re.DOTALL)
-                if json_match:
-                    result = pydantic_model.model_validate(
-                        json.loads(json_match.group())
+        # 第二阶段：解析完整 JSON 响应，正常情况下系统 prompt 只允许 AI 返回 JSON 格式的文本
+        try:
+            result = pydantic_model.model_validate_json(full_response)
+        except Exception:
+            # 尝试用正则兜底提取 JSON 字符串（AI 偶尔会在 JSON 外包裹解释性文本）
+            json_match = re.search(r'\{.*\}', full_response, re.DOTALL)
+            if json_match:
+                try:
+                    result = pydantic_model.model_validate(json.loads(json_match.group()))
+                except Exception as parse_err:
+                    logger.error(
+                        f"正则兜底后仍无法解析AI响应为{pydantic_model.__name__}: {parse_err}\n"
+                        f"原始响应: {full_response}"
                     )
-                else:
-                    raise ValueError(f"无法解析AI响应为{pydantic_model.__name__}:\n原始响应: {full_response}, 错误信息: {str(e)}")
+                    raise AIResponseParseError(
+                        f"AI响应格式错误，无法解析为{pydantic_model.__name__}"
+                    ) from parse_err
+            else:
+                logger.error(
+                    f"AI响应中未找到有效JSON，模型: {pydantic_model.__name__}\n"
+                    f"原始响应: {full_response}"
+                )
+                raise AIResponseParseError(
+                    f"AI响应中未找到有效JSON结构，无法解析为{pydantic_model.__name__}"
+                )
 
-            # 第三阶段：保存文件
+        # 第三阶段：保存文件并更新应用信息
+        try:
             if result.is_code_modified():
                 saver = CodeFileSaverFactory.get_saver(code_gen_type)
                 saver.save_code_file(result, app_id)
             if result.is_name_modified():
-                update_app_svc(app_id, get_app_creator_by_app_id(app_id), AppUpdateRequest(app_name=result.app_name))
-
+                update_app_svc(
+                    app_id, get_app_creator_by_app_id(app_id),
+                    AppUpdateRequest(app_name=result.app_name)
+                )
+        except BusinessException:
+            # 下游业务已抛出明确业务异常，直接上抛
+            raise
         except Exception as e:
-            # 产出错误事件数据
-            yield {
-                "d": str(e)
-            }
-
+            logger.error(f"保存文件或更新应用信息失败: {e}")
+            # 根据实际失败操作选择合适的错误码
+            if isinstance(e, (OSError, IOError)):
+                raise FileOperationError(f"文件写入失败: {e}") from e
+            raise BusinessException(ErrorCode.INTERNAL_ERROR, f"保存结果失败: {e}") from e
