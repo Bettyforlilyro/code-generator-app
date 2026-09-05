@@ -1,11 +1,9 @@
-import logging
-
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
-from backend.app.extensions.db_instance import db
-from backend.app.models.app_model import AppModel
+from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.LLM_Client import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
 
 
 class AICodeGeneratorFacade:
@@ -77,14 +75,8 @@ class AICodeGeneratorFacade:
             if result.is_code_modified():
                 saver = CodeFileSaverFactory.get_saver(code_gen_type)
                 saver.save_code_file(result, app_id)
-            # 第四阶段，更新应用名称
-            try:
-                if result.is_name_modified():
-                    app = AppModel.query.filter_by(id=app_id).first()
-                    app.app_name = result.app_name
-                    db.session.commit()
-            except Exception as e:
-                logging.warning(f"更新应用名称失败，应用ID: {app_id}，错误信息: {str(e)}")
+            if result.is_name_modified():
+                update_app_svc(app_id, get_app_creator_by_app_id(app_id), AppUpdateRequest(app_name=result.app_name))
 
         except Exception as e:
             # 产出错误事件数据

@@ -383,3 +383,11 @@ def _get_app_or_raise(app_id: int) -> AppModel:
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND, message="应用不存在")
     return app
+
+
+def get_app_creator_by_app_id(app_id: int) -> User | None:
+    """根据应用 ID 查询创建者（含软删除过滤），不存在返回 None"""
+    app = get_app_by_id(app_id)
+    if not app:
+        return None
+    return User.query.filter_by(id=app.user_id, is_delete=0).first()
