@@ -3,7 +3,7 @@ from backend.app.common.exceptions.error_codes import ErrorCode, BusinessExcepti
 from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.requests.user_management_request import UserRegisterRequest
 from backend.app.schemas.responses.BaseResponse import success_response
-from backend.app.services.user_service import register_user_svc
+from backend.app.services.auth_service import register_user_svc
 
 
 @user_management_bp.route('/register', methods=['POST'])

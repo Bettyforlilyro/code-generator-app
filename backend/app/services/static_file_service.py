@@ -165,8 +165,8 @@ def build_app_zip_response(app_dir: str, zip_filename: str):
         for root, _dirs, files in os.walk(app_dir):
             for file_name in files:
                 file_path = os.path.join(root, file_name)
-                arcname = os.path.relpath(file_path, app_dir).replace('\\', '/')
-                zf.write(file_path, arcname)
+                arc_name = os.path.relpath(file_path, app_dir).replace('\\', '/')
+                zf.write(file_path, arc_name)
 
     memory_file.seek(0)
 
