@@ -1,10 +1,9 @@
 import os
 from abc import ABC, abstractmethod
-from datetime import datetime
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
-from backend.app.models.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult
+from backend.app.schemas.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult
 
 
 class CodeFileSaver(ABC):

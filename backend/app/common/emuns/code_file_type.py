@@ -1,6 +1,6 @@
 from enum import Enum
 
-from backend.app.models.ai_generate_results import HtmlCodeResult, MultiFileCodeResult
+from backend.app.schemas.ai_generate_results import HtmlCodeResult, MultiFileCodeResult
 from backend.app.services.ai_common.prompts import *
 
 

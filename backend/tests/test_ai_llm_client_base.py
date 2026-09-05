@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
-from backend.app.models.ai_generate_results import HtmlCodeResult
+from backend.app.schemas.ai_generate_results import HtmlCodeResult
 from backend.app.services.ai_common.LLM_Client import ChatClientBuilder, create_default_chat_client
 from backend.app.services.ai_common.advisor import (
     PreAdvisor, PostAdvisor, StreamPostAdvisor,
