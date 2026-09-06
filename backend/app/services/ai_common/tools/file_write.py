@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
-
 TOOL_NAME = "文件写入工具"
 
 
@@ -25,9 +24,11 @@ class FileWriteToolArgs(BaseModel):
     args_schema=FileWriteToolArgs
 )
 def file_write_tool(file_path: str, content: str) -> str:
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    return "文件写入成功"
+    relative_path = Path(file_path)
+    full_path = Path(os.path.join(Path(DEFAULT_GENERATE_ROOT), "test")) / relative_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_text(content, encoding="utf-8")
+    return f"文件写入成功，文件路径：{relative_path}"
 
 
 file_write_tool.name = TOOL_NAME
@@ -59,7 +60,7 @@ def file_write_tool_with_context():
             full_path = Path(os.path.join(DEFAULT_GENERATE_ROOT, full_dir_name)) / relative_path
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(content, encoding="utf-8")
-            return f"文件写入成功，文件路径：{full_path}"
+            return f"文件写入成功，文件路径：{relative_path}"
         except Exception as e:
             logging.error(f"文件写入失败：{e}")
             return f"文件写入失败，错误信息：{e}"
