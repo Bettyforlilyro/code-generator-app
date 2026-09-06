@@ -63,11 +63,23 @@ def register_request_logger(app):
         status = response.status_code
         method = request.method
         level = logging.WARNING if (status >= 400 or elapsed_ms > 600 * 1000) else logging.INFO
-
+        if level == logging.CRITICAL:
+            level_str = 'CRITICAL'
+        elif level == logging.FATAL:
+            level_str = 'FATAL'
+        elif level == logging.ERROR:
+            level_str = 'ERROR'
+        elif level == logging.WARNING:
+            level_str = 'WARNING'
+        elif level == logging.INFO:
+            level_str = 'INFO'
+        elif level == logging.DEBUG:
+            level_str = 'DEBUG'
+        else:
+            level_str = 'NOTSET'
         logger.log(
             level,
-            "%s %s %s -> %d (%.1fms) from %s",
-            client_ip, method, path, status, elapsed_ms, client_ip,
+            f'[{level_str}] {client_ip} {method} {path} -> {status} ({elapsed_ms:.1f}ms)',
         )
 
         return response
