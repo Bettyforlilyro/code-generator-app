@@ -112,7 +112,8 @@ print("\n📡 开始接收流式数据:\n")
 
 for chunk in client3.chat_stream(
     messages,
-    conversation_id="test-stream-multi-001"
+    conversation_id="test-stream-multi-001",
+    tool_context={"user_id": "test_user", "scene": "test_stream"},
 ):
     chunks_received += 1
     if chunk.is_last:

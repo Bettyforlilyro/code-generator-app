@@ -3,7 +3,7 @@ import inspect
 import logging
 import pkgutil
 from pathlib import Path
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 
 from langchain_core.tools import BaseTool
 
@@ -134,14 +134,6 @@ def get_all_tools_in_module() -> List[BaseTool]:
     return _collect_all_base_tools()
 
 
-def get_tools_by_names(tool_names: List[str]) -> BaseTool | None:
-    """按名称查找无状态工具，未找到返回 None"""
-    for t in get_all_tools_in_module():
-        if t.name in tool_names:
-            return t
-    return None
-
-
 def tools_factory_with_context(tool_names: List[str] | None = None) -> List[BaseTool]:
     """
     通用工厂：扫描 tools/ 包下所有 *_with_context 工厂函数，返回生成的 BaseTool 列表。
@@ -183,12 +175,12 @@ def tools_factory_with_context(tool_names: List[str] | None = None) -> List[Base
 
     # 按 tool.name 过滤
     if tool_names is not None:
-        generated = get_tools_with_context_by_names(generated, tool_names)
+        generated = filter_tools_by_names(generated, tool_names)
 
     return _deduplicate_tools(generated)
 
 
-def get_tools_with_context_by_names(tools: List[BaseTool], names: List[str]) -> List[BaseTool]:
+def filter_tools_by_names(tools: List[BaseTool], names: List[str]) -> List[BaseTool]:
     """
     从工具列表中按名字筛选。
     找不到指定名字的工具时会打印警告（不报错），方便开发调试。
@@ -204,3 +196,46 @@ def get_tools_with_context_by_names(tools: List[BaseTool], names: List[str]) -> 
         import warnings
         warnings.warn(f"[filter_tools] 以下工具未找到: {missing}，可用工具有: {all_names}")
     return found
+
+
+#  注册工具的 show 函数，便于自定义显示工具调用情况
+#  key: tool.name（例如 "文件写入工具"）
+#  value: {
+#      "show_start": callable(tool_args: dict) -> str,   # 可选
+#      "show_end":   callable(result: str, success: bool) -> str,  # 可选
+#  }
+#
+#  工具文件里调用 register_tool_display("文件写入工具", show_start=..., show_end=...)
+#  llm_client.py 里调 get_tool_display(tool.name) 拿到，找不到就用默认格式
+# ---------------------------------------------------------------------------
+_DISPLAY_REGISTRY: Dict[str, Dict[str, Callable]] = {}
+
+
+def register_tool_display(
+    tool_name: str,
+    show_start: Optional[Callable[[dict], str]] = None,
+    show_end: Optional[Callable[[str, bool], str]] = None,
+) -> None:
+    """
+    注册某个工具的自定义展示函数，供流式调用显示工具调用情况。
+    Args:
+        tool_name:  工具的 name，必须和 StructuredTool.name 一致
+        show_start: 工具开始执行时的展示函数，签名 fn(tool_args: dict) -> str
+        show_end:   工具执行完毕时的展示函数，签名 fn(result: str, success: bool) -> str
+    """
+    entry = {}
+    if show_start is not None:
+        entry["show_start"] = show_start
+    if show_end is not None:
+        entry["show_end"] = show_end
+    _DISPLAY_REGISTRY[tool_name] = entry
+    logger.debug(f"[tools] 注册展示函数: {tool_name} -> {list(entry.keys())}")
+
+
+def get_tool_display(tool_name: str) -> Dict[str, Callable]:
+    """
+    查询某个工具的自定义展示函数，供流式调用显示工具调用情况。
+    Returns:
+        dict，可能包含 "show_start" / "show_end" key；也可能是空 dict（用默认格式）
+    """
+    return _DISPLAY_REGISTRY.get(tool_name, {})

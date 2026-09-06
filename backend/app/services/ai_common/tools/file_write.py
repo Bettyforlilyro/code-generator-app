@@ -6,6 +6,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
+from backend.app.services.ai_common.tools import register_tool_display
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 TOOL_NAME = "文件写入工具"
@@ -32,6 +33,34 @@ def file_write_tool(file_path: str, content: str) -> str:
 
 
 file_write_tool.name = TOOL_NAME
+
+
+# ---- 给无状态版工具挂自定义展示方法 ----
+def _file_write_show_start(tool_args: dict) -> str:
+    """工具开始时怎么展示——显示文件路径和内容摘要"""
+    file_path = tool_args.get("file_path", "?")
+    content = tool_args.get("content", "")
+    preview = content[:50] + ("..." if len(content) > 50 else "")
+    size = len(content.encode("utf-8"))
+    return (
+        f"\n\n📝 **写入文件**: `{file_path}`  \n"
+        f"预估大小: {size} bytes  \n"
+        f"内容预览: `{preview}`\n\n"
+    )
+
+
+def _file_write_show_end(result: str, success: bool) -> str:
+    """工具结束时怎么展示——显示文件路径和状态"""
+    if success and "成功" in result:
+        return f"✅ **写入完成** {result}\n\n"
+    return f"❌ **写入失败** {result}\n\n"
+
+
+register_tool_display(
+    tool_name=TOOL_NAME,
+    show_start=_file_write_show_start,
+    show_end=_file_write_show_end,
+)
 
 
 def file_write_tool_with_context():
@@ -66,4 +95,38 @@ def file_write_tool_with_context():
             return f"文件写入失败，错误信息：{e}"
 
     _tool.name = TOOL_NAME
+
     return _tool
+
+
+# ---- 本文件的工具注册自定义展示方法，调用一次即可，key 都是 TOOL_NAME ----
+def _show_start(tool_args: dict) -> str:
+    file_path = tool_args.get("file_path", "?")
+    content = tool_args.get("content", "")
+    preview = content[:50] + ("..." if len(content) > 50 else "")
+    size = len(content.encode("utf-8"))
+    # 带 context 版可以额外显示 workspace 信息
+    context = get_runtime_context()
+    scene = context.get("scene", "")
+    user_id = context.get("user_id", "anonymous")
+    return (
+        f"\n\n📝 **写入文件**: `{file_path}`  \n"
+        f"所属用户: `{user_id}`  \n"
+        f"场景: `{scene}`  \n"
+        f"预估大小: {size} bytes  \n"
+        f"内容预览: `{preview}`\n\n"
+    )
+
+
+def _show_end(result: str, success: bool) -> str:
+    if success and "成功" in result:
+        # result 里可能包含完整路径（带 workspace 的绝对路径）
+        return f"✅ **写入完成** {result}\n\n"
+    return f"❌ **写入失败** {result}\n\n"
+
+
+register_tool_display(
+    tool_name=TOOL_NAME,
+    show_start=_show_start,
+    show_end=_show_end,
+)

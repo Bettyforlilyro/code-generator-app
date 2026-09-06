@@ -22,11 +22,38 @@ class AdvisorContext:
 
 
 class StreamChunk:
-    """流式响应数据块"""
+    """
+    流式响应数据块
 
-    def __init__(self, content: str, is_last: bool = False):
+    chunk_type 字段说明前端应该怎么渲染：
+        "text"        —— 普通对话文本，用 Markdown/纯文本渲染（默认值）
+        "tool_start"  —— 工具开始调用，前端可以渲染「工具调用卡片」的标题部分
+        "tool_end"    —— 工具执行完毕，前端可以更新「工具调用卡片」为完成状态
+        "error"       —— 错误信息，前端可以用红色/警告样式渲染
+        "done"        —— 整轮结束（is_last=True 的时候 chunk_type=done）
+
+    metadata 字段存放结构化数据，前端可以直接用：
+        tool_start 时: {tool_name, args_str, tool_call_id}
+        tool_end 时:   {tool_name, result_str, tool_call_id, success: bool}
+    """
+
+    TYPE_TEXT = "text"
+    TYPE_TOOL_START = "tool_start"
+    TYPE_TOOL_END = "tool_end"
+    TYPE_ERROR = "error"
+    TYPE_DONE = "done"
+
+    def __init__(
+        self,
+        content: str,
+        is_last: bool = False,
+        chunk_type: str = "text",
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         self.content = content
         self.is_last = is_last
+        self.chunk_type = chunk_type
+        self.metadata = metadata or {}
 
 
 class PreAdvisor(ABC):
