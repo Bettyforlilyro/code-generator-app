@@ -1,6 +1,4 @@
-import json
 import os
-import re
 import traceback
 import warnings
 from typing import Any, List
@@ -12,7 +10,6 @@ from langchain_openai import ChatOpenAI
 from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext, StreamChunk
 from backend.app.services.ai_common.tools import get_tools_with_context_by_names, get_all_tools_in_module
 from backend.app.services.ai_common.tools.tool_context_store import set_runtime_context
-
 
 # 工具调用循环的最大迭代次数（防止 LLM 陷入无限调用）
 MAX_TOOL_ITERATIONS = 10
@@ -377,9 +374,18 @@ class ChatClient:
         tool_context: dict | None = None,
     ):
         """
-        发送消息并获取流式回复
+        流式回复（**含完整工具调用循环**）
 
-        注意：流式模式**不执行工具调用循环**，工具需在流式之外处理。
+        工作原理：
+            1. 流式收集本轮 LLM 响应，累积成完整 AIMessageChunk
+            2. 收集过程中若有文本内容，实时 yield 给前端
+            3. 收集完后检查 tool_calls：
+                - 有 → 执行工具，把 AIMessage + ToolMessage 加入历史，继续下一轮
+                - 无 → 这是最终回复，yield is_last=True 结束
+
+        用户体验说明：
+            - 如果 LLM 在决定调工具之前先输出了一些文本，这部分会实时流式展示
+            - 工具执行 + 下一轮 LLM 响应期间显示调用的工具信息（当前仅yield开始调用工具和结束调用工具时的信息）
 
         Args:
             messages: 消息列表，格式为 [{'role': 'user/assistant/system', 'content': '...'}]
@@ -394,31 +400,117 @@ class ChatClient:
         if tool_context:
             set_runtime_context(tool_context)
 
-        full_response = ""
+        accumulated: list = list(context.messages)
+        full_response_text = ""
+        iteration = 0
 
-        # 使用langchain的stream方法获取流式响应
-        for chunk in self._chat_llm.stream(context.messages):
-            if hasattr(chunk, 'content') and chunk.content:
-                stream_chunk = StreamChunk(content=chunk.content, is_last=False)
+        while iteration < MAX_TOOL_ITERATIONS:
+            iteration += 1
 
-                # 执行流式后置拦截器链
-                processed_chunk = self._advisor_chain.execute_stream_post_chain(stream_chunk, context)
+            # ===== 阶段 1：流式收集本轮 LLM 响应 =====
+            # full_chunk 用于累积所有 AIMessageChunk（LangChain 支持 + 操作符自动处理碎片化 tool_calls）
+            full_chunk = None
 
-                full_response += processed_chunk.content
+            for chunk in self._chat_llm.stream(accumulated):
+                # 累积：AIMessageChunk
+                full_chunk = chunk if full_chunk is None else full_chunk + chunk
 
-                yield processed_chunk
+                # 有纯文本内容 → 实时 yield（用户能立刻看到 AI 正在输出什么）
+                if hasattr(chunk, 'content') and chunk.content:
+                    stream_chunk = StreamChunk(content=chunk.content, is_last=False)
+                    processed_chunk = self._advisor_chain.execute_stream_post_chain(
+                        stream_chunk, context
+                    )
+                    full_response_text += processed_chunk.content
+                    yield processed_chunk
 
-        # 发送最后一个标记块
+            # ===== 阶段 2：从完整 chunk 检查是否有 tool_calls =====
+            tool_calls = full_chunk.tool_calls
+            if not tool_calls:  # 没有工具调用 —— 这就是最终回复，结束循环
+                break
+
+            # ===== 阶段 3：有工具调用，执行后继续下一轮 =====
+            # 先把 AIMessage（包含 tool_calls）加入历史
+            full_ai_message = AIMessage(
+                content=full_chunk.content or "",
+                tool_calls=tool_calls,
+                id=full_chunk.id if full_chunk.id else None,
+            )
+            accumulated.append(full_ai_message)
+
+            # 执行工具 —— 边执行边 yield 状态标记，让用户看到 AI 正在做什么StreamChunk中的内容
+            # 这里在开始调用工具和结束调用工具时yield相关信息
+            tool_messages: List[ToolMessage] = []
+            for item in self._execute_tool_calls_stream(tool_calls):
+                tool_action = item[0]
+                if tool_action == "tool_start":
+                    _, tool_name, args_str = item
+                    yield StreamChunk(
+                        content=f"\n\n🛠️ **调用工具**: `{tool_name}`  \n参数: `{args_str}`\n\n",
+                        is_last=False,
+                    )
+                elif tool_action == "tool_end":
+                    _, tool_name, result_str = item
+                    yield StreamChunk(
+                        content=f"✅ **工具完成**: `{tool_name}` → {result_str}\n\n",
+                        is_last=False,
+                    )
+                elif tool_action == "tool_message":
+                    tool_messages.append(item[1])
+
+            accumulated.extend(tool_messages)
+
+        # ===== 发送结束标记 =====
         final_chunk = StreamChunk(content="", is_last=True)
         processed_final = self._advisor_chain.execute_stream_post_chain(final_chunk, context)
-
-        # 保存完整响应到context
-        context.response = full_response
+        context.response = full_response_text
 
         # 执行完整的后置拦截器链（如果需要）
         # context = self._advisor_chain.execute_post_chain(context)
 
         yield processed_final
+
+    def _execute_tool_calls_stream(self, tool_calls: list):
+        """
+        流式执行一批 tool_calls —— 生成器版本，边执行边 yield 状态标记。
+
+        Yields:
+            tuple: (kind, *payload)
+                - ("tool_start",  tool_name, args_str)   工具开始执行
+                - ("tool_end",    tool_name, result_str)  工具执行完毕
+                - ("tool_message", ToolMessage)           真正要追加给 LLM 的消息
+        """
+        for tc in tool_calls:
+            tool_name = tc['name']
+            tool_args = tc.get('args', {})
+            tool_call_id = tc.get('id', '')
+
+            # yield 工具开始标记
+            args_str = str(tool_args)[:200]  # 截断防止过长
+            yield "tool_start", tool_name, args_str
+
+            # 1. 查找工具
+            try:
+                matched = get_tools_with_context_by_names(self._available_tools, [tool_name])
+                if not matched:
+                    raise ValueError(f"未注册的工具: {tool_name}")
+                tool = matched[0]
+            except Exception as e:
+                yield "tool_end", tool_name, f"❌ 查找失败: {e}"
+                yield "tool_message", ToolMessage(content=f"工具查找失败: {e}", tool_call_id=tool_call_id)
+                continue
+
+            # 2. 执行工具
+            try:
+                result = tool.invoke(tool_args)
+                content = str(result) if not isinstance(result, str) else result
+                yield "tool_end", tool_name, f"✅ {content[:100]}"
+            except Exception as e:
+                content = f"工具执行异常: {type(e).__name__}: {e}"
+                yield "tool_end", tool_name, f"❌ {content[:100]}"
+
+            # 3. yield 真正的 ToolMessage
+            yield "tool_message", ToolMessage(content=content, tool_call_id=tool_call_id)
 
     def _execute_tool_calls(self, tool_calls: list) -> List[ToolMessage]:
         """
