@@ -1,37 +1,3 @@
-"""
-通用线程安全内存缓存
-
-支持：
-    - TTL 过期淘汰：超过指定时间未访问的条目自动失效
-    - 容量上限 + LRU 淘汰：缓存满时驱逐最久未访问的条目
-    - 线程安全：所有公开方法内部加锁，多线程场景无需额外处理
-    - 访问时间由 Cache 自身维护：对 value 对象无特殊接口要求
-    - 自动清理过期缓存：默认关闭，需手动调用 evict_expired() 清理过期条目，也可以通过 start_auto_evict() 启动自动清理线程
-
-典型用途：
-    - AI 对话历史缓存（ChatMemoryManager）
-    - 用户会话信息缓存
-    - 任何 "key → 对象" 形式的临时缓存场景
-
-示例：
-    cache = MemoryCache(max_size=100, ttl_seconds=1800)
-
-    # 写入
-    cache.set("user_123", {"name": "Alice", "role": "admin"})
-
-    # 读取（命中时自动刷新访问时间）
-    data = cache.get("user_123")
-    if data is None:
-        data = load_from_db("user_123")
-        cache.set("user_123", data)
-
-    # 定时清理（建议每 5-10 分钟调一次）
-    cache.evict_expired()
-
-    # 启动自动清理线程（默认关闭，建议创建 MemoryCache 时手动调用）
-    cache.start_auto_evict()
-
-"""
 from __future__ import annotations
 
 import logging
@@ -51,11 +17,35 @@ TTL_SECONDS = 1800
 
 class MemoryCache(Generic[K, V]):
     """
-    线程安全的内存缓存（泛型）
+    通用线程安全内存缓存
 
-    底层维护两个 dict：
-        - _data:     {key: value} — 实际缓存内容
-        - _access:   {key: last_access_timestamp} — 访问时间戳（用于 TTL 和 LRU）
+    支持：
+        - TTL 过期淘汰：超过指定时间未访问的条目自动失效
+        - 容量上限 + LRU 淘汰：缓存满时驱逐最久未访问的条目
+        - 线程安全：所有公开方法内部加锁，多线程场景无需额外处理
+        - 访问时间由 Cache 自身维护：对 value 对象无特殊接口要求
+        - 自动清理过期缓存：默认关闭，需手动调用 evict_expired() 清理过期条目，也可以通过 start_auto_evict() 启动自动清理线程
+
+    典型用途：
+        - 任何 "key → 对象" 形式的临时缓存场景
+
+    示例：
+        cache = MemoryCache(max_size=100, ttl_seconds=1800)
+
+        # 写入
+        cache.set("user_123", {"name": "Alice", "role": "admin"})
+
+        # 读取（命中时自动刷新访问时间）
+        data = cache.get("user_123")
+        if data is None:
+            data = load_from_db("user_123")
+            cache.set("user_123", data)
+
+        # 定时清理（建议每 5-10 分钟调一次）
+        cache.evict_expired()
+
+        # 启动自动清理线程（默认关闭，建议创建 MemoryCache 时手动调用）
+        cache.start_auto_evict()
 
     """
 

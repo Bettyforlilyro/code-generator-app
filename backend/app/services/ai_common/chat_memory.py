@@ -179,7 +179,7 @@ class ChatMemoryManager:
         self._max_context_tokens = max_context_tokens
         self._reserved_for_reply = reserved_for_reply
 
-        # 委托给通用 MemoryCache，TTL + LRU + 线程安全全部由它处理
+        # 消息缓存，key 为 app_id，value 为 SessionMemory
         self._cache: MemoryCache[int, SessionMemory] = MemoryCache(
             max_size=max_cached_sessions,
             ttl_seconds=memory_ttl_seconds,
