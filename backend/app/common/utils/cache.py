@@ -6,6 +6,7 @@
     - 容量上限 + LRU 淘汰：缓存满时驱逐最久未访问的条目
     - 线程安全：所有公开方法内部加锁，多线程场景无需额外处理
     - 访问时间由 Cache 自身维护：对 value 对象无特殊接口要求
+    - 自动清理过期缓存：默认关闭，需手动调用 evict_expired() 清理过期条目，也可以通过 start_auto_evict() 启动自动清理线程
 
 典型用途：
     - AI 对话历史缓存（ChatMemoryManager）
@@ -26,6 +27,10 @@
 
     # 定时清理（建议每 5-10 分钟调一次）
     cache.evict_expired()
+
+    # 启动自动清理线程（默认关闭，建议创建 MemoryCache 时手动调用）
+    cache.start_auto_evict()
+
 """
 from __future__ import annotations
 
