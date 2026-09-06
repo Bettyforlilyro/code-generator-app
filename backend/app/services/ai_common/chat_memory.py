@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
+from backend.app.common.utils.cache import MemoryCache
 from backend.app.common.utils.estimate_tokens import estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -51,21 +51,17 @@ class MemoryMessage:
 
 @dataclass
 class SessionMemory:
-    """单个 app_id 对应的内存记忆"""
+    """
+    单个 app_id 对应的内存记忆（自带缓存）
+    """
     app_id: int
     messages: List[MemoryMessage] = field(default_factory=list)
-    last_access_time: float = field(default_factory=time.time)
 
     # ---------- 基础操作 ----------
     def add(self, role: str, content: str, token_count: int = 0, db_id: int = None) -> MemoryMessage:
         msg = MemoryMessage(role=role, content=content, token_count=token_count, db_id=db_id)
         self.messages.append(msg)
-        self.last_access_time = time.time()
         return msg
-
-    def touch(self):
-        """刷新最近访问时间"""
-        self.last_access_time = time.time()
 
     @property
     def total_tokens(self) -> int:
@@ -76,7 +72,6 @@ class SessionMemory:
         return [m.to_llm_dict() for m in self.messages]
 
     def get_all(self) -> List[MemoryMessage]:
-        self.touch()
         return list(self.messages)
 
 
@@ -183,11 +178,13 @@ class ChatMemoryManager:
 
         self._max_context_tokens = max_context_tokens
         self._reserved_for_reply = reserved_for_reply
-        self._memory_ttl_seconds = memory_ttl_seconds
-        self._max_cached_sessions = max_cached_sessions
 
-        self._cache: Dict[int, SessionMemory] = {}
-        self._cache_lock = threading.RLock()
+        # 委托给通用 MemoryCache，TTL + LRU + 线程安全全部由它处理
+        self._cache: MemoryCache[int, SessionMemory] = MemoryCache(
+            max_size=max_cached_sessions,
+            ttl_seconds=memory_ttl_seconds,
+        )
+        self._cache.start_auto_evict()  # 启用自动清理过期缓存的守护线程
 
     # ---------- 内部：DB 加载（Lazy Import 避免循环依赖） ----------
     def _load_from_db(self, app_id: int) -> SessionMemory:
@@ -233,22 +230,18 @@ class ChatMemoryManager:
     def get_session(self, app_id: int) -> SessionMemory:
         """
         获取指定 app_id 的 SessionMemory（若缓存未命中则从 DB 加载）
+
+        MemoryCache.get() 命中时会自动刷新访问时间，无需手动 touch()；
+        容量上限和 LRU 淘汰也由 MemoryCache.set() 内部处理。
         """
-        with self._cache_lock:
-            session = self._cache.get(app_id)
-            if session is not None:
-                session.touch()
-                return session
-
-            # 缓存 miss：从 DB 加载
-            session = self._load_from_db(app_id)
-
-            # LRU 淘汰：缓存已满时清理最久未访问的
-            if len(self._cache) >= self._max_cached_sessions:
-                self._evict_lru_one()
-
-            self._cache[app_id] = session
+        session = self._cache.get(app_id)
+        if session is not None:
             return session
+
+        # 缓存 miss：从 DB 加载后写入（MemoryCache.set 内部自动处理 LRU 淘汰）
+        session = self._load_from_db(app_id)
+        self._cache.set(app_id, session)
+        return session
 
     def get_llm_messages(self, app_id: int, extra_messages: Optional[List[Dict[str, str]]] = None) \
             -> List[Dict[str, str]]:
@@ -316,89 +309,29 @@ class ChatMemoryManager:
 
     def update_db_id(self, app_id: int, index: int, db_id: int):
         """
-        回填某条内存消息的 db_id（DB 写入成功后调用）
+        回填某条内存消息的 db_id（DB 写入成功后调用），一般用不到，主要用于测试/清理
 
         Args:
             app_id: 应用 ID
             index: 消息在 session.messages 中的下标
             db_id: 数据库记录主键
         """
-        with self._cache_lock:
-            session = self._cache.get(app_id)
-            if session and 0 <= index < len(session.messages):
-                session.messages[index].db_id = db_id
+        session = self._cache.get(app_id)  # MemoryCache.get 自身加锁
+        if session and 0 <= index < len(session.messages):
+            session.messages[index].db_id = db_id
 
     def remove_message(self, app_id: int, index: int):
         """删除某条内存消息（一般用不到，主要用于测试/清理）"""
-        with self._cache_lock:
-            session = self._cache.get(app_id)
-            if session and 0 <= index < len(session.messages):
-                session.messages.pop(index)
+        session = self._cache.get(app_id)
+        if session and 0 <= index < len(session.messages):
+            session.messages.pop(index)
 
     def clear_session(self, app_id: int):
         """清空并驱逐指定会话的内存缓存"""
-        with self._cache_lock:
-            self._cache.pop(app_id, None)
-            logger.info(f"[ChatMemory] 已清空 app_id={app_id} 的内存记忆")
-
-    # ---------- 缓存淘汰 ----------
-    def evict_expired(self) -> int:
-        """
-        淘汰所有超过 TTL 的会话缓存
-
-        Returns:
-            实际淘汰的会话数量
-        """
-        now = time.time()
-        with self._cache_lock:
-            expired = [
-                app_id for app_id, session in self._cache.items()
-                if now - session.last_access_time > self._memory_ttl_seconds
-            ]
-            for app_id in expired:
-                del self._cache[app_id]
-            if expired:
-                logger.info(f"[ChatMemory] TTL 淘汰 {len(expired)} 个会话: {expired}")
-            return len(expired)
-
-    def _evict_lru_one(self):
-        """LRU 淘汰：驱逐最久未访问的一个会话"""
-        with self._cache_lock:
-            if not self._cache:
-                return
-            oldest_app_id = min(self._cache, key=lambda aid: self._cache[aid].last_access_time)
-            del self._cache[oldest_app_id]
-            logger.info(f"[ChatMemory] LRU 淘汰 app_id={oldest_app_id}")
-
-    def clear_all(self):
-        """清空全部内存缓存"""
-        with self._cache_lock:
-            count = len(self._cache)
-            self._cache.clear()
-            logger.info(f"[ChatMemory] 清空全部 {count} 个会话的内存记忆")
-
-    # ---------- 状态查询 ----------
-    def cache_info(self) -> Dict[str, Any]:
-        """返回缓存状态信息（用于监控/调试）"""
-        with self._cache_lock:
-            return {
-                "cached_sessions": len(self._cache),
-                "max_cached_sessions": self._max_cached_sessions,
-                "ttl_seconds": self._memory_ttl_seconds,
-                "max_context_tokens": self._max_context_tokens,
-                "sessions": [
-                    {
-                        "app_id": aid,
-                        "messages_count": len(s.messages),
-                        "total_tokens": s.total_tokens,
-                        "idle_seconds": int(time.time() - s.last_access_time),
-                    }
-                    for aid, s in self._cache.items()
-                ],
-            }
+        self._cache.delete(app_id)
 
 
-# ==================== 便捷函数 ====================
+# ==================== 获取全局单例 ChatMemoryManager ====================
 
 def get_chat_memory_manager() -> ChatMemoryManager:
     """获取全局唯一的 ChatMemoryManager 实例"""
