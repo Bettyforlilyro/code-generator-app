@@ -1,11 +1,21 @@
-from typing import Any
+import json
+import os
+import re
+import traceback
+import warnings
+from typing import Any, List
 
+from dotenv import load_dotenv
+from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
 from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext, StreamChunk
-import os
-from dotenv import load_dotenv
+from backend.app.services.ai_common.tools import get_tools_with_context_by_names, get_all_tools_in_module
+from backend.app.services.ai_common.tools.tool_context_store import set_runtime_context
 
+
+# 工具调用循环的最大迭代次数（防止 LLM 陷入无限调用）
+MAX_TOOL_ITERATIONS = 10
 
 load_dotenv()
 
@@ -27,6 +37,7 @@ class ChatClientBuilder:
         self._max_retries = 3
         self._advisor_chain = AdvisorChain()
         self._response_format = None
+        self._available_tools = []
 
     def set_api_key(self, api_key: str) -> 'ChatClientBuilder':
         """设置API密钥"""
@@ -134,6 +145,37 @@ class ChatClientBuilder:
         self._advisor_chain.add_stream_post_advisor(advisor)
         return self
 
+    def add_tools(self, tools: list) -> 'ChatClientBuilder':
+        """直接添加 BaseTool 实例列表（可以是无状态工具或已注入 context 的工具）"""
+        self._available_tools.extend(tools)
+        return self
+
+    def add_tools_by_names(self, tool_names: List[str]) -> 'ChatClientBuilder':
+        """
+        按名称注册无状态工具（不带 context 的版本）。
+        找不到指定名字的工具时会发出警告但不报错。
+        """
+        all_tools = get_all_tools_in_module()
+        selected = get_tools_with_context_by_names(all_tools, tool_names)
+        self._available_tools.extend(selected)
+        return self
+
+    def add_tools_with_context_by_names(self, tool_names: List[str] | None = None) -> 'ChatClientBuilder':
+        """
+        按名称注册带 context 的工具
+
+        Args:
+            tool_names: 可选，指定只注册哪些工具；为 None 时注册所有带 _with_context 的工具
+
+        业务侧用法：
+            builder.add_tools_with_context(
+                tool_names=["文件写入工具"]  # 可选，不传就注册全部
+            )
+        """
+        from backend.app.services.ai_common.tools import tools_factory_with_context
+        self._available_tools.extend(tools_factory_with_context(tool_names))
+        return self
+
     def build(self) -> 'ChatClient':
         """构建ChatClient实例"""
         llm_params = {
@@ -158,85 +200,164 @@ class ChatClientBuilder:
 
         chat_llm = ChatOpenAI(**llm_params)
 
+        if self._available_tools:
+            chat_llm = chat_llm.bind_tools(self._available_tools)
+
         return ChatClient(
             chat_llm=chat_llm,
             system_prompt=self._system_prompt,
-            advisor_chain=self._advisor_chain
+            advisor_chain=self._advisor_chain,
+            available_tools=self._available_tools,
         )
 
 
 class ChatClient:
-    """LLM聊天客户端"""
+    """LLM聊天客户端
 
-    def __init__(self, chat_llm: ChatOpenAI, system_prompt: str = "You are a helpful assistant.",
-                 advisor_chain: AdvisorChain = None):
+    提供三类能力：
+    - chat / chat_without_system：同步非流式，含完整工具调用循环
+    - chat_structured：同步非流式 + Pydantic 结构化解析
+    - chat_stream：流式，**不含**工具调用循环（工具需在流式之外处理）
+    """
+
+    def __init__(
+        self,
+        chat_llm: ChatOpenAI,
+        system_prompt: str = "You are a helpful assistant.",
+        advisor_chain: AdvisorChain | None = None,
+        available_tools: list | None = None,
+    ):
         self._chat_llm = chat_llm
         self._system_prompt = system_prompt
         self._advisor_chain = advisor_chain or AdvisorChain()
+        self._available_tools = available_tools or []
 
-    def chat(self, messages: list, conversation_id: str = None) -> str:
+    # ==================== 私有辅助 ====================
+
+    def _build_context(
+        self,
+        messages: list,
+        conversation_id: str | None,
+        with_system: bool = True,
+    ) -> AdvisorContext:
+        """组装 AdvisorContext：可选地拼接 system prompt + 执行 pre_chain
+
+        Args:
+            messages: 原始消息列表
+            conversation_id: 会话 ID
+            with_system: 是否在消息前拼接 system prompt（chat_stream 也要复用）
+
+        Returns:
+            经 pre_chain 处理后的 AdvisorContext
         """
-        发送消息并获取回复
+        if with_system and self._system_prompt:
+            full_messages = [{'role': 'system', 'content': self._system_prompt}] + messages
+        else:
+            full_messages = messages
+        context = AdvisorContext(messages=full_messages, conversation_id=conversation_id)
+        return self._advisor_chain.execute_pre_chain(context)
+
+    def _invoke_with_tool_loop(
+        self,
+        context: AdvisorContext,
+        tool_context: dict | None,
+    ) -> AIMessage:
+        """执行 LLM invoke + 完整工具调用循环
+
+        Args:
+            context: 已组装好的 AdvisorContext（pre_chain 已执行）
+            tool_context: 传给工具的 runtime context（通过 contextvars）
+
+        Returns:
+            最终一轮 LLM 返回的 AIMessage（不再含 tool_calls）
+        """
+        if tool_context:
+            set_runtime_context(tool_context)
+
+        accumulated: list = list(context.messages)
+        response = self._chat_llm.invoke(accumulated)
+
+        # ---- 工具调用循环 ----
+        iteration = 0
+        while response.tool_calls and iteration < MAX_TOOL_ITERATIONS:
+            iteration += 1
+
+            accumulated.append(response)
+            tool_messages = self._execute_tool_calls(response.tool_calls)
+            accumulated.extend(tool_messages)
+
+            response = self._chat_llm.invoke(accumulated)
+
+        # 超出最大迭代次数的防护：强制截断 + 警告
+        if iteration >= MAX_TOOL_ITERATIONS and response.tool_calls:
+            warnings.warn(
+                f"[ChatClient] 工具调用达到最大迭代次数 ({MAX_TOOL_ITERATIONS})，"
+                f"强制截断。最后一条 tool_calls: {response.tool_calls}"
+            )
+            accumulated.append(response)
+            response = AIMessage(
+                content=response.content or "（工具调用达到上限，已截断）"
+            )
+
+        return response
+
+    # ==================== 公开 API ====================
+
+    def chat(
+        self,
+        messages: list,
+        conversation_id: str | None = None,
+        tool_context: dict | None = None,
+    ) -> str:
+        """同步非流式回复（含完整工具调用循环 + system prompt）
 
         Args:
             messages: 消息列表，格式为 [{'role': 'user/assistant/system', 'content': '...'}]
-            conversation_id: 会话ID，用于拦截器上下文
+            conversation_id: 会话 ID，用于拦截器上下文
+            tool_context: 工具调用上下文（通过 contextvars 传给每个工具）
 
         Returns:
-            AI回复的文本内容
+            AI 回复的文本内容
         """
-        if self._system_prompt:
-            full_messages = [
-                                {'role': 'system', 'content': self._system_prompt}
-                            ] + messages
-        else:
-            full_messages = messages
-
-        context = AdvisorContext(messages=full_messages, conversation_id=conversation_id)
-
-        context = self._advisor_chain.execute_pre_chain(context)
-
-        response = self._chat_llm.invoke(context.messages)
-        context.response = response.content
-
+        context = self._build_context(messages, conversation_id, with_system=True)
+        response = self._invoke_with_tool_loop(context, tool_context)
+        context.response = response.content or ""
         context = self._advisor_chain.execute_post_chain(context)
-
         return context.response
 
-    def chat_without_system(self, messages: list, conversation_id: str = None) -> str:
+    def chat_without_system(
+        self,
+        messages: list,
+        conversation_id: str | None = None,
+        tool_context: dict | None = None,
+    ) -> str:
+        """同步非流式回复（含完整工具调用循环，不含 system prompt）"""
+        context = self._build_context(messages, conversation_id, with_system=False)
+        response = self._invoke_with_tool_loop(context, tool_context)
+        context.response = response.content or ""
+        context = self._advisor_chain.execute_post_chain(context)
+        return context.response
+
+    def chat_structured(
+        self,
+        messages: list,
+        pydantic_model,
+        conversation_id: str | None = None,
+        tool_context: dict | None = None,
+    ):
         """
-        发送消息并获取回复（不包含系统提示词）
+        发送消息并获取结构化的 Pydantic 模型结果
 
         Args:
             messages: 消息列表
+            pydantic_model: 用于解析的 Pydantic 模型类（如 HtmlCodeResult, MultiFileCodeResult）
+            conversation_id: 会话 ID
+            tool_context: 工具调用上下文
 
         Returns:
-            AI回复的文本内容
+            Pydantic 模型实例
         """
-        context = AdvisorContext(messages=messages, conversation_id=conversation_id)
-
-        context = self._advisor_chain.execute_pre_chain(context)
-
-        response = self._chat_llm.invoke(context.messages)
-        context.response = response.content
-
-        context = self._advisor_chain.execute_post_chain(context)
-
-        return context.response
-
-    def chat_structured(self, messages: list, pydantic_model, conversation_id: str = None):
-        """
-        发送消息并获取结构化的Pydantic模型结果
-
-        Args:
-            messages: 消息列表
-            pydantic_model: 用于解析的Pydantic模型类（如HtmlCodeResult, MultiFileCodeResult）
-            conversation_id: 会话ID
-
-        Returns:
-            Pydantic模型实例
-        """
-        response = self.chat(messages, conversation_id)
+        response = self.chat(messages, conversation_id, tool_context)
         try:
             return pydantic_model.model_validate_json(response)
         except Exception as e:
@@ -249,27 +370,29 @@ class ChatClient:
                 return pydantic_model.model_validate(data)
             raise ValueError(f"无法将AI响应解析为{pydantic_model.__name__}: {e}\n原始响应: {response}")
 
-    def chat_stream(self, messages: list, conversation_id: str = None):
+    def chat_stream(
+        self,
+        messages: list,
+        conversation_id: str | None = None,
+        tool_context: dict | None = None,
+    ):
         """
         发送消息并获取流式回复
 
+        注意：流式模式**不执行工具调用循环**，工具需在流式之外处理。
+
         Args:
             messages: 消息列表，格式为 [{'role': 'user/assistant/system', 'content': '...'}]
-            conversation_id: 会话ID，用于拦截器上下文
+            conversation_id: 会话 ID，用于拦截器上下文
+            tool_context: 工具调用上下文
 
         Yields:
             StreamChunk: 流式响应数据块
         """
-        if self._system_prompt:
-            full_messages = [
-                                {'role': 'system', 'content': self._system_prompt}
-                            ] + messages
-        else:
-            full_messages = messages
+        context = self._build_context(messages, conversation_id, with_system=True)
 
-        context = AdvisorContext(messages=full_messages, conversation_id=conversation_id)
-
-        context = self._advisor_chain.execute_pre_chain(context)
+        if tool_context:
+            set_runtime_context(tool_context)
 
         full_response = ""
 
@@ -296,6 +419,47 @@ class ChatClient:
         # context = self._advisor_chain.execute_post_chain(context)
 
         yield processed_final
+
+    def _execute_tool_calls(self, tool_calls: list) -> List[ToolMessage]:
+        """
+        执行一批 tool_calls，返回对应的 ToolMessage 列表。
+
+        Args:
+            tool_calls: LLM 返回的 tool_calls 列表，每个元素包含
+                       {'name': str, 'args': dict, 'id': str}
+
+        Returns:
+            与 tool_calls 一一对应的 ToolMessage 列表（保持顺序）
+        """
+        tool_messages: List[ToolMessage] = []
+
+        for tc in tool_calls:
+            tool_name = tc['name']
+            tool_args = tc.get('args', {})
+            tool_call_id = tc.get('id', '')
+
+            # 1. 在已注册工具中查找对应实例
+            try:
+                matched = get_tools_with_context_by_names(self._available_tools, [tool_name])
+                if not matched:
+                    raise ValueError(f"未注册的工具: {tool_name}")
+                tool = matched[0]
+            except Exception as e:
+                tool_messages.append(ToolMessage(content=f"工具查找失败: {e}", tool_call_id=tool_call_id))
+                continue
+
+            # 2. 执行工具
+            try:
+                result = tool.invoke(tool_args)
+                content = str(result) if not isinstance(result, str) else result
+            except Exception as e:
+                # 工具执行异常必须作为 ToolMessage 返回，LLM 才能感知
+                content = f"工具执行异常: {type(e).__name__}: {e}\n{traceback.format_exc()}"
+
+            # 3. 构造 ToolMessage（关键：必须传 tool_call_id 才能匹配回 tool_call）
+            tool_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id))
+
+        return tool_messages
 
     @property
     def system_prompt(self) -> str:
