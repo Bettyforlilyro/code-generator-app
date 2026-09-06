@@ -23,6 +23,7 @@ def register_all(app):
     Args:
         app: Flask 应用实例
     """
-    configure_logging(app)
+    # TODO 暂时不注册 logging，因为当前程序是debug模式运行，有自动的日志
+    # configure_logging(app)
     register_cors(app)
     register_request_logger(app)
