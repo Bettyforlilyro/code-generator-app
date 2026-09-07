@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from backend.app.services.ai_common.tools import register_tool_display
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 
@@ -53,3 +54,14 @@ def calculate_tool_with_context():
             return f"计算失败: {type(e).__name__}: {e}"
     _tool.name = TOOL_NAME
     return _tool
+
+
+def _show_start(tool_args: dict) -> str:
+    return f"[{TOOL_NAME}] 开始计算: {tool_args}"
+
+
+def _show_end(result: str, success: bool) -> str:
+    return f"[{TOOL_NAME}] 计算结果: {result} ({success})"
+
+
+register_tool_display(TOOL_NAME, _show_start, _show_end)
