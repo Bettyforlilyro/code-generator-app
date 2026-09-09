@@ -75,8 +75,11 @@ def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id:
     Returns:
         流式代码生成器实例
     """
+    tools = None
+    if code_gen_type == CodeFileType.VUE_PROJECT:
+        tools = ['文件写入工具', '文件读取工具', '文件删除工具', '目录读取工具']
     return AICodeGeneratorFacade.generate_code_and_save_file_streaming(
-        user_message, code_gen_type, app_id
+        user_message, code_gen_type, app_id, tools=tools
     )
 
 

@@ -1,8 +1,9 @@
 """
 AI生成结果的各种Pydantic模型定义
 """
+import re
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -25,6 +26,12 @@ class BaseCodeResult(BaseModel, ABC):
     @abstractmethod
     def is_name_modified(self) -> bool:
         """判断应用名称是否修改"""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def parse_response_from_llm(cls, response: str) -> "BaseCodeResult":
+        """从LLM响应中解析代码生成结果"""
         pass
 
 
@@ -54,6 +61,11 @@ class HtmlCodeResult(BaseCodeResult):
 
     def is_name_modified(self) -> bool:
         return self.app_name is not None
+
+    @classmethod
+    def parse_response_from_llm(cls, response: str) -> "HtmlCodeResult":
+        """从LLM响应中解析代码生成结果"""
+        return cls.model_validate_json(response)
 
 
 class MultiFileCodeResult(BaseCodeResult):
@@ -88,3 +100,43 @@ class MultiFileCodeResult(BaseCodeResult):
 
     def is_name_modified(self) -> bool:
         return self.app_name is not None
+
+    @classmethod
+    def parse_response_from_llm(cls, response: str) -> "MultiFileCodeResult":
+        """从LLM响应中解析代码生成结果"""
+        return cls.model_validate_json(response)
+
+
+class VueProjectFileCodeResult(BaseCodeResult):
+    """Vue项目文件代码生成结果"""
+    vue_project_code_file_paths: Optional[List[str]] = Field(description="生成的完整Vue项目代码文件列表，包含多个文件路径", default=None)
+    description: str = Field(description="简要说明")
+    app_name: Optional[str] = Field(description="应用名称", default=None)
+
+    def get_files_dict(self) -> dict[str, str]:
+        return {file_path: "" for file_path in self.vue_project_code_file_paths}
+
+    def is_code_modified(self) -> bool:
+        return self.vue_project_code_file_paths is not None and len(self.vue_project_code_file_paths) > 0
+
+    def is_name_modified(self) -> bool:
+        return self.app_name is not None
+
+    @classmethod
+    def parse_response_from_llm(cls, response: str) -> "VueProjectFileCodeResult":
+        """从LLM响应中解析代码生成结果"""
+        # TODO 这里的项目比较复杂，解析逻辑需要根据实际情况调整
+        result = cls(description=response)
+        # ✅ **写入完成** 文件写入成功，文件路径：package.json
+        # 应用名称:<app_name>
+        write_success = re.compile(
+            r'✅ \*\*写入完成\*\* 文件写入成功，文件路径：'           # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:\\[^\\\r\n/:*?"<>|]+)*)'    # 分隔符为 \ 的相对路径
+        )
+        app_name_pattern = re.compile(r'应用名称:(.*)\n')
+        result.vue_project_code_file_paths = [match.group(1) for match in write_success.finditer(response)]
+        if app_name_pattern.search(response):
+            result.app_name = app_name_pattern.search(response).group(1)
+        return result
+
+

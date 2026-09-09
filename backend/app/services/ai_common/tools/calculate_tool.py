@@ -56,11 +56,11 @@ def calculate_tool_with_context():
     return _tool
 
 
-def _show_start(tool_args: dict) -> str:
-    return f"[{TOOL_NAME}] 开始计算: {tool_args}"
+def _show_start() -> str:
+    return f"[{TOOL_NAME}] 开始计算"
 
 
-def _show_end(result: str, success: bool) -> str:
+def _show_end(args: dict, result: str, success: bool) -> str:
     return f"[{TOOL_NAME}] 计算结果: {result} ({success})"
 
 

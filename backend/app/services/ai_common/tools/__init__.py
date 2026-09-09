@@ -1,12 +1,14 @@
 import importlib
 import inspect
 import logging
+import os
 import pkgutil
 from pathlib import Path
 from typing import List, Dict, Callable, Optional
 
 from langchain_core.tools import BaseTool
 
+from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
 from backend.app.common.utils.cache import MemoryCache
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ _scan_cache: MemoryCache[str, object] = MemoryCache(
 
 _CACHE_KEY_BASE_TOOLS = "__base_tools__"
 _CACHE_KEY_FACTORIES = "__context_factories__"
+_ROOT_PATH = DEFAULT_GENERATE_ROOT
 
 
 # ---------------------------------------------------------------------------
@@ -213,15 +216,15 @@ _DISPLAY_REGISTRY: Dict[str, Dict[str, Callable]] = {}
 
 def register_tool_display(
     tool_name: str,
-    show_start: Optional[Callable[[dict], str]] = None,
-    show_end: Optional[Callable[[str, bool], str]] = None,
+    show_start: Optional[Callable[[], str]] = None,
+    show_end: Optional[Callable[[dict, str, bool], str]] = None,
 ) -> None:
     """
     注册某个工具的自定义展示函数，供流式调用显示工具调用情况。
     Args:
         tool_name:  工具的 name，必须和 StructuredTool.name 一致
-        show_start: 工具开始执行时的展示函数，签名 fn(tool_args: dict) -> str
-        show_end:   工具执行完毕时的展示函数，签名 fn(result: str, success: bool) -> str
+        show_start: 工具开始执行时的展示函数（可选），签名 fn() -> str
+        show_end:   工具执行完毕时的展示函数（可选），签名 fn(tool_args: dict, result: str, success: bool) -> str
     """
     entry = {}
     if show_start is not None:
@@ -239,3 +242,21 @@ def get_tool_display(tool_name: str) -> Dict[str, Callable]:
         dict，可能包含 "show_start" / "show_end" key；也可能是空 dict（用默认格式）
     """
     return _DISPLAY_REGISTRY.get(tool_name, {})
+
+
+def to_absolute(rel_path: str) -> str:
+    """工具：把基于 ROOT_PATH 的相对路径转为绝对路径"""
+    if rel_path in ('', '.', '/'):
+        return _ROOT_PATH
+    abs_path = os.path.normpath(os.path.join(_ROOT_PATH, rel_path))
+    # 安全检查：防止外部通过 .. 逃逸出 ROOT_PATH
+    if not abs_path.startswith(os.path.normpath(_ROOT_PATH) + os.sep) \
+            and abs_path != os.path.normpath(_ROOT_PATH):
+        raise ValueError(f"非法路径（超出根目录范围）: {rel_path}")
+    return abs_path
+
+
+def to_relative(abs_path: str) -> str:
+    """工具：把绝对路径转为基于 ROOT_PATH 的相对路径"""
+    rel = os.path.relpath(abs_path, _ROOT_PATH)
+    return '' if rel == '.' else rel.replace(os.sep, '/')
