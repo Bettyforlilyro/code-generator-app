@@ -9,8 +9,8 @@ from backend.app.common.exceptions.error_codes import (
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.advisor import StreamChunk
+from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.ai_common.llm_client import ChatClientBuilder
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,5 @@
 # 测试 llm_client 是否能正常调用工具，直接执行即可
-from backend.app.services.ai_common.llm_client import ChatClientBuilder
+from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.tools import get_all_tools_in_module, tools_factory_with_context
 
 
