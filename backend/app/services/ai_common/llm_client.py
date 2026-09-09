@@ -1,4 +1,5 @@
-import traceback
+import json
+import re
 import warnings
 from typing import List
 
@@ -6,7 +7,13 @@ from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
 from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext, StreamChunk
-from backend.app.services.ai_common.tools import filter_tools_by_names, get_tool_display
+from backend.app.services.ai_common.tool_executor import (
+    ToolExecResult,
+    execute_single_tool,
+    execute_tool_calls_batch,
+    build_tool_start_content,
+    build_tool_end_content,
+)
 from backend.app.services.ai_common.tools.tool_context_store import set_runtime_context
 
 # 工具调用循环的最大迭代次数（防止 LLM 陷入无限调用）
@@ -164,8 +171,6 @@ class ChatClient:
             return pydantic_model.model_validate_json(response)
         except Exception as e:
             # 降级处理：尝试提取JSON再解析
-            import json
-            import re
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
@@ -240,7 +245,7 @@ class ChatClient:
                         continue
                     planning_indices.add(index)
                     yield StreamChunk(
-                        content=self._build_tool_start_content(tool_name),
+                        content=build_tool_start_content(tool_name),
                         chunk_type='tool_start',
                         is_last=False,
                         metadata={
@@ -295,38 +300,6 @@ class ChatClient:
 
         yield processed_final
 
-    # ---- 工具展示辅助 ----
-
-    @staticmethod
-    def _build_tool_start_content(tool_name: str) -> str:
-        """
-        构建工具开始时的概览展示（只在 AI 规划阶段调用一次，此时参数还不完整）。
-        完整参数和执行结果交给 _build_tool_end_content 展示。
-        优先使用 registry 注册的自定义 show_start（但签名变了：只传 tool_name），否则用默认格式。
-        """
-        display = get_tool_display(tool_name)
-        custom_show = display.get("show_start")
-        if callable(custom_show):
-            try:
-                return custom_show()  # 不再传 args，show_start 概览模式
-            except Exception:
-                pass
-        return f"\n\n⚡ AI 准备调用: `{tool_name}` ...\n\n"
-
-    @staticmethod
-    def _build_tool_end_content(tool_name: str, args: dict, result: str, success: bool) -> str:
-        """构建工具结束时给前端展示的 content：优先用 registry 注册的自定义展示，否则默认格式"""
-        display = get_tool_display(tool_name)
-        custom_show = display.get("show_end")
-        if callable(custom_show):
-            try:
-                return custom_show(args, result, success)
-            except Exception:
-                pass
-        icon = "✅" if success else "❌"
-        status_text = "成功" if success else "失败"
-        return f"{icon} **工具执行完成**: `{tool_name}` — {status_text}\n\n"  # 工具执行结果可能很长就不显示了
-
     # ---- 流式工具执行 ----
     def _execute_tool_calls_stream(self, tool_calls: list):
         """
@@ -339,43 +312,29 @@ class ChatClient:
             - ("tool_message", ToolMessage)
         """
         for tc in tool_calls:
-            tool_name = tc['name']
-            tool_call_id = tc.get('id', '')
-            tool_args = tc.get('args', {})
+            r: ToolExecResult = execute_single_tool(tc, self._available_tools)
 
-            # 1. 查找工具（先查，因为要拿到 tool 对象来调自定义展示方法）
-            try:
-                matched = filter_tools_by_names(self._available_tools, [tool_name])
-                if not matched:
+            # 查找失败：区分 "工具不存在" 和 "查找异常" 两种情况
+            if not r.lookup_ok:
+                if r.lookup_error.startswith("未注册"):
                     # 前端已经 yield 了 tool_start（chunk 阶段），这里必须 yield tool_end 配对
-                    yield ("tool_end", tool_name, tool_call_id, False,
-                           f"❌ **工具不存在**: `{tool_name}`（未在系统注册）\n\n")
+                    yield ("tool_end", r.tool_name, r.tool_call_id, False,
+                           f"❌ **工具不存在**: `{r.tool_name}`（未在系统注册）\n\n")
                     yield ("tool_message", ToolMessage(
-                        content=f"工具 【{tool_name}】 不存在", tool_call_id=tool_call_id))
-                    continue
-                tool = matched[0]
-            except Exception as e:
-                yield ("tool_end", tool_name, tool_call_id, False,
-                       f"❌ **工具查找异常**: `{tool_name}` — {e}\n\n")
-                yield ("tool_message", ToolMessage(
-                    content=f"工具 【{tool_name}】 执行失败: {e}", tool_call_id=tool_call_id))
+                        content=f"工具 【{r.tool_name}】 不存在", tool_call_id=r.tool_call_id))
+                else:
+                    yield ("tool_end", r.tool_name, r.tool_call_id, False,
+                           f"❌ **工具查找异常**: `{r.tool_name}` — {r.lookup_error}\n\n")
+                    yield ("tool_message", ToolMessage(
+                        content=f"工具 【{r.tool_name}】 执行失败: {r.lookup_error}", tool_call_id=r.tool_call_id))
                 continue
 
-            # 2. 执行工具
-            try:
-                result = tool.invoke(tool_args)
-                content = str(result) if not isinstance(result, str) else result
-                success = True
-            except Exception as e:
-                content = f"工具执行异常: {type(e).__name__}: {e}\n{traceback.format_exc()}"
-                success = False
+            # yield 工具结束标记
+            content_end = build_tool_end_content(r.tool_name, r.tool_args, r.content, r.success)
+            yield "tool_end", r.tool_name, r.tool_call_id, r.success, content_end, r.tool_args
 
-            # 3. yield 工具结束标记
-            content_end = self._build_tool_end_content(tool_name, tool_args, content, success)
-            yield "tool_end", tool_name, tool_call_id, success, content_end, tool_args
-
-            # 4. yield 真正的 ToolMessage
-            yield "tool_message", ToolMessage(content=content, tool_call_id=tool_call_id)
+            # yield 真正的 ToolMessage
+            yield "tool_message", ToolMessage(content=r.content, tool_call_id=r.tool_call_id)
 
     def _execute_tool_calls(self, tool_calls: list) -> List[ToolMessage]:
         """
@@ -388,35 +347,7 @@ class ChatClient:
         Returns:
             与 tool_calls 一一对应的 ToolMessage 列表（保持顺序）
         """
-        tool_messages: List[ToolMessage] = []
-
-        for tc in tool_calls:
-            tool_name = tc['name']
-            tool_args = tc.get('args', {})
-            tool_call_id = tc.get('id', '')
-
-            # 1. 在已注册工具中查找对应实例
-            try:
-                matched = filter_tools_by_names(self._available_tools, [tool_name])
-                if not matched:
-                    raise ValueError(f"未注册的工具: {tool_name}")
-                tool = matched[0]
-            except Exception as e:
-                tool_messages.append(ToolMessage(content=f"工具查找失败: {e}", tool_call_id=tool_call_id))
-                continue
-
-            # 2. 执行工具
-            try:
-                result = tool.invoke(tool_args)
-                content = str(result) if not isinstance(result, str) else result
-            except Exception as e:
-                # 工具执行异常必须作为 ToolMessage 返回，LLM 才能感知
-                content = f"工具执行异常: {type(e).__name__}: {e}\n{traceback.format_exc()}"
-
-            # 3. 构造 ToolMessage（关键：必须传 tool_call_id 才能匹配回 tool_call）
-            tool_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id))
-
-        return tool_messages
+        return execute_tool_calls_batch(tool_calls, self._available_tools)
 
     @property
     def system_prompt(self) -> str:
