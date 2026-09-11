@@ -249,7 +249,7 @@
             <div class="placeholder-icon">🌐</div>
             <p>网站文件生成完成后将在这里展示</p>
           </div>
-          <div v-else-if="isGenerating" class="preview-loading">
+          <div v-else-if="isGenerating && hasCodeBlockInStream" class="preview-loading">
             <a-spin size="large" />
             <p>正在生成网站...</p>
           </div>
@@ -371,11 +371,14 @@ function extractOpenCodeBlock(text: string): { lang: string; content: string } |
 }
 
 // 从文本中提取描述(去掉 app_name 行和所有代码块后的纯文本)
+// 注意:也要去掉未闭合的流式代码块(最后一个 ```lang\n 后面的全部内容)
 function extractDescription(text: string): string {
-  return text
+  let result = text
     .replace(/^app_name:\s*.+?(?:\n|$)/, '')
-    .replace(/```\w+\s*\n[\s\S]*?```/g, '')
-    .trim()
+    .replace(/```\w+\s*\n[\s\S]*?```/g, '')  // 已闭合的代码块
+  // 再去掉可能存在的未闭合代码块(流式中正在生成的)
+  result = result.replace(/```\w+\s*\n[\s\S]*$/, '')
+  return result.trim()
 }
 
 // 根据代码块语言推断文件名(唯一标识)
@@ -488,6 +491,7 @@ interface Message {
 const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
+const hasCodeBlockInStream = ref(false) // 标记当前 AI 回复中是否已出现代码块(懒触发预览用)
 const messagesContainer = ref<HTMLElement>()
 
 // 代码面板拖拽调节高度相关
@@ -498,12 +502,14 @@ const START_RESIZE_Y = ref(0)
 const START_PANEL_HEIGHT = ref(0)
 
 const MIN_PANEL_HEIGHT = 120
-const MAX_PANEL_RATIO = 0.6 // 最多占 60%
+const MAX_PANEL_RATIO = 0.5 // 最多占 50%
 
-// 代码面板的动态样式：有固定高度就用固定高度，没有就自适应（flex-grow + max-height）
-const codePanelStyle = computed<Record<string, string>>( () => {
+// 代码面板的动态样式:
+// - 默认(null):自适应内容高度,max-height 50%
+// - 拖拽后(有固定值):固定高度 + flex:none(覆盖 CSS flex:0 0 auto)
+const codePanelStyle = computed<Record<string, string>>(() => {
   if (codePanelHeight.value !== null) {
-    return { height: codePanelHeight.value + 'px' }
+    return { height: codePanelHeight.value + 'px', flex: 'none' }
   }
   return {}
 })
@@ -546,11 +552,11 @@ function stopResize() {
   document.body.style.userSelect = ''
 }
 
-// 找到最新的带 codeGen 的 AI 消息，用于下半部分独立代码面板展示
+// 找到最新的带有效 codeGen(有代码文件)的 AI 消息,用于下半部分独立代码面板展示
 const latestCodeGen = computed(() => {
   const msgs = messages.value
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].type === 'ai' && msgs[i].codeGen) {
+    if (msgs[i].type === 'ai' && msgs[i].codeGen && msgs[i].codeGen.files.length > 0) {
       return msgs[i].codeGen
     }
   }
@@ -870,15 +876,30 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
     const finalizeGeneration = () => {
       streamCompleted = true
       isGenerating.value = false
-      // 用新的纯文本解析逻辑,标记为已完成
+
       const result = parseTextToCodeGen(rawContentBuffer, true)
-      aiMessage.codeGen = result
-      aiMessage.content = result.description
       aiMessage.loading = false
-      setTimeout(async () => {
-        await fetchAppInfo()
-        updatePreview()
-      }, 1000)
+
+      // 同步更新页面顶部的 app_name(无论是否有代码块)
+      if (result.app_name && appInfo.value && appInfo.value.app_name !== result.app_name) {
+        appInfo.value.app_name = result.app_name
+      }
+
+      if (result.files.length > 0) {
+        // 有代码块 → 设为 codeGen 消息,并刷新预览
+        aiMessage.codeGen = result
+        aiMessage.content = result.description
+        setTimeout(async () => {
+          await fetchAppInfo()
+          updatePreview()
+        }, 1000)
+      } else {
+        // 纯文本回复 → 不碰 codeGen,当作普通 Markdown 消息;不刷新预览
+        aiMessage.content = rawContentBuffer
+      }
+
+      // 重置懒加载标志
+      hasCodeBlockInStream.value = false
     }
 
     while (true) {
@@ -935,11 +956,28 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           rawContentBuffer += dataStr
         }
 
-        // 用新的纯文本解析逻辑实时更新 codeGen
+        // 实时同步更新页面顶部的 app_name(无论是否有代码块)
         const result = parseTextToCodeGen(rawContentBuffer, false)
-        aiMessage.codeGen = result
-        aiMessage.content = result.description
-        aiMessage.loading = false
+        if (result.app_name && appInfo.value && appInfo.value.app_name !== result.app_name) {
+          appInfo.value.app_name = result.app_name
+        }
+
+        if (result.files.length > 0) {
+          // 有代码块 → codeGen 模式,面板流式更新
+          aiMessage.codeGen = result
+          aiMessage.content = result.description
+          aiMessage.loading = false
+          // 首次出现代码块时,懒触发右侧预览区 loading
+          if (!hasCodeBlockInStream.value) {
+            hasCodeBlockInStream.value = true
+          }
+        } else if (!aiMessage.codeGen) {
+          // 还没有出现代码块 → 纯文本流式,走普通 Markdown 消息
+          aiMessage.content = rawContentBuffer
+          aiMessage.loading = false
+        }
+        // 已经进入 codeGen 模式但当前还没解析出 files(边界情况):保持不动
+
         scrollToBottom()
       }
     }
@@ -962,6 +1000,7 @@ const handleError = (error: unknown, aiMessageIndex: number) => {
   messages.value[aiMessageIndex].loading = false
   message.error('生成失败，请重试')
   isGenerating.value = false
+  hasCodeBlockInStream.value = false
 }
 
 // 更新预览 - 通过文件列表接口获取 index.html 的真实路径
@@ -1302,20 +1341,24 @@ onUnmounted(() => {
 
 /* 独立代码展示面板 */
 .code-viewer-panel {
-  flex: 1;
-  min-height: 120px;
-  max-height: 60%;
+  flex: 0 0 auto;          /* 默认:高度由内容决定,不参与 flex 伸展/压缩 */
+  max-height: 50%;         /* 最多占 50% */
   padding: 8px 16px 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .code-viewer-panel .codeGen-viewer {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;           /* 关键:保证子元素 overflow:auto 生效 */
+  flex: 1 1 auto;          /* 有固定父级高度时撑满,无固定高度时内容决定 */
+}
+
+.codeGen-codeBlock {
+  flex: 1 1 auto;          /* 占据剩余空间 */
+  min-height: 0;           /* 关键:保证 overflow:auto 生效 */
+  overflow: auto;          /* 内容多时滚动 */
 }
 
 /* 可拖拽分割线 */
