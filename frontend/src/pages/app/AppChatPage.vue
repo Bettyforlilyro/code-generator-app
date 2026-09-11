@@ -325,6 +325,7 @@ interface CodeFile {
   name: string
   label: string
   content: string
+  lang?: string // 新增:代码块的原始语言标签(可选)
 }
 
 // 代码生成结果接口
@@ -336,92 +337,119 @@ interface CodeGenResult {
   isComplete: boolean
 }
 
-// 代码字段名 -> 显示标签映射
-const CODE_FIELD_MAP: Record<string, string> = {
-  html_code: 'HTML',
-  css_code: 'CSS',
-  js_code: 'JavaScript',
-  vue_code: 'Vue',
-  react_code: 'React',
-  python_code: 'Python',
-}
-const CODE_FIELD_ORDER = [
-  'html_code',
-  'css_code',
-  'js_code',
-  'vue_code',
-  'react_code',
-  'python_code',
-]
+// ======= 纯文本格式解析工具函数 =======
+// 后端现在返回纯文本流,可能包含:
+//  - 开头的 "app_name:xxx\n\n" 行
+//  - 中间的自然语言描述
+//  - markdown 代码块: ```lang\n...content...```
 
-// 从buffer中找到第一个出现的代码字段名
-function findFirstCodeField(buffer: string): string | null {
-  let firstField = null
-  let firstPos = Infinity
-  for (const name of CODE_FIELD_ORDER) {
-    const pos = buffer.indexOf(`"${name}": "`)
-    if (pos !== -1 && pos < firstPos) {
-      firstPos = pos
-      firstField = name
-    }
+// 从文本中提取 app_name (匹配开头的 "app_name:xxx" 行)
+function extractAppNameFromText(text: string): string | null {
+  const match = text.match(/^app_name:\s*(.+?)(?:\n|$)/)
+  return match ? match[1].trim() : null
+}
+
+// 从文本中提取所有已闭合的 markdown 代码块
+function extractCodeBlocks(text: string): { lang: string; content: string }[] {
+  const blocks: { lang: string; content: string }[] = []
+  const regex = /```(\w+)\s*\n([\s\S]*?)```/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    blocks.push({ lang: match[1].toLowerCase(), content: match[2] })
   }
-  return firstField
+  return blocks
 }
 
-// 从buffer中提取简单字段（app_name/description）的完整值
-function extractSimpleField(buffer: string, fieldName: string): string | null {
-  const pattern = new RegExp(`"${fieldName}":\\s*"((?:[^"\\\\]|\\\\.)*)"`)
-  const match = buffer.match(pattern)
-  if (match) return unescapeJson(match[1])
+// 从文本中提取未闭合的 markdown 代码块(流式时正在生成的那个)
+function extractOpenCodeBlock(text: string): { lang: string; content: string } | null {
+  let remaining = text.replace(/```\w+\s*\n[\s\S]*?```/g, '')
+  const openMatch = remaining.match(/```(\w+)\s*\n([\s\S]*)$/)
+  if (openMatch) {
+    return { lang: openMatch[1].toLowerCase(), content: openMatch[2] }
+  }
   return null
 }
 
-// 从可能不完整的JSON buffer中提取指定字段的部分内容
-function extractPartialField(buffer: string, fieldName: string): string | null {
-  const keyPattern = `"${fieldName}": "`
-  const keyIdx = buffer.indexOf(keyPattern)
-  if (keyIdx === -1) return null
-  let content = buffer.substring(keyIdx + keyPattern.length)
-  if (content.endsWith('\\') && content.length > 0) content = content.slice(0, -1)
-  return content
+// 从文本中提取描述(去掉 app_name 行和所有代码块后的纯文本)
+function extractDescription(text: string): string {
+  return text
+    .replace(/^app_name:\s*.+?(?:\n|$)/, '')
+    .replace(/```\w+\s*\n[\s\S]*?```/g, '')
+    .trim()
 }
 
-// 检查字段值是否完整（有正确的JSON字符串结束）
-function isFieldComplete(buffer: string, fieldName: string): boolean {
-  const keyPattern = `"${fieldName}": "`
-  const keyIdx = buffer.indexOf(keyPattern)
-  if (keyIdx === -1) return false
-  let pos = keyIdx + keyPattern.length
-  while (pos < buffer.length) {
-    const ch = buffer[pos]
-    if (ch === '\\') {
-      pos += 2
-      continue
-    }
-    if (ch === '"') {
-      const after = buffer.substring(pos + 1).trimStart()
-      if (after.startsWith(',') || after.startsWith('}')) return true
-    }
-    pos++
+// 根据代码块语言推断文件名(唯一标识)
+function getFileNameByLang(lang: string): string {
+  const langMap: Record<string, string> = {
+    html: 'html_code', htm: 'html_code',
+    css: 'css_code',
+    javascript: 'js_code', js: 'js_code',
+    vue: 'vue_code',
+    react: 'react_code', jsx: 'react_code',
+    python: 'python_code', py: 'python_code',
+    ts: 'ts_code', typescript: 'ts_code',
+    json: 'json_code',
+    markdown: 'md_code', md: 'md_code',
+    shell: 'shell_code', bash: 'shell_code',
   }
-  return false
+  return langMap[lang] || `${lang}_code`
 }
 
-// 剥离 markdown 代码块包裹（```json ... ``` 或 ``` ... ```）
-function stripMarkdownCodeFence(str: string): string {
-  let result = str.trim()
-  // 去除开头的 ```json 或 ```
-  const startFence = result.match(/^```(?:json|javascript|python|html|css|vue|react)?\s*\n?/i)
-  if (startFence) result = result.slice(startFence[0].length)
-  // 去除结尾的 ```
-  const endFence = result.match(/\n?```\s*$/)
-  if (endFence) result = result.slice(0, result.length - endFence[0].length)
-  return result.trim()
+// 根据代码块语言推断显示标签
+function getFileLabelByLang(lang: string): string {
+  const labelMap: Record<string, string> = {
+    html: 'HTML', htm: 'HTML',
+    css: 'CSS',
+    javascript: 'JavaScript', js: 'JavaScript',
+    vue: 'Vue',
+    react: 'React', jsx: 'React',
+    python: 'Python', py: 'Python',
+    ts: 'TypeScript', typescript: 'TypeScript',
+    json: 'JSON',
+    markdown: 'Markdown', md: 'Markdown',
+    shell: 'Shell', bash: 'Shell',
+  }
+  return labelMap[lang] || lang.toUpperCase()
 }
 
-// 简单的JSON字符串反转义
-function unescapeJson(str: string): string {
-  return str.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+// 综合解析纯文本为 CodeGenResult
+function parseTextToCodeGen(text: string, isComplete: boolean): CodeGenResult {
+  const app_name = extractAppNameFromText(text) || ''
+  const description = extractDescription(text)
+  const closedBlocks = extractCodeBlocks(text)
+  const openBlock = isComplete ? null : extractOpenCodeBlock(text)
+
+  const files: CodeFile[] = []
+
+  for (const block of closedBlocks) {
+    let finalName = getFileNameByLang(block.lang)
+    let counter = 1
+    while (files.some((f) => f.name === finalName)) {
+      finalName = `${getFileNameByLang(block.lang)}_${counter}`
+      counter++
+    }
+    files.push({
+      name: finalName,
+      label: getFileLabelByLang(block.lang),
+      content: block.content,
+    })
+  }
+
+  if (openBlock) {
+    let finalName = getFileNameByLang(openBlock.lang)
+    let counter = 1
+    while (files.some((f) => f.name === finalName)) {
+      finalName = `${getFileNameByLang(openBlock.lang)}_${counter}`
+      counter++
+    }
+    files.push({
+      name: finalName,
+      label: getFileLabelByLang(openBlock.lang),
+      content: openBlock.content,
+    })
+  }
+
+  return { app_name, description, files, currentFileIndex: 0, isComplete }
 }
 
 // 将 ISO 时间字符串转换为后端期望的格式 YYYY&mm&dd&HH&MM&SS
@@ -438,50 +466,7 @@ function formatTimeForApi(isoStr: string): string {
   return isoStr
 }
 
-// 尝试解析完整JSON buffer并提取代码生成结果
-function tryParseCodeGenResult(buffer: string): CodeGenResult | null {
-  try {
-    const parsed = JSON.parse(buffer)
-    // 判断是否为代码生成结果：只要 JSON 对象里包含任意一个代码文件字段就算
-    // （第一次回复可能带 app_name，后续修改回复可能不带）
-    if (parsed && typeof parsed === 'object') {
-      const codeKeys = CODE_FIELD_ORDER.filter((name) => typeof parsed[name] === 'string')
-      if (codeKeys.length > 0) {
-        const files: CodeFile[] = codeKeys.map((name) => ({
-          name,
-          label: CODE_FIELD_MAP[name],
-          content: parsed[name],
-        }))
-        return {
-          app_name: parsed.app_name || '',
-          description: parsed.description || '',
-          files,
-          currentFileIndex: 0,
-          isComplete: true,
-        }
-      }
-    }
-  } catch {}
-  return null
-}
-
-// 专门从只有 description（无代码文件）的 JSON 里提取纯文本
-// 比如后端返回 {"description": "您刚刚让我写一个简单的登录页面..."}
-function tryExtractDescription(buffer: string): string | null {
-  try {
-    const stripped = stripMarkdownCodeFence(buffer)
-    const parsed = JSON.parse(stripped)
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      typeof parsed.description === 'string' &&
-      parsed.description.trim().length > 0
-    ) {
-      return parsed.description
-    }
-  } catch {}
-  return null
-}
+// (旧函数 tryParseCodeGenResult / tryExtractDescription 已移除,统一使用 parseTextToCodeGen)
 
 // 应用信息
 const appInfo = ref<API.AppVO>()
@@ -642,17 +627,12 @@ const loadChatHistory = async (isLoadMore = false) => {
               content: chat.message || '',
               create_time: chat.create_time,
             }
-            // AI 消息尝试解析代码生成结果 JSON
+            // AI 消息:用新的纯文本markdown解析逻辑
             if (base.type === 'ai' && chat.message) {
-              const stripped = stripMarkdownCodeFence(chat.message)
-              const parsed = tryParseCodeGenResult(stripped)
-              if (parsed) {
-                base.content = parsed.description || ''
+              const parsed = parseTextToCodeGen(chat.message, true)
+              base.content = parsed.description
+              if (parsed.files.length > 0 || parsed.app_name) {
                 base.codeGen = parsed
-              } else {
-                // fallback: 可能是只有 description 的 JSON（无代码文件）
-                const desc = tryExtractDescription(stripped)
-                if (desc) base.content = desc
               }
             }
             return base
@@ -739,20 +719,32 @@ const fetchAppInfo = async () => {
 }
 
 // 根据文件名推断语言
+// 新格式: html_code / css_code / js_code / vue_code / react_code / python_code / ts_code / json_code / md_code / shell_code ...
 function getLanguageByFileName(fileName: string): string {
-  const ext = fileName.split('_').pop() || ''
+  // 先尝试从 "xxx_code" 格式里提取前面的 xxx
+  const match = fileName.match(/^(.+)_code$/)
+  const rawName = match ? match[1] : fileName
+
   const langMap: Record<string, string> = {
     html: 'html',
+    htm: 'html',
     css: 'css',
     js: 'javascript',
+    javascript: 'javascript',
     vue: 'html',
     react: 'jsx',
+    jsx: 'jsx',
     python: 'python',
+    py: 'python',
     ts: 'typescript',
+    typescript: 'typescript',
     json: 'json',
     md: 'markdown',
+    markdown: 'markdown',
+    shell: 'shell',
+    bash: 'shell',
   }
-  return langMap[ext] || 'plaintext'
+  return langMap[rawName] || 'plaintext'
 }
 
 // 获取高亮后的代码（从 CodeGenResult 中，供独立代码面板使用）
@@ -874,22 +866,14 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
     const decoder = new TextDecoder()
     let buffer = ''
     let rawContentBuffer = ''
-    let firstFileName: string | null = null
-    let firstFileDone = false
 
     const finalizeGeneration = () => {
       streamCompleted = true
       isGenerating.value = false
-      // 剥离 markdown 代码块包裹后再解析
-      const cleaned = stripMarkdownCodeFence(rawContentBuffer)
-      const result = tryParseCodeGenResult(cleaned)
-      if (result) {
-        aiMessage.codeGen = result
-      } else {
-        // fallback: 可能是只有 description 的 JSON（无代码文件）
-        const desc = tryExtractDescription(cleaned)
-        if (desc) aiMessage.content = desc
-      }
+      // 用新的纯文本解析逻辑,标记为已完成
+      const result = parseTextToCodeGen(rawContentBuffer, true)
+      aiMessage.codeGen = result
+      aiMessage.content = result.description
       aiMessage.loading = false
       setTimeout(async () => {
         await fetchAppInfo()
@@ -941,7 +925,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           continue
         }
 
-        // message 事件：累积 token（后端字段名为 "d"）
+        // message 事件:累积 token(后端字段名为 "d")
         try {
           const parsed = JSON.parse(dataStr)
           if (parsed.d !== undefined && parsed.d !== null) {
@@ -951,64 +935,12 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           rawContentBuffer += dataStr
         }
 
-        // 尝试完整解析（先剥离 markdown 代码块包裹）
-        const fullResult = tryParseCodeGenResult(stripMarkdownCodeFence(rawContentBuffer))
-        if (fullResult) {
-          aiMessage.codeGen = fullResult
-          aiMessage.loading = false
-          firstFileDone = true
-          scrollToBottom()
-          continue
-        }
-
-        // 尝试提取 app_name / description
-        if (!aiMessage.codeGen) {
-          const appName = extractSimpleField(rawContentBuffer, 'app_name')
-          const description = extractSimpleField(rawContentBuffer, 'description')
-          if (appName || description) {
-            aiMessage.codeGen = {
-              app_name: appName || '',
-              description: description || '',
-              files: [],
-              currentFileIndex: 0,
-              isComplete: false,
-            }
-          }
-        } else {
-          if (!aiMessage.codeGen.app_name) {
-            const v = extractSimpleField(rawContentBuffer, 'app_name')
-            if (v) aiMessage.codeGen.app_name = v
-          }
-          if (!aiMessage.codeGen.description) {
-            const v = extractSimpleField(rawContentBuffer, 'description')
-            if (v) aiMessage.codeGen.description = v
-          }
-        }
-
-        // 第一个代码文件的实时流式显示
-        if (!firstFileDone) {
-          if (!firstFileName) firstFileName = findFirstCodeField(rawContentBuffer)
-          if (firstFileName) {
-            const partial = extractPartialField(rawContentBuffer, firstFileName)
-            if (partial !== null) {
-              const display = unescapeJson(partial)
-              if (aiMessage.codeGen) {
-                const existing = aiMessage.codeGen.files.find((f) => f.name === firstFileName)
-                if (existing) existing.content = display
-                else {
-                  aiMessage.codeGen.files.push({
-                    name: firstFileName,
-                    label: CODE_FIELD_MAP[firstFileName] || firstFileName,
-                    content: display,
-                  })
-                }
-                aiMessage.loading = false
-                scrollToBottom()
-              }
-            }
-            if (isFieldComplete(rawContentBuffer, firstFileName)) firstFileDone = true
-          }
-        }
+        // 用新的纯文本解析逻辑实时更新 codeGen
+        const result = parseTextToCodeGen(rawContentBuffer, false)
+        aiMessage.codeGen = result
+        aiMessage.content = result.description
+        aiMessage.loading = false
+        scrollToBottom()
       }
     }
   } catch (error) {
