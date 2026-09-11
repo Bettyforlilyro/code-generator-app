@@ -4,9 +4,10 @@ import re
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import (
-    ErrorCode, AIServiceError, AIResponseParseError, FileOperationError, BusinessException,
+    ErrorCode, AIServiceError, FileOperationError, BusinessException,
 )
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
+from backend.app.schemas.ai_generate_results import BaseCodeResult
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
@@ -82,6 +83,7 @@ class AICodeGeneratorFacade:
         llm_client_builder = ChatClientBuilder().set_system_prompt("")
         if tools and len(tools) > 0:
             if isinstance(tools[0], str) and app_id:
+                # 默认使用带上下文的工具调用，app_id 作为上下文
                 llm_client_builder.add_tools_with_context_by_names(tools)
             elif isinstance(tools[0], str):
                 llm_client_builder.add_tools_by_names(tools)
@@ -106,44 +108,38 @@ class AICodeGeneratorFacade:
             # AI 服务调用异常（网络、超时、服务不可用等）
             logger.error(f"AI流式生成调用失败: {e}")
             raise AIServiceError(f"AI服务调用失败: {e}") from e
-
+        result = None
         # 第二阶段：解析 LLM 响应，优先使用自定义解析逻辑，兜底使用 JSON 解析
         try:
             result = pydantic_model.parse_response_from_llm(response=full_response_text)
         except Exception as e:
-            # 尝试用正则兜底提取 JSON 字符串（AI 偶尔会在 JSON 外包裹解释性文本）
+            # 尝试用正则兜底提取 JSON 字符串（AI 偶尔会在 JSON 外包裹解释性文本），解析失败仅记录异常日志，但是不抛出异常
             json_match = re.search(r'\{.*\}', full_response_text, re.DOTALL)
             if json_match:
                 try:
                     result = pydantic_model.model_validate(json.loads(json_match.group()))
-                except Exception as parse_err:
+                except Exception as parse_err:      # 正则解析失败，直接返回原始响应交给解析器处理
                     logger.error(
-                        f"正则兜底后仍无法解析AI响应为{pydantic_model.__name__}: {parse_err}\n"
+                        f"AI 响应是JSON格式字符串，但是无法解析为{pydantic_model.__name__}: {parse_err}\n"
                         f"原始响应: {full_response_text}"
-                    )
-                    raise AIResponseParseError(
-                        f"AI响应格式错误，无法解析为{pydantic_model.__name__}, 错误信息: {str(parse_err)}"
                     )
             else:
                 logger.error(
-                    f"AI响应中未找到有效JSON，模型: {pydantic_model.__name__}\n"
+                    f"AI 响应中未找到有效JSON结构，模型: {pydantic_model.__name__}\n"
                     f"原始响应: {full_response_text}"
                 )
-                raise AIResponseParseError(
-                    f"AI响应中未找到有效JSON结构，无法解析为{pydantic_model.__name__}, 错误信息: {str(e)}"
-                )
-
         # 第三阶段：保存文件并更新应用信息
         try:
-            if result.is_code_modified() and code_gen_type != CodeFileType.VUE_PROJECT:
-                # 非 Vue项目，保存代码文件，Vue项目由工具单独处理保存文件相关逻辑
-                saver = CodeFileSaverFactory.get_saver(code_gen_type)
-                saver.save_code_file(result, app_id)
-            if result.is_name_modified():
-                update_app_svc(
-                    app_id, get_app_creator_by_app_id(app_id),
-                    AppUpdateRequest(app_name=result.app_name)
-                )
+            if result and isinstance(result, BaseCodeResult):
+                if result.is_code_modified() and code_gen_type != CodeFileType.VUE_PROJECT:
+                    # 非 Vue项目，保存代码文件，Vue项目由工具单独处理保存文件相关逻辑
+                    saver = CodeFileSaverFactory.get_saver(code_gen_type)
+                    saver.save_code_file(result, app_id)
+                if result.is_name_modified():
+                    update_app_svc(
+                        app_id, get_app_creator_by_app_id(app_id),
+                        AppUpdateRequest(app_name=result.app_name)
+                    )
         except BusinessException:
             # 下游业务已抛出明确业务异常，直接上抛
             raise

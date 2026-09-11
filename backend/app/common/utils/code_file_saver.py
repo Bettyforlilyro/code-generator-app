@@ -88,6 +88,8 @@ class CodeFileSaver(ABC):
             FileOperationError: 文件写入失败
         """
         for filename, content in files.items():
+            if not content:     # 跳过 None 值的文件或者空字符串
+                continue
             filepath = os.path.join(directory, filename)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             try:

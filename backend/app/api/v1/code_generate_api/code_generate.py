@@ -77,8 +77,8 @@ def generate_code_stream():
     if not app_id or int(app_id) <= 0:
         raise BusinessException(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
 
-    init_prompt = json_data.get('init_prompt')
-    if not init_prompt:
+    prompt = json_data.get('init_prompt')
+    if not prompt:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
 
     code_gen_type = json_data.get('code_gen_type')
@@ -88,19 +88,19 @@ def generate_code_stream():
     if not CodeFileType.is_valid_file_type(code_gen_type):
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "code_gen_type无效")
 
-    # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 注入
+    # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 存数据库
     validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
 
     # 2. 构建流式生成器
-    generator = build_code_generator(init_prompt, CodeFileType(code_gen_type), int(app_id))
+    generator = build_code_generator(prompt, CodeFileType(code_gen_type), int(app_id))
 
     user_id = user.id
 
     def on_done(chunks: list):
-        persist_chat_after_generation(int(app_id), user_id, init_prompt, chunks)
+        persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
 
     def on_error(error: Exception, chunks: list):
-        persist_chat_after_generation(int(app_id), user_id, init_prompt, chunks)
+        persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
         full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
         logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
 
