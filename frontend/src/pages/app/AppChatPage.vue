@@ -349,35 +349,126 @@ function extractAppNameFromText(text: string): string | null {
   return match ? match[1].trim() : null
 }
 
+// ===== Markdown 代码块栈式解析底层 =====
+// fence_pattern: 匹配任意 fence 行,支持嵌套 ```
+//   ^[ \t]{0,3}(`{3,})([^\n`]*?)(?:[ \t]*)\n?
+//   - group[1]: 反引号串 (`` ` ```、`` ``` ``...)
+//   - group[2]: info string (语言标签),空字符串表示闭合 fence
+interface FenceInfo {
+  start: number        // fence 行在全文中的起始位置
+  end: number          // fence 行结尾(含换行)
+  tickLen: number      // 反引号数量
+  infoString: string   // 语言标签(trim 后),空串 = 闭合
+}
+
+interface ParsedCodeBlock {
+  lang: string
+  content: string
+  closed: boolean       // true = 已闭合; false = 未闭合(流式中)
+  blockStart: number    // ```lang 开始位置
+  blockEnd: number      // 闭合 ``` 结束位置(未闭合则 = 全文末尾)
+}
+
+// 扫描全文,找到所有 fence 行
+function scanFences(text: string): FenceInfo[] {
+  const fences: FenceInfo[] = []
+  // 注意: JS 正则 /.../g 配合 lastIndex 扫描,多行模式
+  const fenceRegex = /^[ \t]{0,3}(`{3,})([^\n`]*?)(?:[ \t]*)\n?/gm
+  let m: RegExpExecArray | null
+  while ((m = fenceRegex.exec(text)) !== null) {
+    fences.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      tickLen: m[1].length,
+      infoString: m[2].trim(),
+    })
+  }
+  return fences
+}
+
+// 栈式解析所有代码块
+function parseAllCodeBlocks(text: string): ParsedCodeBlock[] {
+  const fences = scanFences(text)
+  const blocks: ParsedCodeBlock[] = []
+
+  type StackFrame = {
+    startIdx: number        // 对应 fences 数组的 index
+    tickLen: number
+    lang: string
+    contentStart: number    // 内容起始位置 = 起始 fence 的 end
+  }
+  const stack: StackFrame[] = []
+
+  for (let i = 0; i < fences.length; i++) {
+    const f = fences[i]
+
+    if (f.infoString === '') {
+      // 无 info string → 闭合
+      if (stack.length > 0) {
+        // 匹配栈顶
+        const top = stack.pop()!
+        blocks.push({
+          lang: top.lang,
+          content: text.slice(top.contentStart, f.start),
+          closed: true,
+          blockStart: fences[top.startIdx].start,
+          blockEnd: f.end,
+        })
+      }
+      // 栈空时出现无 info string 的 fence,是孤立闭合 fence,忽略
+    } else {
+      // 有 info string → 新代码块开始(进栈)
+      stack.push({
+        startIdx: i,
+        tickLen: f.tickLen,
+        lang: f.infoString.toLowerCase(),
+        contentStart: f.end,
+      })
+    }
+  }
+
+  // 栈中剩余 = 未闭合的代码块(流式中正在生成的)
+  for (const frame of stack) {
+    blocks.push({
+      lang: frame.lang,
+      content: text.slice(frame.contentStart),
+      closed: false,
+      blockStart: fences[frame.startIdx].start,
+      blockEnd: text.length,
+    })
+  }
+
+  return blocks
+}
+
 // 从文本中提取所有已闭合的 markdown 代码块
 function extractCodeBlocks(text: string): { lang: string; content: string }[] {
-  const blocks: { lang: string; content: string }[] = []
-  const regex = /```(\w+)\s*\n([\s\S]*?)```/g
-  let match
-  while ((match = regex.exec(text)) !== null) {
-    blocks.push({ lang: match[1].toLowerCase(), content: match[2] })
-  }
-  return blocks
+  return parseAllCodeBlocks(text)
+    .filter((b) => b.closed)
+    .map((b) => ({ lang: b.lang, content: b.content }))
 }
 
 // 从文本中提取未闭合的 markdown 代码块(流式时正在生成的那个)
 function extractOpenCodeBlock(text: string): { lang: string; content: string } | null {
-  let remaining = text.replace(/```\w+\s*\n[\s\S]*?```/g, '')
-  const openMatch = remaining.match(/```(\w+)\s*\n([\s\S]*)$/)
-  if (openMatch) {
-    return { lang: openMatch[1].toLowerCase(), content: openMatch[2] }
-  }
-  return null
+  const blocks = parseAllCodeBlocks(text)
+  const open = blocks.find((b) => !b.closed)
+  return open ? { lang: open.lang, content: open.content } : null
 }
 
 // 从文本中提取描述(去掉 app_name 行和所有代码块后的纯文本)
 // 注意:也要去掉未闭合的流式代码块(最后一个 ```lang\n 后面的全部内容)
 function extractDescription(text: string): string {
-  let result = text
-    .replace(/^app_name:\s*.+?(?:\n|$)/, '')
-    .replace(/```\w+\s*\n[\s\S]*?```/g, '')  // 已闭合的代码块
-  // 再去掉可能存在的未闭合代码块(流式中正在生成的)
-  result = result.replace(/```\w+\s*\n[\s\S]*$/, '')
+  // 先去掉 app_name:xxx 行
+  let result = text.replace(/^app_name:\s*.+?(?:\n|$)/, '')
+
+  // 用栈式解析找到所有代码块范围,从后往前删除(避免索引偏移)
+  const blocks = parseAllCodeBlocks(result)
+  // 按 blockStart 降序排,从尾部删起
+  blocks.sort((a, b) => b.blockStart - a.blockStart)
+  for (const b of blocks) {
+    result = result.slice(0, b.blockStart) + result.slice(b.blockEnd)
+  }
+
   return result.trim()
 }
 
