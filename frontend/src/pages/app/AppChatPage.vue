@@ -73,7 +73,13 @@
               <div class="message-content">
                 <!-- 代码生成类消息：只展示 description 文本（Markdown 渲染），代码块在独立面板 -->
                 <template v-if="message.codeGen">
-                  <MarkdownRenderer v-if="message.codeGen.description" :content="message.codeGen.description" />
+                  <MarkdownRenderer
+                    v-if="message.content"
+                    :content="message.content"
+                  />
+                  <div v-else class="ai-description-empty">
+                    （请查看下方代码面板）
+                  </div>
                   <div v-if="message.loading" class="loading-indicator">
                     <a-spin size="small" />
                     <span>AI 正在生成代码...</span>
