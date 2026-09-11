@@ -71,9 +71,9 @@
                 <a-avatar :src="aiAvatar" />
               </div>
               <div class="message-content">
-                <!-- 代码生成类消息：只展示 description 文本，代码块在独立面板 -->
+                <!-- 代码生成类消息：只展示 description 文本（Markdown 渲染），代码块在独立面板 -->
                 <template v-if="message.codeGen">
-                  <p v-if="message.codeGen.description">{{ message.codeGen.description }}</p>
+                  <MarkdownRenderer v-if="message.codeGen.description" :content="message.codeGen.description" />
                   <div v-if="message.loading" class="loading-indicator">
                     <a-spin size="small" />
                     <span>AI 正在生成代码...</span>
@@ -372,8 +372,12 @@ interface ParsedCodeBlock {
 // 扫描全文,找到所有 fence 行
 function scanFences(text: string): FenceInfo[] {
   const fences: FenceInfo[] = []
-  // 注意: JS 正则 /.../g 配合 lastIndex 扫描,多行模式
-  const fenceRegex = /^[ \t]{0,3}(`{3,})([^\n`]*?)(?:[ \t]*)\n?/gm
+  // 注意: group[2] 必须用贪婪 * 不能用 *!
+  // 非贪婪 *? 会让 "([^\n`]*?)" 永远只匹配 0 个字符,
+  // 导致 ```html 和 ``` 两种 fence 的 infoString 都是 "",全部被误判为闭合。
+  // 贪婪 * 下: ```html\n 会贪婪吃掉 "html" → infoString="html" ✅
+  //           ```\n      因下一个字符就是 \n 所以匹配 0 → infoString="" ✅
+  const fenceRegex = /^[ \t]{0,3}(`{3,})([^\n`]*)(?:[ \t]*)\n?/gm
   let m: RegExpExecArray | null
   while ((m = fenceRegex.exec(text)) !== null) {
     fences.push({
