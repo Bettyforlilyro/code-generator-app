@@ -1,4 +1,5 @@
 import asyncio
+import json
 import mimetypes
 import os
 import queue
@@ -124,7 +125,6 @@ def async_generator_to_sync(async_gen: AsyncGenerator) -> Generator:
 
 def stream_response(
         generator: Union[Generator, AsyncGenerator],
-        event_type: str = 'message',
         use_wrapper: bool = True,
         on_done: Callable = None,
         on_error: Callable = None
@@ -136,8 +136,7 @@ def stream_response(
     异步生成器会自动转换为同步生成器，兼容所有部署方式。
 
     Args:
-        generator: 生成器对象，每次产出一个数据块（支持同步/异步生成器），低并发请求（<10）建议使用同步生成器
-        event_type: SSE事件类型，默认为 'message'
+        generator: 生成器对象，每次产出一个 tuple (event, data)（支持同步/异步生成器），低并发请求（<10）建议使用同步生成器
         use_wrapper: 是否将每个数据块包装为统一响应体格式 ApiResponse
         on_done: 生成器完成后的回调函数（可选），签名为: on_done(chunks: list)
                  chunks 为生成器产出的所有原始数据块列表
@@ -148,24 +147,24 @@ def stream_response(
     """
     import json as json_module
 
-    def _wrap_chunk(chunk: Any) -> str:
+    def _wrap_chunk(event: str, data: Any) -> str:
         """将数据块包装为 SSE 格式"""
         if use_wrapper:
             # 使用统一响应体包装
             response = ApiResponse(
                 code=20000,
                 message="操作成功",
-                data=chunk
+                data=data
             )
             data_str = json_module.dumps(response.model_dump(mode='json'), ensure_ascii=False)
         else:
             # 直接序列化数据
-            if isinstance(chunk, (dict, list)):
-                data_str = json_module.dumps(chunk, ensure_ascii=False)
+            if isinstance(data, (dict, list)):
+                data_str = json_module.dumps(data, ensure_ascii=False)
             else:
-                data_str = str(chunk)
+                data_str = str(data)
 
-        return f'event: {event_type}\ndata: {data_str}\n\n'
+        return f'event: {event}\ndata: {data_str}\n\n'
 
     # 判断生成器类型，将异步生成器转换为同步生成器
     is_async = hasattr(generator, '__anext__')
@@ -177,14 +176,14 @@ def stream_response(
         # 收集生成器产出的所有原始数据块，用于回调
         all_chunks = []
         try:
-            for chunk in generator:
-                all_chunks.append(chunk)
-                yield _wrap_chunk(chunk)
+            for event, data in generator:
+                all_chunks.append(data)
+                yield _wrap_chunk(event, data)
         except Exception as e:
             if on_error:
                 error_result = on_error(e, all_chunks)
                 if error_result:
-                    yield _wrap_chunk(error_result)
+                    yield _wrap_chunk('error', error_result)
             else:
                 # 默认错误处理
                 if isinstance(e, BusinessException):
@@ -197,15 +196,14 @@ def stream_response(
                         message=str(e) or ErrorCode.INTERNAL_ERROR.message,
                         data=None
                     )
-                yield f'event: error\ndata: {json_module.dumps(error_response_data.model_dump(mode="json"), ensure_ascii=False)}\n\n'
+                yield _wrap_chunk('error', error_response_data)
         finally:
+            # 如果有回调，返回回调的结果
             if on_done:
-                done_result = on_done(all_chunks)
-                if done_result:
-                    yield _wrap_chunk(done_result)
-            # 发送完成事件，前端通过监听 done 事件判断流是否结束
-            done_event = ApiResponse(code=20000, message="流结束", data=None)
-            yield f'event: done\ndata: {json_module.dumps(done_event.model_dump(mode="json"), ensure_ascii=False)}\n\n'
+                done_event = on_done(all_chunks) or json.dumps({})
+            else:   # 如果没有回调，发送默认事件
+                done_event = ApiResponse(code=20000, message="流结束", data=None)
+            yield _wrap_chunk('done', done_event)
 
     # 统一使用 stream_with_context 包装同步生成器
     # 保持请求上下文在整个流生命周期内有效

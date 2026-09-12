@@ -103,5 +103,6 @@ def generate_code_stream():
         persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
         full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
         logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
+        return "AI 暂时不能回答这个问题"
 
     return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)

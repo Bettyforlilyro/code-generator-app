@@ -17,24 +17,44 @@ from backend.app.services.app_service import update_app_svc, get_app_creator_by_
 logger = logging.getLogger(__name__)
 
 
+def _compose_task_info(chunk: StreamChunk) -> dict:
+    """
+    组合任务信息，包含 task_id, info, extra
+    """
+    return {'task_id': chunk.metadata.get("tool_call_id"),
+            'info': chunk.content,
+            "extra": chunk.metadata}
+
+
 def processed_chunk(chunk: StreamChunk):
     """
     处理流式响应，根据需要进行转换或过滤，简化 Chunk 内容
+    将 AI 的回复分为即时立刻回复和耗时任务的回复
+    即时立刻回复：直接返回给前端，例如普通文本
+    耗时任务回复：包含 start 和 end 两个阶段，例如文件写入，网络搜索等
 
     :param chunk: 流式响应块
-    :return: 处理后的数据块，真正 yield 给前端的数据格式（SSE 相应数据中 data 字段的内容）
+    :return: SSE 相应数据中 event 字段的类型，以及 data 字段的内容（由调用者封装正确格式）
     """
     msg_type = chunk.chunk_type
     if msg_type == StreamChunk.TYPE_TEXT:
-        return {"d": chunk.content}
-    elif msg_type == StreamChunk.TYPE_TOOL_START:
-        return {"t": "tool_start", "tool_info": chunk.content, "extra": chunk.metadata}
-    elif msg_type == StreamChunk.TYPE_TOOL_END:
-        return {"t": "tool_end", "tool_info": chunk.content, "extra": chunk.metadata}
+        return 'message', {"d": chunk.content}
+    # 不同的耗时任务返回提示信息
+    # 返回 task_id 是唯一任务标识，用于区分多个不同耗时任务并行调用
+    # chunk.content是前端需要展示的信息，extra是其他元数据，可以内部进行一定处理（界面上不呈现）
+    elif msg_type == StreamChunk.TYPE_TOOL_START:  # 请求工具调用
+        return 'task_start', _compose_task_info(chunk)
+    elif msg_type == StreamChunk.TYPE_TOOL_END:  # 工具调用结束
+        return 'task_end', _compose_task_info(chunk)
+    elif msg_type == StreamChunk.TYPE_WEB_SEARCH:  # 网络搜索
+        return 'web_search', _compose_task_info(chunk)
+    elif msg_type == StreamChunk.TYPE_WEB_SEARCH_DONE:  # 网络搜索完成
+        return 'web_search_done', _compose_task_info(chunk)
 
 
 class AICodeGeneratorFacade:
     """AI代码生成器外观类"""
+
     @staticmethod
     def generate_code_and_save_file(user_message: str, code_gen_type: CodeFileType, app_id: int):
         """生成代码并保存文件，返回保存路径"""
@@ -47,7 +67,7 @@ class AICodeGeneratorFacade:
         # 1. 调用AI模型生成代码
         llm_client = (ChatClientBuilder()
                       .set_response_format(pydantic_model.get_response_format())
-                      .set_system_prompt("")    # system_prompt已经存到数据库中了，从messages中已经有了
+                      .set_system_prompt("")  # system_prompt已经存到数据库中了，从messages中已经有了
                       .build())
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
@@ -97,9 +117,7 @@ class AICodeGeneratorFacade:
             # 第一阶段：流式输出 token
             for chunk in llm_client.chat_stream(messages, tool_context={"app_id": app_id} if app_id else None):
                 full_response_text += chunk.content
-                # 只产出原始数据，不做 SSE 包装，这里会经过 stream_response 包装处理后返回给前端
-                # 事实上 stream_response 包装也就是包装成了 SSE 格式数据流
-                # chunk 类型是 StreamChunk，改成做相应的处理再返回给前端展示不同效果
+                # 返回 tuple , (event, data)
                 yield processed_chunk(chunk)
         except BusinessException:
             # 如果下游已经抛出了明确的业务异常，直接上抛
@@ -118,7 +136,7 @@ class AICodeGeneratorFacade:
             if json_match:
                 try:
                     result = pydantic_model.model_validate(json.loads(json_match.group()))
-                except Exception as parse_err:      # 正则解析失败，直接返回原始响应交给解析器处理
+                except Exception as parse_err:  # 正则解析失败，直接返回原始响应交给解析器处理
                     logger.error(
                         f"AI 响应是JSON格式字符串，但是无法解析为{pydantic_model.__name__}: {parse_err}\n"
                         f"原始响应: {full_response_text}"

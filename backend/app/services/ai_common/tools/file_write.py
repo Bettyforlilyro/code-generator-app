@@ -79,9 +79,7 @@ def _show_start() -> str:
     工具开始调用时怎么展示——显示文件路径和内容摘要
     :return: 展示的字符串
     """
-    context = get_runtime_context()
-    app_id = context.get("app_id", "")
-    return f"\n\n📝 AI 正在规划写入文件（应用: `{app_id}`）...\n\n"
+    return f"\n\n📝 AI 正在奋力编码ing...\n\n"
 
 
 def _show_end(args, result, success) -> str:
@@ -102,8 +100,8 @@ def _show_end(args, result, success) -> str:
     else:
         size_human_friendly = f"{size} B"
     if success and "写入成功" in result and file_path:
-        return f"✅ 写入文件: `{file_path}` 完成，大小: {size_human_friendly} \n\n"
-    return f"❌ 写入文件失败！ \n\n"
+        return f"✅ 代码写入完成: `{file_path}` ，大小: {size_human_friendly} \n\n"
+    return f"❌ 代码写入失败！ \n\n"
 
 
 register_tool_display(

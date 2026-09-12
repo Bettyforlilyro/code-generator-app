@@ -41,6 +41,8 @@ class StreamChunk:
     TYPE_TOOL_START = "tool_start"
     TYPE_TOOL_END = "tool_end"
     TYPE_ERROR = "error"
+    TYPE_WEB_SEARCH = "web_search"
+    TYPE_WEB_SEARCH_DONE = "web_search_done"
     TYPE_DONE = "done"
 
     def __init__(
