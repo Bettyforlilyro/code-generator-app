@@ -77,7 +77,7 @@ def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id:
     """
     tools = None
     if code_gen_type == CodeFileType.VUE_PROJECT:
-        tools = ['文件写入工具', '文件读取工具', '文件删除工具', '目录读取工具']
+        tools = ['文件写入工具', '文件读取工具', '文件删除工具', '目录读取工具', '文件修改工具']
     return AICodeGeneratorFacade.generate_code_and_save_file_streaming(
         user_message, code_gen_type, app_id, tools=tools
     )
@@ -87,7 +87,7 @@ def persist_chat_after_generation(
     app_id: int,
     user_id: int,
     init_prompt: str,
-    chunks: list,
+    chunks: list[tuple[str, dict]],
 ) -> None:
     """
     AI 代码生成完成后，将用户消息和 AI 回复写入对话历史 + 内存记忆
@@ -96,12 +96,20 @@ def persist_chat_after_generation(
         app_id: 应用 ID
         user_id: 用户 ID
         init_prompt: 用户原始 Prompt
-        chunks: 流式生成的 token 片段列表（每项格式 {'d': 'token'}）
+        chunks: 流式生成的 (event, data) 元组列表，每个元组包含事件类型和数据
+                事件类型为 message 时，数据为 token 片段，存入 'd' 键对应的 AI 文本回复
+                事件类型为 task_start 时，忽略
+                事件类型为 task_end 时，存入 'info' 键对应的任务信息
+                事件类型为 error 时，存入 'd' 键对应的错误信息
     """
-    full_ai_response = ''.join(
-        chunk['d'] for chunk in chunks
-        if isinstance(chunk, dict) and 'd' in chunk
-    )
+    full_ai_response = ''
+    for event, data in chunks:
+        if event == 'message':
+            full_ai_response += data['d']
+        elif event == 'task_end':
+            full_ai_response += data['info']
+        elif event == 'error':
+            full_ai_response += data['d']
     if not full_ai_response:
         return
 

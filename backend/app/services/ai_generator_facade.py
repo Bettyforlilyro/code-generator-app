@@ -50,6 +50,8 @@ def processed_chunk(chunk: StreamChunk):
         return 'web_search', _compose_task_info(chunk)
     elif msg_type == StreamChunk.TYPE_WEB_SEARCH_DONE:  # 网络搜索完成
         return 'web_search_done', _compose_task_info(chunk)
+    else:
+        return 'error', {"d": chunk.content or "AI 无任何响应，请检查 API_KEY 或者网络连接"}
 
 
 class AICodeGeneratorFacade:
@@ -117,7 +119,7 @@ class AICodeGeneratorFacade:
             # 第一阶段：流式输出 token
             for chunk in llm_client.chat_stream(messages, tool_context={"app_id": app_id} if app_id else None):
                 full_response_text += chunk.content
-                # 返回 tuple , (event, data)
+                # 返回 tuple: (event, data)
                 yield processed_chunk(chunk)
         except BusinessException:
             # 如果下游已经抛出了明确的业务异常，直接上抛

@@ -96,10 +96,10 @@ def generate_code_stream():
 
     user_id = user.id
 
-    def on_done(chunks: list):
+    def on_done(chunks: list[tuple[str, dict]]):
         persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
 
-    def on_error(error: Exception, chunks: list):
+    def on_error(error: Exception, chunks: list[tuple[str, dict]]):
         persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
         full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
         logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")

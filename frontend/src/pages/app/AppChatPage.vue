@@ -71,28 +71,35 @@
                 <a-avatar :src="aiAvatar" />
               </div>
               <div class="message-content">
-                <!-- 代码生成类消息：只展示 description 文本（Markdown 渲染），代码块在独立面板 -->
-                <template v-if="message.codeGen">
-                  <MarkdownRenderer
-                    v-if="message.content"
-                    :content="message.content"
-                  />
-                  <div v-else class="ai-description-empty">
-                    （请查看下方代码面板）
-                  </div>
-                  <div v-if="message.loading" class="loading-indicator">
-                    <a-spin size="small" />
-                    <span>AI 正在生成代码...</span>
-                  </div>
+                <!-- 交织渲染:按时间顺序渲染 fragments,实现即时文本和耗时任务交错显示 -->
+                <template v-if="message.fragments && message.fragments.length > 0">
+                  <template v-for="(f, i) in message.fragments" :key="i">
+                    <MarkdownRenderer
+                      v-if="f.kind === 'text' && f.text"
+                      :content="f.text"
+                    />
+                    <TaskCard
+                      v-else-if="f.kind === 'task' && message.tasksMap && message.tasksMap[f.task_id!]"
+                      :task="message.tasksMap[f.task_id!]"
+                    />
+                  </template>
                 </template>
-                <!-- 普通消息 -->
+
+                <!-- Fallback:没有 fragments 时(纯代码块消息或历史消息) -->
                 <template v-else>
-                  <MarkdownRenderer v-if="message.content" :content="message.content" />
-                  <div v-if="message.loading" class="loading-indicator">
-                    <a-spin size="small" />
-                    <span>AI 正在思考...</span>
-                  </div>
+                  <!-- 代码生成类消息:只展示 description 文本(已过滤 app_name 和代码块) -->
+                  <template v-if="message.codeGen">
+                    <MarkdownRenderer v-if="message.content" :content="message.content" />
+                    <div v-else class="ai-description-empty">（请查看下方代码面板）</div>
+                  </template>
+                  <!-- 普通消息 -->
+                  <MarkdownRenderer v-else-if="message.content" :content="message.content" />
                 </template>
+
+                <div v-if="message.loading" class="loading-indicator">
+                  <a-spin size="small" />
+                  <span>AI 正在思考...</span>
+                </div>
               </div>
             </div>
           </div>
@@ -305,6 +312,7 @@ import request from '@/request'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
+import TaskCard from '@/components/TaskCard.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
 import { API_BASE_URL, getStaticListUrl, resolvePreviewUrlFromList } from '@/config/env'
 import { type ElementInfo, VisualEditor } from '@/utils/visualEditor'
@@ -580,13 +588,29 @@ const appId = ref<any>()
 const codeGenTypeOptions = CODE_GEN_TYPE_OPTIONS
 const selectedCodeGenType = ref<string>(CodeGenTypeEnum.HTML)
 
+// 耗时任务条目(后端 SSE event 类型: task_start / task_end / web_search / web_search_done)
+export interface TaskItem {
+  task_id: string
+  type: string            // 'tool_call' | 'web_search' | 其他扩展类型
+  status: 'running' | 'done'
+  info: string            // 后端返回的 markdown 说明
+  extra?: Record<string, unknown>
+}
+
+// 消息片段:支持即时文本与耗时任务交织显示
+export type MessageFragment =
+  | { kind: 'text'; text: string }
+  | { kind: 'task'; task_id: string }
+
 // 对话相关
 interface Message {
   type: 'user' | 'ai'
-  content?: string
+  content?: string         // 完整文本(已过滤 app_name 和代码块),给历史回显 fallback 用
   loading?: boolean
   create_time?: string
   codeGen?: CodeGenResult
+  fragments?: MessageFragment[]              // 按时间顺序排列的片段(交织显示核心)
+  tasksMap?: Record<string, TaskItem>        // task_id → TaskItem,方便按 id 查当前状态
 }
 
 const messages = ref<Message[]>([])
@@ -974,6 +998,17 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
     let buffer = ''
     let rawContentBuffer = ''
 
+    // ⚠️ 关键:在任何 SSE 事件到达之前就初始化 fragments 和 tasksMap
+    // 否则第一条 message 事件到达时 fragments 还是 undefined,
+    // 前面的即时文本会全部丢失,只有 task 事件先到达时才会被初始化
+    aiMessage.fragments = []
+    aiMessage.tasksMap = {}
+
+    // 文本边界快照:记录上一个 task 事件到达时 description 的长度
+    // 用于在 task 之后正确切分出"新增的文本片段",避免 task 后的 text fragment
+    // 把 task 之前的内容又重复存一遍
+    let textBoundary = 0
+
     const finalizeGeneration = () => {
       streamCompleted = true
       isGenerating.value = false
@@ -989,14 +1024,15 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       if (result.files.length > 0) {
         // 有代码块 → 设为 codeGen 消息,并刷新预览
         aiMessage.codeGen = result
-        aiMessage.content = result.description
+        aiMessage.content = result.description  // description 已过 extractDescription 过滤
         setTimeout(async () => {
           await fetchAppInfo()
           updatePreview()
         }, 1000)
       } else {
-        // 纯文本回复 → 不碰 codeGen,当作普通 Markdown 消息;不刷新预览
-        aiMessage.content = rawContentBuffer
+        // 纯文本回复 → 必须过 extractDescription 过滤 app_name 行
+        // (不能直接用 rawContentBuffer,否则 app_name:xxx 会泄漏到聊天里)
+        aiMessage.content = extractDescription(rawContentBuffer)
       }
 
       // 重置懒加载标志
@@ -1033,7 +1069,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           continue
         }
 
-        if (eventType === 'business-error') {
+        if (eventType === 'error') {
           try {
             const err = JSON.parse(dataStr)
             aiMessage.content = `❌ ${err.message || '生成过程中出现错误'}`
@@ -1047,7 +1083,75 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           continue
         }
 
-        // message 事件:累积 token(后端字段名为 "d")
+        // ======== 耗时任务事件 ========
+        // 后端 event 类型: task_start / task_end / web_search / web_search_done
+        // 统一数据格式: { task_id, info, extra }
+        const TASK_START_TYPES = ['task_start', 'web_search']
+        const TASK_END_TYPES = ['task_end', 'web_search_done']
+        const taskEventPrefix = eventType.replace(/_start$/, '').replace(/_end$/, '').replace(/_done$/, '')
+        const isTaskStart = TASK_START_TYPES.includes(eventType)
+        const isTaskEnd = TASK_END_TYPES.includes(eventType)
+
+        if (isTaskStart || isTaskEnd) {
+          let taskData: { task_id: string; info: string; extra?: Record<string, unknown> } | null = null
+          try {
+            taskData = JSON.parse(dataStr)
+          } catch {
+            // dataStr 不是 JSON,忽略
+          }
+
+          if (taskData && taskData.task_id) {
+            // 懒初始化
+            if (!aiMessage.fragments) aiMessage.fragments = []
+            if (!aiMessage.tasksMap) aiMessage.tasksMap = {}
+
+            const taskId = taskData.task_id
+
+            // ====== 在 push 任何 task fragment 之前,先更新 textBoundary ======
+            // 因为每个 task 都是一个文本边界:task 之前的 description 长度
+            // 就是上一个 text fragment 的"截止位置",task 之后的新 token
+            // 应该被放进全新的 text fragment 里
+            const currentDesc = extractDescription(rawContentBuffer)
+            textBoundary = currentDesc.length
+
+            if (isTaskStart) {
+              if (!aiMessage.tasksMap[taskId]) {
+                aiMessage.fragments.push({ kind: 'task', task_id: taskId })
+                aiMessage.tasksMap[taskId] = {
+                  task_id: taskId,
+                  type: taskEventPrefix,
+                  status: 'running',
+                  info: taskData.info || '',
+                  extra: taskData.extra,
+                }
+              } else {
+                const t = aiMessage.tasksMap[taskId]
+                t.info = taskData.info || t.info
+                t.status = 'running'
+              }
+            } else {
+              if (aiMessage.tasksMap[taskId]) {
+                const t = aiMessage.tasksMap[taskId]
+                t.status = 'done'
+                t.info = taskData.info || t.info
+                t.extra = taskData.extra ?? t.extra
+              } else {
+                aiMessage.fragments.push({ kind: 'task', task_id: taskId })
+                aiMessage.tasksMap[taskId] = {
+                  task_id: taskId,
+                  type: taskEventPrefix,
+                  status: 'done',
+                  info: taskData.info || '',
+                  extra: taskData.extra,
+                }
+              }
+            }
+          }
+          scrollToBottom()
+          continue
+        }
+
+        // ======== 常规 message 事件(即时文本 token) ========
         try {
           const parsed = JSON.parse(dataStr)
           if (parsed.d !== undefined && parsed.d !== null) {
@@ -1057,27 +1161,42 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           rawContentBuffer += dataStr
         }
 
-        // 实时同步更新页面顶部的 app_name(无论是否有代码块)
+        // 实时同步更新页面顶部的 app_name
         const result = parseTextToCodeGen(rawContentBuffer, false)
         if (result.app_name && appInfo.value && appInfo.value.app_name !== result.app_name) {
           appInfo.value.app_name = result.app_name
         }
 
+        // 维护 fragments 中的 text 片段
+        // 关键:用 textBoundary 切分,确保每个 text fragment 只存自己那一段
+        const filteredText = result.description  // 已过 extractDescription,过滤了 app_name 和代码块
+        const last = aiMessage.fragments[aiMessage.fragments.length - 1]
+        if (last && last.kind === 'text') {
+          // 最后是 text fragment → 增量更新整个 text(同一连续文本段跨越多个 token)
+          last.text = filteredText.slice(textBoundary)
+          // textBoundary 本身也要跟着推进(防止 task 到来后再切片时出错)
+          // 但其实 textBoundary 只会在 task 事件里重置,这里 slice 是安全的
+        } else {
+          // 最后是 task fragment(刚 push 过 task),或 fragments 刚初始化还空着
+          // → 只取 taskBoundary 之后的"新增部分"push 新的 text fragment
+          const newSegment = filteredText.slice(textBoundary)
+          if (newSegment) {
+            aiMessage.fragments.push({ kind: 'text', text: newSegment })
+          }
+        }
+
         if (result.files.length > 0) {
-          // 有代码块 → codeGen 模式,面板流式更新
           aiMessage.codeGen = result
           aiMessage.content = result.description
           aiMessage.loading = false
-          // 首次出现代码块时,懒触发右侧预览区 loading
           if (!hasCodeBlockInStream.value) {
             hasCodeBlockInStream.value = true
           }
         } else if (!aiMessage.codeGen) {
-          // 还没有出现代码块 → 纯文本流式,走普通 Markdown 消息
-          aiMessage.content = rawContentBuffer
+          // 还没有代码块 → 纯文本流式,content 用已过滤的 description
+          aiMessage.content = result.description
           aiMessage.loading = false
         }
-        // 已经进入 codeGen 模式但当前还没解析出 files(边界情况):保持不动
 
         scrollToBottom()
       }

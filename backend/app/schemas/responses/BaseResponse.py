@@ -177,7 +177,7 @@ def stream_response(
         all_chunks = []
         try:
             for event, data in generator:
-                all_chunks.append(data)
+                all_chunks.append((event, data))
                 yield _wrap_chunk(event, data)
         except Exception as e:
             if on_error:

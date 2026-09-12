@@ -9,12 +9,12 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
 from backend.app.services.ai_common.tools import register_tool_display
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
-TOOL_NAME = "文件写入工具"
+TOOL_NAME = "文件修改工具"
 
 
-class FileWriteToolArgs(BaseModel):
+class FileModifyToolArgs(BaseModel):
     file_path: str = Field(description="文件的相对路径")
-    content: str = Field(description="要写入的内容")
+    content: str = Field(description="要修改的内容")
 
 
 # ---------------------------------------------------------------------------
@@ -22,29 +22,30 @@ class FileWriteToolArgs(BaseModel):
 # ---------------------------------------------------------------------------
 @tool(
     name_or_callable=TOOL_NAME,
-    description="文件写入工具，用于将内容写入指定路径下的指定文件",
-    args_schema=FileWriteToolArgs
+    description="文件修改工具，用于修改指定路径下的指定文件的内容",
+    args_schema=FileModifyToolArgs
 )
-def file_write_tool(file_path: str, content: str) -> str:
+def file_modify_tool(file_path: str, content: str) -> str:
     relative_path = Path(file_path)
     full_path = Path(os.path.join(Path(DEFAULT_GENERATE_ROOT), "test")) / relative_path
-    full_path.parent.mkdir(parents=True, exist_ok=True)
+    if not full_path.exists():
+        return f"文件修改失败，文件不存在！"
     full_path.write_text(content, encoding="utf-8")
-    return f"文件写入成功，文件路径：{relative_path}"
+    return f"文件修改成功，文件路径：{relative_path}"
 
 
-file_write_tool.name = TOOL_NAME
+file_modify_tool.name = TOOL_NAME
 
 
-def file_write_tool_with_context():
+def file_modify_tool_with_context():
     """
     工厂函数：工厂函数：返回一个 LLM 可调用的闭包工具，每次执行时从 context_var 读取当前请求的 context
     """
 
     @tool(
         name_or_callable=TOOL_NAME,
-        description="文件写入工具，用于将内容写入指定路径下的指定文件",
-        args_schema=FileWriteToolArgs
+        description="文件修改工具，用于修改指定路径下的指定文件的内容",
+        args_schema=FileModifyToolArgs
     )
     def _tool(file_path: str, content: str) -> str:
         # 被调用时获取上下文参数
@@ -52,7 +53,7 @@ def file_write_tool_with_context():
         app_id = context.get("app_id")
         if not app_id:
             logging.error("app_id 未设置")
-            return f"文件写入失败，app_id 未设置"
+            return f"文件修改失败，app_id 未设置"
         try:
             relative_path = Path(file_path)
             # 把相对路径转换为绝对路径
@@ -61,12 +62,13 @@ def file_write_tool_with_context():
             else:
                 return f"文件写入失败，路径参数只能输入相对路径！"
             full_path = Path(os.path.join(DEFAULT_GENERATE_ROOT, full_dir_name)) / relative_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+            if not full_path.exists():
+                return f"文件修改失败，文件不存在！"
             full_path.write_text(content, encoding="utf-8")
-            return f"文件写入成功，文件路径：{relative_path}"
+            return f"文件修改成功，文件路径：{relative_path}"
         except Exception as e:
-            logging.error(f"文件写入失败：{e}")
-            return f"文件写入失败，错误信息：{e}"
+            logging.error(f"文件修改失败：{e}")
+            return f"文件修改失败，错误信息：{e}"
 
     _tool.name = TOOL_NAME
 
@@ -79,7 +81,7 @@ def _show_start() -> str:
     工具开始调用时怎么展示——显示文件路径和内容摘要
     :return: 展示的字符串
     """
-    return f"\n\n📝 AI 正在奋力编码ing...\n\n"
+    return f"\n\n📝 AI 正在修改文件...\n\n"
 
 
 def _show_end(args, result, success) -> str:
@@ -91,17 +93,9 @@ def _show_end(args, result, success) -> str:
     :return: 展示的字符串
     """
     file_path = args.get("file_path")
-    content = args.get("content")
-    size = len(content.encode("utf-8"))
-    if size > 1024 * 1024:
-        size_human_friendly = f"{size / 1024 / 1024:.2f} MB"
-    elif size > 1024:
-        size_human_friendly = f"{size / 1024:.2f} KB"
-    else:
-        size_human_friendly = f"{size} B"
-    if success and "写入成功" in result and file_path:
-        return f"\n\n✅ 已生成代码并存入文件: `{file_path}` ，大小: {size_human_friendly} \n\n"
-    return f"\n\n❌ 代码写入失败！ \n\n"
+    if success and "修改成功" in result and file_path:
+        return f"\n\n✅ 已修改文件: `{file_path}` \n\n"
+    return f"\n\n❌ 文件修改失败！ \n\n"
 
 
 register_tool_display(
