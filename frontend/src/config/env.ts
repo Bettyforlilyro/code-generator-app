@@ -38,8 +38,6 @@ export const getDeployedStaticListUrl = (deployKey: string) => {
 export const resolvePreviewUrlFromList = (files: Array<{ file_name: string; file_url: string }>): string | null => {
   const indexFile = files.find((f) => f.file_name === 'index.html')
   if (!indexFile) return null
-  // TODO 调试待删除
-  console.log("indexFile: ", indexFile)
   // 将相对路径转为绝对路径
   if (indexFile.file_url.startsWith('http')) return indexFile.file_url
   return `http://localhost:5000${indexFile.file_url}`
