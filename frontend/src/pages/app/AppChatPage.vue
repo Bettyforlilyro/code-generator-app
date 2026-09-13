@@ -909,8 +909,6 @@ const loadChatHistory = async (isLoadMore = false) => {
           }
           return base
         })
-        // TODO 调试待删除
-        console.log('historyMessages: ', historyMessages)
         if (isLoadMore) {
           // 加载更多时，将历史消息添加到开头
           messages.value.unshift(...historyMessages)
@@ -945,7 +943,7 @@ const loadMoreHistory = async () => {
 }
 
 // 获取应用信息
-const fetchAppInfo = async () => {
+const fetchAppInfo = async (skipUpdatePreview = false) => {
   const id = route.params.id as string
   if (!id) {
     message.error('应用ID不存在')
@@ -967,12 +965,12 @@ const fetchAppInfo = async () => {
 
       // 先加载对话历史
       await loadChatHistory()
-      // 如果有至少2条对话记录,展示对应的网站
-      // ⚠️ 如果正在进行预览轮询(vue_project 等异步构建中),不要 abort 掉! 让轮询继续跑
-      if (messages.value.length >= 2 && !isPollingPreview.value) {
-        // TODO 调试待删除
-        console.log("fetchAppInfo is calling updatePreview")
-        await updatePreview()
+
+      if (!skipUpdatePreview) {
+        // 如果有至少2条对话记录,展示对应的网站
+        if (messages.value.length >= 2) {
+          await updatePreview()
+        }
       }
       // 检查是否需要自动发送初始提示词
       // 只有在是自己的应用且没有对话历史时才自动发送
@@ -1185,12 +1183,10 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       // (文件可能由后端工具写入,SSE 里没有 markdown 代码块,此时 result.files 为空)
       if (result.files.length > 0 || needBuildPolling) {
         setTimeout(async () => {
-          await fetchAppInfo().catch((err) => console.warn('fetchAppInfo failed (non-critical):', err))
-          if (!isPollingPreview.value) {
-            // TODO 调试待删除
-            console.log("is calling updatePreview, but not in fetchAppInfo callback")
-            await updatePreview()
-          }
+          // 先同步 appInfo(主要是为了拿到后端可能更新的 code_gen_type 和刷新对话记录)
+          // skipUpdatePreview=true: 不触发预览,预览由下方显式调用 updatePreview 统一控制
+          await fetchAppInfo(true).catch((err) => console.warn('fetchAppInfo failed (non-critical):', err))
+          await updatePreview()
         }, 1000)
       }
 
@@ -1413,8 +1409,6 @@ function abortPreviewPolling() {
 
 // 更新预览
 const updatePreview = async () => {
-  // TODO 调试待删除
-  console.log('updatePreview is called...')
   if (!appId.value) return
   const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
 
@@ -1436,8 +1430,6 @@ const updatePreview = async () => {
 
       try {
         const res = await fetch(targetUrl, { signal: controller.signal })
-        // TODO 调试待删除
-        console.log('updatePreview res', res)
         if (res.ok) {
           // 构建完成! index.html 能访问了
           previewUrl.value = targetUrl
@@ -1445,7 +1437,6 @@ const updatePreview = async () => {
           previewReady.value = true
           isPollingPreview.value = false
           previewPollingAbortController = null
-          console.log(`[preview] vue_project 构建就绪,第 ${attempt} 次轮询成功`)
           return
         }
       } catch (e: unknown) {
