@@ -12,9 +12,11 @@ import subprocess
 from datetime import datetime
 from typing import Optional
 
+from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
+from backend.app.common.utils.build_vue_project import build_vue_project
 from backend.app.common.utils.get_random_picture import get_random_bz
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
@@ -315,6 +317,16 @@ def deploy_app_svc(app_id: int, user_id: int) -> dict:
     source_dir = os.path.join(DEFAULT_GENERATE_ROOT, f"{app.code_gen_type}_{app.id}")
     if not os.path.isdir(source_dir):
         raise BusinessException(ErrorCode.APP_NOT_FOUND, "应用代码不存在，请确认是否已生成")
+
+    # 如果是 vue 项目，需要先执行异步构建
+    if app.code_gen_type == CodeFileType.VUE_PROJECT:
+        if not build_vue_project(source_dir):
+            raise BusinessException(ErrorCode.INTERNAL_ERROR, "Vue项目构建失败")
+        # 构建成功后，将 dist 目录复制到部署目录
+        dist_dir = os.path.join(source_dir, "dist")
+        if not os.path.isdir(dist_dir):
+            raise BusinessException(ErrorCode.INTERNAL_ERROR, "Vue项目构建失败，dist目录不存在")
+        source_dir = dist_dir
 
     target_dir = os.path.join(DEFAULT_DEPLOY_ROOT, app.deploy_key)
     try:
