@@ -186,8 +186,8 @@ def list_chat_history(
         per_page: 每页数量，默认 10
         app_id: 按应用 ID 过滤（可选）
         message_type: 按消息类型过滤（可选），可选值：user / ai，若不选，默认查询所有消息类型"ALL"
-        sort_order: 排序方向，asc-正序（时间从早到晚），desc-倒序（时间从晚到早），默认 asc
-        last_create_time: 最后创建时间，若不选，默认查询所有记录
+        sort_order: 排序方向，asc-正序（时间从早到晚），desc-倒序（时间从晚到早），默认 desc
+        last_create_time: 最新时间，若不填，默认当前时间，格式为 YYYY&mm&dd&HH&MM&SS
         include_system: 是否包含系统消息，默认 False
 
     Returns:
@@ -203,10 +203,12 @@ def list_chat_history(
     if message_type is not None and message_type != "ALL":
         query = query.filter(ChatHistory.message_type == message_type)
     if last_create_time is not None:
-        query = query.filter(ChatHistory.create_time > last_create_time)
+        query = query.filter(ChatHistory.create_time < last_create_time)
+    else:
+        query = query.filter(ChatHistory.create_time < datetime.utcnow())
 
     sort_column = ChatHistory.create_time
-    query = query.order_by(sort_column.desc() if sort_order == 'desc' else sort_column.asc())
+    query = query.order_by(sort_column.asc() if sort_order == 'asc' else sort_column.desc())
 
     if not include_system:
         query = query.filter(ChatHistory.message_type != ChatMessageType.SYSTEM.value)

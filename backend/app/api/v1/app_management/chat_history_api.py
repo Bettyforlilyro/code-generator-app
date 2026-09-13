@@ -51,7 +51,7 @@ def get_chat_history(app_id: str):
       - in: query
         name: last_create_time
         type: string
-        description: 上一次分页返回的最后一条记录的创建时间（可选，格式为 YYYY&mm&dd&HH&MM&SS，用于滚动加载）
+        description: 游标，如果提供，以该时间为最新时间，返回该时间之前的分页记录，格式为 YYYY&mm&dd&HH&MM&SS
     responses:
       200:
         description: 返回对话历史分页列表
@@ -66,7 +66,7 @@ def get_chat_history(app_id: str):
     """
     user = g.current_user
     page, per_page = parse_pagination_args()
-    sort_order = request.args.get('sort_order', 'asc')
+    sort_order = request.args.get('sort_order', 'desc')
     if sort_order not in ('asc', 'desc'):
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
 

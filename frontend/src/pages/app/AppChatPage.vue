@@ -48,12 +48,15 @@
       <!-- 左侧对话区域 -->
       <div class="chat-section">
         <!-- 消息区域 -->
-        <div class="messages-container" ref="messagesContainer">
-          <!-- 加载更多按钮 -->
+        <div class="messages-container" ref="messagesContainer" @scroll="handleMessagesScroll">
+          <!-- 加载更多按钮 / 已经到顶提示 -->
           <div v-if="hasMoreHistory" class="load-more-container">
             <a-button type="link" @click="loadMoreHistory" :loading="loadingHistory" size="small">
               加载更多历史消息
             </a-button>
+          </div>
+          <div v-else-if="messages.length > 0 && historyLoaded" class="load-more-container">
+            <span class="no-more-hint">已经到顶了，没有更早的历史记录了</span>
           </div>
           <div v-for="(message, index) in messages" :key="index" class="message-item">
             <div v-if="message.type === 'user'" class="user-message">
@@ -829,8 +832,17 @@ async function fetchTaskPreview(task: TaskItem, taskId: string) {
 // 对话历史相关
 const loadingHistory = ref(false)
 const hasMoreHistory = ref(false)
-const lastCreateTime = ref<string>()
 const historyLoaded = ref(false)
+
+// 滚轮触顶加载更多历史消息
+const handleMessagesScroll = () => {
+  const el = messagesContainer.value
+  if (!el || loadingHistory.value || !hasMoreHistory.value) return
+  // scrollTop 接近 0 时触发(留 20px 容错)
+  if (el.scrollTop <= 20) {
+    loadMoreHistory()
+  }
+}
 
 // 预览相关
 const previewUrl = ref('')
@@ -876,6 +888,8 @@ const showAppDetail = () => {
 }
 
 // 加载对话历史
+// 后端约定:不传游标返回最新 N 条;传 last_create_time 返回早于此时间的记录
+// 后端返回按时间倒序(新在前、旧在后),messages 数组保持正序(旧在前、新在后)
 const loadChatHistory = async (isLoadMore = false) => {
   if (!appId.value || loadingHistory.value) return
   loadingHistory.value = true
@@ -884,15 +898,25 @@ const loadChatHistory = async (isLoadMore = false) => {
       app_id: Number(appId.value),
       per_page: 10,
     }
-    // 如果是加载更多，传递最后一条消息的创建时间作为游标
-    if (isLoadMore && lastCreateTime.value) {
-      params.last_create_time = lastCreateTime.value
+    // 加载更多时,用当前界面上最早那条(messages[0])的时间做游标
+    // 后端会返回早于此时间的记录(即更旧的历史)
+    if (isLoadMore && messages.value.length > 0) {
+      const oldestTime = messages.value[0].create_time
+      if (oldestTime) {
+        params.last_create_time = formatTimeForApi(oldestTime)
+      }
     }
     const res = await listAppChatHistory(params)
     if (res.data.code === 20000 && res.data.data) {
       const chatHistories = res.data.data.chat_records || []
+
+      // 无更早的历史了
+      if (isLoadMore && chatHistories.length === 0) {
+        hasMoreHistory.value = false
+      }
+
       if (chatHistories.length > 0) {
-        // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
+        // 将对话历史转换为消息格式
         const historyMessages: Message[] = chatHistories.map((chat) => {
           const base: Message = {
             type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
@@ -909,23 +933,17 @@ const loadChatHistory = async (isLoadMore = false) => {
           }
           return base
         })
+
         if (isLoadMore) {
-          // 加载更多时，将历史消息添加到开头
-          messages.value.unshift(...historyMessages)
+          // 后端返回倒序(新→旧),需要反转后 unshift 才能保持 messages 正序(旧→新)
+          // 例:后端返回[新, ..., 旧] → 反转[旧, ..., 新] → unshift 到最前面
+          messages.value.unshift(...historyMessages.reverse())
         } else {
-          // 初始加载，直接设置消息列表
-          messages.value = historyMessages
+          // 初始加载,后端返回倒序,反转后直接赋值保持正序
+          messages.value = historyMessages.reverse()
         }
-        // 更新游标
-        lastCreateTime.value = formatTimeForApi(
-          <string>chatHistories[chatHistories.length - 1]?.create_time,
-        )
-        // TODO 调试待删除
-        console.log('lastCreateTime: ', lastCreateTime.value)
         // 检查是否还有更多历史
         hasMoreHistory.value = chatHistories.length === 10
-      } else {
-        hasMoreHistory.value = false
       }
       historyLoaded.value = true
     }
@@ -943,6 +961,9 @@ const loadMoreHistory = async () => {
 }
 
 // 获取应用信息
+// skipUpdatePreview: true 时只刷新 appInfo / selectedCodeGenType,不触发预览
+//   - onMounted 传 false: 页面首次加载,需要加载历史并刷新预览
+//   - finalizeGeneration 传 true: 生成完成后只需要同步 appInfo
 const fetchAppInfo = async (skipUpdatePreview = false) => {
   const id = route.params.id as string
   if (!id) {
@@ -962,11 +983,10 @@ const fetchAppInfo = async (skipUpdatePreview = false) => {
       if (appInfo.value.code_gen_type) {
         selectedCodeGenType.value = appInfo.value.code_gen_type
       }
-
-      // 先加载对话历史
-      await loadChatHistory()
-
       if (!skipUpdatePreview) {
+        await loadChatHistory()
+        // 加载完历史后滚动到底部(显示最新消息)
+        setTimeout(() => scrollToBottom(), 100)
         // 如果有至少2条对话记录,展示对应的网站
         if (messages.value.length >= 2) {
           await updatePreview()
@@ -1485,9 +1505,15 @@ const updatePreview = async () => {
 
 // 滚动到底部
 const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+  const el = messagesContainer.value
+  if (!el) return
+  // 临时禁用 smooth,强制瞬时滚动到底部
+  // 否则 scroll-behavior: smooth 会导致平滑滚动追不上增长的内容高度,停在半路
+  const prevBehavior = el.style.scrollBehavior
+  el.style.scrollBehavior = 'auto'
+  el.scrollTop = el.scrollHeight
+  // 恢复 smooth(让后续用户手动滚动体验更好)
+  if (prevBehavior) el.style.scrollBehavior = prevBehavior
 }
 
 // 下载代码（调用后端打包接口）
@@ -1782,6 +1808,11 @@ onUnmounted(() => {
   text-align: center;
   padding: 8px 0;
   margin-bottom: 16px;
+}
+
+.no-more-hint {
+  font-size: 12px;
+  color: #c0c4cc;
 }
 
 /* 独立代码展示面板 */
