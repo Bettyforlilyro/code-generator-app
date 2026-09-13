@@ -216,7 +216,7 @@
                 关闭预览
               </a-button>
               <a-select
-                v-if="!taskPreviewFile"
+                v-if="!taskPreviewFile && latestCodeGen"
                 v-model:value="latestCodeGen.currentFileIndex"
                 class="codeGen-select"
                 size="small"
@@ -618,7 +618,7 @@ function formatTimeForApi(isoStr: string): string {
 
 // 应用信息
 const appInfo = ref<API.AppVO>()
-const appId = ref<any>()
+const appId = ref<string | number>()
 
 // 代码生成类型选择
 const codeGenTypeOptions = CODE_GEN_TYPE_OPTIONS
@@ -670,7 +670,7 @@ const codePanelStyle = computed<Record<string, string>>(() => {
   if (codePanelHeight.value !== null) {
     return { height: codePanelHeight.value + 'px', flex: 'none' }
   }
-  return {}
+  return {} as Record<string, string>
 })
 
 // 开始拖拽
@@ -712,11 +712,12 @@ function stopResize() {
 }
 
 // 找到最新的带有效 codeGen(有代码文件)的 AI 消息,用于下半部分独立代码面板展示
-const latestCodeGen = computed(() => {
+const latestCodeGen = computed<CodeGenResult | null>(() => {
   const msgs = messages.value
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].type === 'ai' && msgs[i].codeGen && msgs[i].codeGen.files.length > 0) {
-      return msgs[i].codeGen
+    const msg = msgs[i]
+    if (msg?.type === 'ai' && msg.codeGen && msg.codeGen.files.length > 0) {
+      return msg.codeGen as CodeGenResult
     }
   }
   return null
@@ -880,7 +881,7 @@ const loadChatHistory = async (isLoadMore = false) => {
   loadingHistory.value = true
   try {
     const params: API.listAppChatHistoryParams = {
-      app_id: appId.value,
+      app_id: Number(appId.value),
       per_page: 10,
     }
     // 如果是加载更多，传递最后一条消息的创建时间作为游标
@@ -1197,7 +1198,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       for (const eventBlock of events) {
         const lines = eventBlock.split('\n')
         let eventType = 'message'
-        let dataLines: string[] = []
+        const dataLines: string[] = []
         for (const line of lines) {
           if (line.startsWith('event:')) {
             eventType = line.slice(6).trim()
@@ -1406,7 +1407,7 @@ const updatePreview = async () => {
 
   // ===== 需要异步构建的类型(vue_project):走轮询 =====
   if (needsBuildPolling(codeGenType)) {
-    const targetUrl = getStaticPreviewUrl(codeGenType, appId.value)
+    const targetUrl = getStaticPreviewUrl(codeGenType, String(appId.value))
     isPollingPreview.value = true
     const controller = new AbortController()
     previewPollingAbortController = controller
@@ -1429,9 +1430,9 @@ const updatePreview = async () => {
           console.log(`[preview] vue_project 构建就绪,第 ${attempt} 次轮询成功`)
           return
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // AbortError 表示被取消 → 直接退出
-        if (e?.name === 'AbortError') return
+        if ((e as { name?: string })?.name === 'AbortError') return
         // 其他错误(网络问题)继续等下一轮
       }
 
@@ -1449,7 +1450,7 @@ const updatePreview = async () => {
   }
 
   // ===== 不需要构建的类型(html / multi_file):直接查文件列表 =====
-  const listUrl = getStaticListUrl(codeGenType, appId.value)
+  const listUrl = getStaticListUrl(codeGenType, String(appId.value))
   try {
     const res = await fetch(listUrl)
     if (res.ok) {

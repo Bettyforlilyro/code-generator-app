@@ -35,7 +35,7 @@ export const getDeployedStaticListUrl = (deployKey: string) => {
 }
 
 // 从文件列表中解析预览URL（查找 index.html）
-export const resolvePreviewUrlFromList = (files: Array<{ file_url: string }>): string | null => {
+export const resolvePreviewUrlFromList = (files: Array<{ file_name: string; file_url: string }>): string | null => {
   const indexFile = files.find((f) => f.file_name === 'index.html')
   if (!indexFile) return null
   // TODO 调试待删除
