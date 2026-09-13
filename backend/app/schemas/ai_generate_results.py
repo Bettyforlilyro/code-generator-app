@@ -132,18 +132,32 @@ class VueProjectFileCodeResult(BaseCodeResult):
     def parse_response_from_llm(cls, response: str) -> "VueProjectFileCodeResult":
         """从LLM响应中解析代码生成结果"""
         result = cls()
-        # ✅ **写入完成** 文件写入成功，文件路径：package.json
         # 应用名称:<app_name>
+        # ✅ 已生成代码并存入文件: `src/main.js`
+        # ✅ 已修改文件: `src/main.js`
+        # ✅ 删除文件: `src/main.js`
         result.app_name = parse_app_name_from_response(response)
         write_success = re.compile(
-            r'✅ \*\*写入完成\*\* 文件写入成功，文件路径：'           # 固定锚点
-            r'([^\\\r\n/:*?"<>|]+(?:\\[^\\\r\n/:*?"<>|]+)*)'    # 分隔符为 \ 的相对路径
+            r'✅ 已生成代码并存入文件: `'           # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
         )
-        result.vue_project_code_file_paths = [match.group(1) for match in write_success.finditer(response)]
+        write_files = [match.group(1) for match in write_success.finditer(response)]
+        mod_success = re.compile(
+            r'✅ 已修改文件: `'           # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
+        )
+        mod_files = [match.group(1) for match in mod_success.finditer(response)]
+        delete_success = re.compile(
+            r'✅ 删除文件: `'           # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
+        )
+        delete_files = [match.group(1) for match in delete_success.finditer(response)]
+        result.vue_project_code_file_paths = write_files + mod_files + delete_files
         return result
 
 
 def parse_app_name_from_response(response: str) -> Optional[str]:
+    """从LLM响应中提取应用名称"""
     pattern = re.compile(r'app_name:(.*)\n')
     if pattern.search(response):
         return pattern.search(response).group(1)

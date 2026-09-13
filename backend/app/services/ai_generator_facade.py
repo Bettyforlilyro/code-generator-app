@@ -151,8 +151,8 @@ class AICodeGeneratorFacade:
         # 第三阶段：保存文件并更新应用信息
         try:
             if result and isinstance(result, BaseCodeResult):
-                if result.is_code_modified() and code_gen_type != CodeFileType.VUE_PROJECT:
-                    # 非 Vue项目，保存代码文件，Vue项目由工具单独处理保存文件相关逻辑
+                # 由工厂提供处理保存文件更改的方法，VUE 项目 save_code_file 需要额外实现安装和构建逻辑（无需保存文件，这里只是使用统一接口）
+                if result.is_code_modified():
                     saver = CodeFileSaverFactory.get_saver(code_gen_type)
                     saver.save_code_file(result, app_id)
                 if result.is_name_modified():

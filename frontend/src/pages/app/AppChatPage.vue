@@ -274,6 +274,10 @@
             <div class="placeholder-icon">🌐</div>
             <p>网站文件生成完成后将在这里展示</p>
           </div>
+          <div v-else-if="isPollingPreview" class="preview-loading">
+            <a-spin size="large" />
+            <p>正在构建网站(Vue 项目)...</p>
+          </div>
           <div v-else-if="isGenerating && hasCodeBlockInStream" class="preview-loading">
             <a-spin size="large" />
             <p>正在生成网站...</p>
@@ -326,7 +330,12 @@ import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import TaskCard from '@/components/TaskCard.vue'
 import aiAvatar from '@/assets/aiAvatar.png'
-import { API_BASE_URL, getStaticListUrl, resolvePreviewUrlFromList } from '@/config/env'
+import {
+  API_BASE_URL,
+  getStaticListUrl,
+  getStaticPreviewUrl,
+  resolvePreviewUrlFromList,
+} from '@/config/env'
 import { type ElementInfo, VisualEditor } from '@/utils/visualEditor'
 import 'highlight.js/styles/github-dark.css'
 import hljs from 'highlight.js/lib/common'
@@ -827,6 +836,10 @@ const previewUrl = ref('')
 const previewReady = ref(false)
 const noPreviewAvailable = ref(false)
 
+// 预览轮询(vue_project 等需要后端异步构建的类型)
+const isPollingPreview = ref(false)
+let previewPollingAbortController: AbortController | null = null
+
 // 部署相关
 const deploying = ref(false)
 const deployModalVisible = ref(false)
@@ -1092,7 +1105,9 @@ const sendMessage = async () => {
   await nextTick()
   scrollToBottom()
 
-  // 开始生成
+  // 开始生成:先取消上一轮可能还在进行的预览轮询
+  abortPreviewPolling()
+
   isGenerating.value = true
   await generateCode(message, aiMessageIndex)
 }
@@ -1156,7 +1171,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         aiMessage.content = result.description // description 已过 extractDescription 过滤
         setTimeout(async () => {
           await fetchAppInfo()
-          updatePreview()
+          await updatePreview()
         }, 1000)
       } else {
         // 纯文本回复 → 必须过 extractDescription 过滤 app_name 行
@@ -1366,24 +1381,81 @@ const handleError = (error: unknown, aiMessageIndex: number) => {
   hasCodeBlockInStream.value = false
 }
 
-// 更新预览 - 通过文件列表接口获取 index.html 的真实路径
+// 需要后端异步构建的 code_gen_type → 前端要轮询等待 index.html 就绪
+function needsBuildPolling(codeGenType: string): boolean {
+  const BUILD_TYPES = [CodeGenTypeEnum.VUE_PROJECT]
+  return BUILD_TYPES.includes(codeGenType as CodeGenTypeEnum)
+}
+
+// 取消正在进行的预览轮询(新生成开始/页面卸载时调用)
+function abortPreviewPolling() {
+  if (previewPollingAbortController) {
+    previewPollingAbortController.abort()
+    previewPollingAbortController = null
+  }
+  isPollingPreview.value = false
+}
+
+// 更新预览
 const updatePreview = async () => {
   if (!appId.value) return
   const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
-  const listUrl = getStaticListUrl(codeGenType, appId.value)
 
+  // 先取消上一次可能还在跑的轮询
+  abortPreviewPolling()
+
+  // ===== 需要异步构建的类型(vue_project):走轮询 =====
+  if (needsBuildPolling(codeGenType)) {
+    const targetUrl = getStaticPreviewUrl(codeGenType, appId.value)
+    isPollingPreview.value = true
+    const controller = new AbortController()
+    previewPollingAbortController = controller
+
+    const MAX_ATTEMPTS = 100   // 最多轮询 100 次
+    const INTERVAL_MS = 3000   // 每 3 秒一次
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (controller.signal.aborted) return
+
+      try {
+        const res = await fetch(targetUrl, { signal: controller.signal })
+        if (res.ok) {
+          // 构建完成! index.html 能访问了
+          previewUrl.value = targetUrl
+          noPreviewAvailable.value = false
+          previewReady.value = true
+          isPollingPreview.value = false
+          previewPollingAbortController = null
+          console.log(`[preview] vue_project 构建就绪,第 ${attempt} 次轮询成功`)
+          return
+        }
+      } catch (e: any) {
+        // AbortError 表示被取消 → 直接退出
+        if (e?.name === 'AbortError') return
+        // 其他错误(网络问题)继续等下一轮
+      }
+
+      // 等下一轮
+      await new Promise<void>((resolve) => setTimeout(resolve, INTERVAL_MS))
+    }
+
+    // 超过最大次数:放弃
+    console.warn('[preview] vue_project 轮询超时,未能就绪')
+    noPreviewAvailable.value = true
+    previewUrl.value = ''
+    isPollingPreview.value = false
+    previewPollingAbortController = null
+    return
+  }
+
+  // ===== 不需要构建的类型(html / multi_file):直接查文件列表 =====
+  const listUrl = getStaticListUrl(codeGenType, appId.value)
   try {
-    // TODO 调试待删除
-    console.log('listUrl: ', listUrl)
     const res = await fetch(listUrl)
     if (res.ok) {
       const data = await res.json()
-      // TODO 调试待删除
-      console.log('fetch(listUrl)响应json: ', data)
       if (data.code === 20000 && data.data?.files?.length) {
         const resolved = resolvePreviewUrlFromList(data.data.files)
-        // TODO 调试待删除
-        console.log('resolvePreviewUrlFromList: ', resolved)
         if (resolved) {
           previewUrl.value = resolved
           noPreviewAvailable.value = false
