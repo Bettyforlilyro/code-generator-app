@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
 from backend.app.common.exceptions.error_codes import FileOperationError
-from backend.app.common.utils.build_vue_project import build_vue_project
+from backend.app.common.utils.build_vue_project import build_vue_project_async
 from backend.app.schemas.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult, \
     VueProjectFileCodeResult
 
@@ -184,17 +184,17 @@ class VueProjectCodeFileSaver(CodeFileSaver):
 
     def save_code_file(self, code_result: VueProjectFileCodeResult, app_id: int) -> str:
         """
-        并非保存 VUE 项目文件（文件已由 AI 工具直接落盘），
-        而是进入项目目录安装依赖并执行构建，生成 dist 目录。
-        耗时操作在子线程中执行，主线程等待结果，总超时 500s。
+        异步启动 Vue 项目构建（npm install + npm run build），立即返回不阻塞。
+        构建在后台守护线程中执行，不影响前端快速获得生成结果。
+        部署时会通过 build_vue_project_sync() 等待真正完成。
 
         Args:
             code_result: 必须为 VueProjectFileCodeResult 类型
             app_id: 关联应用 ID
 
         Returns:
-            VUE 项目 dist 目录所在目录的相对路径（如 vue_project_{app_id}/dist），
-            失败或超时时返回空字符串
+            VUE 项目 dist 目录预估的相对路径（如 vue_project_{app_id}/dist）。
+            注意：此时构建可能尚未完成，路径仅为预估，不代表 dist 已存在。
 
         Raises:
             TypeError: code_result 不是 VueProjectFileCodeResult 类型
@@ -206,9 +206,8 @@ class VueProjectCodeFileSaver(CodeFileSaver):
         vue_project_path = os.path.join(DEFAULT_GENERATE_ROOT, f"vue_project_{app_id}")
         # 用 try catch 捕获异常，避免程序崩溃，内部消化异常并记录日志，不抛出异常
         try:
-            if not build_vue_project(vue_project_path, timeout=500):
-                return ""
-            # 返回 dist 目录所在目录的相对路径
+            build_vue_project_async(vue_project_path, timeout=500)
+            # 返回 dist 目录所在目录的相对路径（预估，构建此时尚未完成）
             return os.path.join(f"vue_project_{app_id}", "dist")
         except Exception as e:
             logging.error(f"Vue项目保存失败: {vue_project_path}, 错误: {e}")
