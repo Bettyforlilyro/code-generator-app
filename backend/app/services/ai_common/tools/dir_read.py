@@ -91,7 +91,7 @@ def _file_names_in_this_dir(root_path: str):
                 '{"name": "index.html", "type": "file", "path": "vue_project_128/index.html", "children": null}]}',
     args_schema=DirReadToolArgs
 )
-def dir_read_tool(dir_path: str, recursive: bool) -> str:
+def dir_read_tool(dir_path: str = "", recursive: bool = True) -> str:
     """
     读取指定路径下的所有文件和子目录
     返回 JSON 格式字符串描述的目录树
@@ -117,7 +117,7 @@ def dir_read_tool_with_context():
                     '{"name": "index.html", "type": "file", "path": "vue_project_128/index.html", "children": null}]}',
         args_schema=DirReadToolArgs
     )
-    def _tool(dir_path: str, recursive: bool) -> str:
+    def _tool(dir_path: str = "", recursive: bool = True) -> str:
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
@@ -127,7 +127,8 @@ def dir_read_tool_with_context():
             root_path = os.path.join(Path(_ROOT_PATH), f"vue_project_{app_id}", dir_path)
             return json.dumps(_file_names_in_this_dir(root_path))
         else:
-            return json.dumps(get_tree(f"vue_project_{app_id}/{dir_path}"))
+            root_path = os.path.join(f"vue_project_{app_id}", dir_path)
+            return json.dumps(get_tree(root_path))
 
     _tool.name = TOOL_NAME
 
