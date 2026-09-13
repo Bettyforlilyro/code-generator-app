@@ -10,11 +10,7 @@
           size="small"
           disabled
         >
-          <a-select-option
-            v-for="opt in codeGenTypeOptions"
-            :key="opt.value"
-            :value="opt.value"
-          >
+          <a-select-option v-for="opt in codeGenTypeOptions" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </a-select-option>
         </a-select>
@@ -74,13 +70,18 @@
                 <!-- 交织渲染:按时间顺序渲染 fragments,实现即时文本和耗时任务交错显示 -->
                 <template v-if="message.fragments && message.fragments.length > 0">
                   <template v-for="(f, i) in message.fragments" :key="i">
-                    <MarkdownRenderer
-                      v-if="f.kind === 'text' && f.text"
-                      :content="f.text"
-                    />
+                    <MarkdownRenderer v-if="f.kind === 'text' && f.text" :content="f.text" />
                     <TaskCard
-                      v-else-if="f.kind === 'task' && message.tasksMap && message.tasksMap[f.task_id!]"
+                      v-else-if="
+                        f.kind === 'task' && message.tasksMap && message.tasksMap[f.task_id!]
+                      "
                       :task="message.tasksMap[f.task_id!]"
+                      :has-preview="getTaskHasPreview(message.tasksMap[f.task_id!])"
+                      :preview-active="
+                        taskPreviewFile !== null && taskPreviewSourceTaskId === f.task_id
+                      "
+                      @preview="(task) => fetchTaskPreview(task, f.task_id!)"
+                      @close-preview="taskPreviewFile = null"
                     />
                   </template>
                 </template>
@@ -188,20 +189,34 @@
           :class="{ active: isResizing }"
         ></div>
 
-        <!-- 独立代码展示面板（最下面，可调节高度） -->
+        <!-- 独立代码展示面板(最下面,可调节高度)
+             数据源统一用 effectiveCodeGen:优先显示 task 预览文件,否则显示 latestCodeGen -->
         <div
-          v-if="latestCodeGen"
+          v-if="effectiveCodeGen"
           ref="codePanelRef"
           class="code-viewer-panel"
           :style="codePanelStyle"
         >
           <div class="codeGen-viewer">
             <div class="codeGen-toolbar">
-              <span class="codeGen-count" v-if="latestCodeGen.isComplete"
-                >共生成 {{ latestCodeGen.files.length }} 个文件</span
-              >
+              <span class="codeGen-count" v-if="taskPreviewFile">
+                文件预览: {{ taskPreviewFile.label || taskPreviewFile.name }}
+              </span>
+              <span class="codeGen-count" v-else-if="latestCodeGen && latestCodeGen.isComplete">
+                共生成 {{ latestCodeGen.files.length }} 个文件
+              </span>
               <span class="codeGen-count streaming" v-else>正在生成代码...</span>
+              <a-button
+                v-if="taskPreviewFile"
+                type="link"
+                size="small"
+                class="close-preview-btn"
+                @click="taskPreviewFile = null"
+              >
+                关闭预览
+              </a-button>
               <a-select
+                v-if="!taskPreviewFile"
                 v-model:value="latestCodeGen.currentFileIndex"
                 class="codeGen-select"
                 size="small"
@@ -212,17 +227,14 @@
                   :value="idx"
                 >
                   {{ file.label }}
-                  <span
-                    v-if="idx === 0 && !latestCodeGen.isComplete"
-                    class="streaming-badge"
-                  >
+                  <span v-if="idx === 0 && !latestCodeGen.isComplete" class="streaming-badge">
                     · 流式中</span
                   >
                 </a-select-option>
               </a-select>
             </div>
             <div class="codeGen-codeBlock">
-              <pre class="hljs"><code v-html="getHighlightedCodeFromGen(latestCodeGen)" /></pre>
+              <pre class="hljs"><code v-html="getHighlightedCodeFromGen(effectiveCodeGen)" /></pre>
             </div>
           </div>
         </div>
@@ -306,7 +318,7 @@ import {
   getAppVoById,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
-import { CodeGenTypeEnum, CODE_GEN_TYPE_OPTIONS } from '@/utils/codeGenTypes'
+import { CODE_GEN_TYPE_OPTIONS, CodeGenTypeEnum } from '@/utils/codeGenTypes'
 import request from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
@@ -318,7 +330,6 @@ import { API_BASE_URL, getStaticListUrl, resolvePreviewUrlFromList } from '@/con
 import { type ElementInfo, VisualEditor } from '@/utils/visualEditor'
 import 'highlight.js/styles/github-dark.css'
 import hljs from 'highlight.js/lib/common'
-
 
 import {
   CloudUploadOutlined,
@@ -369,18 +380,18 @@ function extractAppNameFromText(text: string): string | null {
 //   - group[1]: 反引号串 (`` ` ```、`` ``` ``...)
 //   - group[2]: info string (语言标签),空字符串表示闭合 fence
 interface FenceInfo {
-  start: number        // fence 行在全文中的起始位置
-  end: number          // fence 行结尾(含换行)
-  tickLen: number      // 反引号数量
-  infoString: string   // 语言标签(trim 后),空串 = 闭合
+  start: number // fence 行在全文中的起始位置
+  end: number // fence 行结尾(含换行)
+  tickLen: number // 反引号数量
+  infoString: string // 语言标签(trim 后),空串 = 闭合
 }
 
 interface ParsedCodeBlock {
   lang: string
   content: string
-  closed: boolean       // true = 已闭合; false = 未闭合(流式中)
-  blockStart: number    // ```lang 开始位置
-  blockEnd: number      // 闭合 ``` 结束位置(未闭合则 = 全文末尾)
+  closed: boolean // true = 已闭合; false = 未闭合(流式中)
+  blockStart: number // ```lang 开始位置
+  blockEnd: number // 闭合 ``` 结束位置(未闭合则 = 全文末尾)
 }
 
 // 扫描全文,找到所有 fence 行
@@ -410,10 +421,10 @@ function parseAllCodeBlocks(text: string): ParsedCodeBlock[] {
   const blocks: ParsedCodeBlock[] = []
 
   type StackFrame = {
-    startIdx: number        // 对应 fences 数组的 index
+    startIdx: number // 对应 fences 数组的 index
     tickLen: number
     lang: string
-    contentStart: number    // 内容起始位置 = 起始 fence 的 end
+    contentStart: number // 内容起始位置 = 起始 fence 的 end
   }
   const stack: StackFrame[] = []
 
@@ -493,16 +504,23 @@ function extractDescription(text: string): string {
 // 根据代码块语言推断文件名(唯一标识)
 function getFileNameByLang(lang: string): string {
   const langMap: Record<string, string> = {
-    html: 'html_code', htm: 'html_code',
+    html: 'html_code',
+    htm: 'html_code',
     css: 'css_code',
-    javascript: 'js_code', js: 'js_code',
+    javascript: 'js_code',
+    js: 'js_code',
     vue: 'vue_code',
-    react: 'react_code', jsx: 'react_code',
-    python: 'python_code', py: 'python_code',
-    ts: 'ts_code', typescript: 'ts_code',
+    react: 'react_code',
+    jsx: 'react_code',
+    python: 'python_code',
+    py: 'python_code',
+    ts: 'ts_code',
+    typescript: 'ts_code',
     json: 'json_code',
-    markdown: 'md_code', md: 'md_code',
-    shell: 'shell_code', bash: 'shell_code',
+    markdown: 'md_code',
+    md: 'md_code',
+    shell: 'shell_code',
+    bash: 'shell_code',
   }
   return langMap[lang] || `${lang}_code`
 }
@@ -510,16 +528,23 @@ function getFileNameByLang(lang: string): string {
 // 根据代码块语言推断显示标签
 function getFileLabelByLang(lang: string): string {
   const labelMap: Record<string, string> = {
-    html: 'HTML', htm: 'HTML',
+    html: 'HTML',
+    htm: 'HTML',
     css: 'CSS',
-    javascript: 'JavaScript', js: 'JavaScript',
+    javascript: 'JavaScript',
+    js: 'JavaScript',
     vue: 'Vue',
-    react: 'React', jsx: 'React',
-    python: 'Python', py: 'Python',
-    ts: 'TypeScript', typescript: 'TypeScript',
+    react: 'React',
+    jsx: 'React',
+    python: 'Python',
+    py: 'Python',
+    ts: 'TypeScript',
+    typescript: 'TypeScript',
     json: 'JSON',
-    markdown: 'Markdown', md: 'Markdown',
-    shell: 'Shell', bash: 'Shell',
+    markdown: 'Markdown',
+    md: 'Markdown',
+    shell: 'Shell',
+    bash: 'Shell',
   }
   return labelMap[lang] || lang.toUpperCase()
 }
@@ -568,11 +593,13 @@ function parseTextToCodeGen(text: string, isComplete: boolean): CodeGenResult {
 function formatTimeForApi(isoStr: string): string {
   if (!isoStr) return ''
   // 匹配 ISO 格式中的年月日时分秒部分，兼容带 T 分隔符和无 T 的情况
-  const match = isoStr.match(/(\d{4})[-&:\/](\d{1,2})[-&:\/](\d{1,2})[T\s]?(\d{1,2})[:&](\d{1,2})[:&](\d{1,2})/)
+  const match = isoStr.match(
+    /(\d{4})[-&:\/](\d{1,2})[-&:\/](\d{1,2})[T\s]?(\d{1,2})[:&](\d{1,2})[:&](\d{1,2})/,
+  )
   if (match) {
     const [, y, mo, d, h, mi, s] = match
     // 补零
-    const pad = (n: string) => n.length === 1 ? '0' + n : n
+    const pad = (n: string) => (n.length === 1 ? '0' + n : n)
     return `${y}&${pad(mo)}&${pad(d)}&${pad(h)}&${pad(mi)}&${pad(s)}`
   }
   return isoStr
@@ -591,26 +618,24 @@ const selectedCodeGenType = ref<string>(CodeGenTypeEnum.HTML)
 // 耗时任务条目(后端 SSE event 类型: task_start / task_end / web_search / web_search_done)
 export interface TaskItem {
   task_id: string
-  type: string            // 'tool_call' | 'web_search' | 其他扩展类型
+  type: string // 'tool_call' | 'web_search' | 其他扩展类型
   status: 'running' | 'done'
-  info: string            // 后端返回的 markdown 说明
+  info: string // 后端返回的 markdown 说明
   extra?: Record<string, unknown>
 }
 
 // 消息片段:支持即时文本与耗时任务交织显示
-export type MessageFragment =
-  | { kind: 'text'; text: string }
-  | { kind: 'task'; task_id: string }
+export type MessageFragment = { kind: 'text'; text: string } | { kind: 'task'; task_id: string }
 
 // 对话相关
 interface Message {
   type: 'user' | 'ai'
-  content?: string         // 完整文本(已过滤 app_name 和代码块),给历史回显 fallback 用
+  content?: string // 完整文本(已过滤 app_name 和代码块),给历史回显 fallback 用
   loading?: boolean
   create_time?: string
   codeGen?: CodeGenResult
-  fragments?: MessageFragment[]              // 按时间顺序排列的片段(交织显示核心)
-  tasksMap?: Record<string, TaskItem>        // task_id → TaskItem,方便按 id 查当前状态
+  fragments?: MessageFragment[] // 按时间顺序排列的片段(交织显示核心)
+  tasksMap?: Record<string, TaskItem> // task_id → TaskItem,方便按 id 查当前状态
 }
 
 const messages = ref<Message[]>([])
@@ -688,6 +713,109 @@ const latestCodeGen = computed(() => {
   return null
 })
 
+// TaskCard 文件预览状态
+const taskPreviewFile = ref<CodeFile | null>(null)
+const taskPreviewSourceTaskId = ref<string | null>(null)
+
+// 统一的代码面板数据源:task 预览优先,否则走最新 codeGen
+const effectiveCodeGen = computed((): CodeGenResult | null => {
+  if (taskPreviewFile.value) {
+    return {
+      app_name: '',
+      description: '',
+      files: [taskPreviewFile.value],
+      currentFileIndex: 0,
+      isComplete: true,
+    }
+  }
+  return latestCodeGen.value
+})
+
+// 根据 URL 路径推断语言类型(从后缀名)
+function getLangByUrl(url: string): string {
+  const ext = (url.split('.').pop() || '').toLowerCase().split(/[?#]/)[0] // 去掉 query/hash
+  const map: Record<string, string> = {
+    html: 'html',
+    htm: 'html',
+    css: 'css',
+    scss: 'scss',
+    less: 'less',
+    js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    jsx: 'javascript',
+    vue: 'html',
+    py: 'python',
+    java: 'java',
+    go: 'go',
+    rs: 'rust',
+    json: 'json',
+    md: 'markdown',
+    markdown: 'markdown',
+    xml: 'xml',
+    yml: 'yaml',
+    yaml: 'yaml',
+    txt: 'plaintext',
+    sql: 'sql',
+  }
+  return map[ext] || 'plaintext'
+}
+
+// 辅助:判断 task 是否有可预览文件(从 extra 中提取)
+// 在父组件计算好再传给 TaskCard,绕开子组件 computed 对 ref 深层属性追踪的边界问题
+function getTaskHasPreview(task: TaskItem): boolean {
+  const extra = task.extra as Record<string, unknown> | undefined
+  if (!extra) return false
+  return extra.preview === true && !!extra.url
+}
+
+// 请求 task 预览文件内容
+const fetchingPreview = ref(false)
+async function fetchTaskPreview(task: TaskItem, taskId: string) {
+  const extra = task.extra as Record<string, unknown> | undefined
+  const url = extra?.url as string | undefined
+  if (!url) return
+
+  // 再次点击同一个:关闭预览
+  if (taskPreviewSourceTaskId.value === taskId && taskPreviewFile.value) {
+    taskPreviewFile.value = null
+    taskPreviewSourceTaskId.value = null
+    return
+  }
+
+  try {
+    fetchingPreview.value = true
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    // 后端统一 API 响应格式: { code: 20000, data: "文件内容...", message: "操作成功" }
+    const body = await resp.json()
+    if (body.code !== 20000) {
+      throw new Error(body.message || `API error code: ${body.code}`)
+    }
+    const content: string = body.data ?? ''
+
+    // 从 URL 推断文件名
+    const pathname = url.split('?')[0].split('#')[0]
+    const fileName = pathname.split('/').pop() || 'file'
+    const lang = getLangByUrl(fileName)
+
+    taskPreviewFile.value = {
+      name: fileName,
+      label: fileName,
+      content,
+      lang,
+    }
+    taskPreviewSourceTaskId.value = taskId
+  } catch (err) {
+    console.error('Failed to fetch task preview file:', err)
+    message.error('加载文件预览失败')
+  } finally {
+    fetchingPreview.value = false
+  }
+}
+
 // 对话历史相关
 const loadingHistory = ref(false)
 const hasMoreHistory = ref(false)
@@ -751,23 +879,22 @@ const loadChatHistory = async (isLoadMore = false) => {
       const chatHistories = res.data.data.chat_records || []
       if (chatHistories.length > 0) {
         // 将对话历史转换为消息格式，并按时间正序排列（老消息在前）
-        const historyMessages: Message[] = chatHistories
-          .map((chat) => {
-            const base: Message = {
-              type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
-              content: chat.message || '',
-              create_time: chat.create_time,
+        const historyMessages: Message[] = chatHistories.map((chat) => {
+          const base: Message = {
+            type: (chat.message_type === 'user' ? 'user' : 'ai') as 'user' | 'ai',
+            content: chat.message || '',
+            create_time: chat.create_time,
+          }
+          // AI 消息:用新的纯文本markdown解析逻辑
+          if (base.type === 'ai' && chat.message) {
+            const parsed = parseTextToCodeGen(chat.message, true)
+            base.content = parsed.description
+            if (parsed.files.length > 0 || parsed.app_name) {
+              base.codeGen = parsed
             }
-            // AI 消息:用新的纯文本markdown解析逻辑
-            if (base.type === 'ai' && chat.message) {
-              const parsed = parseTextToCodeGen(chat.message, true)
-              base.content = parsed.description
-              if (parsed.files.length > 0 || parsed.app_name) {
-                base.codeGen = parsed
-              }
-            }
-            return base
-          })
+          }
+          return base
+        })
         // TODO 调试待删除
         console.log('historyMessages: ', historyMessages)
         if (isLoadMore) {
@@ -778,7 +905,9 @@ const loadChatHistory = async (isLoadMore = false) => {
           messages.value = historyMessages
         }
         // 更新游标
-        lastCreateTime.value = formatTimeForApi(<string>chatHistories[chatHistories.length - 1]?.create_time)
+        lastCreateTime.value = formatTimeForApi(
+          <string>chatHistories[chatHistories.length - 1]?.create_time,
+        )
         // TODO 调试待删除
         console.log('lastCreateTime: ', lastCreateTime.value)
         // 检查是否还有更多历史
@@ -1024,7 +1153,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       if (result.files.length > 0) {
         // 有代码块 → 设为 codeGen 消息,并刷新预览
         aiMessage.codeGen = result
-        aiMessage.content = result.description  // description 已过 extractDescription 过滤
+        aiMessage.content = result.description // description 已过 extractDescription 过滤
         setTimeout(async () => {
           await fetchAppInfo()
           updatePreview()
@@ -1088,12 +1217,16 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         // 统一数据格式: { task_id, info, extra }
         const TASK_START_TYPES = ['task_start', 'web_search']
         const TASK_END_TYPES = ['task_end', 'web_search_done']
-        const taskEventPrefix = eventType.replace(/_start$/, '').replace(/_end$/, '').replace(/_done$/, '')
+        const taskEventPrefix = eventType
+          .replace(/_start$/, '')
+          .replace(/_end$/, '')
+          .replace(/_done$/, '')
         const isTaskStart = TASK_START_TYPES.includes(eventType)
         const isTaskEnd = TASK_END_TYPES.includes(eventType)
 
         if (isTaskStart || isTaskEnd) {
-          let taskData: { task_id: string; info: string; extra?: Record<string, unknown> } | null = null
+          let taskData: { task_id: string; info: string; extra?: Record<string, unknown> } | null =
+            null
           try {
             taskData = JSON.parse(dataStr)
           } catch {
@@ -1117,6 +1250,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
             if (isTaskStart) {
               if (!aiMessage.tasksMap[taskId]) {
                 aiMessage.fragments.push({ kind: 'task', task_id: taskId })
+                // ⚠️ 关键:用完整新对象赋值,确保 Vue ref 深层响应式 100% 触发
                 aiMessage.tasksMap[taskId] = {
                   task_id: taskId,
                   type: taskEventPrefix,
@@ -1125,16 +1259,25 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
                   extra: taskData.extra,
                 }
               } else {
-                const t = aiMessage.tasksMap[taskId]
-                t.info = taskData.info || t.info
-                t.status = 'running'
+                // 重复 start:完全替换,不做属性修改,绕开 Vue 深层响应式追踪边界
+                const prev = aiMessage.tasksMap[taskId]
+                aiMessage.tasksMap[taskId] = {
+                  ...prev,
+                  info: taskData.info || prev.info,
+                  status: 'running',
+                  extra: taskData.extra ?? prev.extra,
+                }
               }
             } else {
+              // task_end:必须完全替换对象,确保 extra 的新值被 Vue 检测到
               if (aiMessage.tasksMap[taskId]) {
-                const t = aiMessage.tasksMap[taskId]
-                t.status = 'done'
-                t.info = taskData.info || t.info
-                t.extra = taskData.extra ?? t.extra
+                const prev = aiMessage.tasksMap[taskId]
+                aiMessage.tasksMap[taskId] = {
+                  ...prev,
+                  status: 'done',
+                  info: taskData.info || prev.info,
+                  extra: taskData.extra ?? prev.extra,
+                }
               } else {
                 aiMessage.fragments.push({ kind: 'task', task_id: taskId })
                 aiMessage.tasksMap[taskId] = {
@@ -1169,7 +1312,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
         // 维护 fragments 中的 text 片段
         // 关键:用 textBoundary 切分,确保每个 text fragment 只存自己那一段
-        const filteredText = result.description  // 已过 extractDescription,过滤了 app_name 和代码块
+        const filteredText = result.description // 已过 extractDescription,过滤了 app_name 和代码块
         const last = aiMessage.fragments[aiMessage.fragments.length - 1]
         if (last && last.kind === 'text') {
           // 最后是 text fragment → 增量更新整个 text(同一连续文本段跨越多个 token)
@@ -1231,16 +1374,16 @@ const updatePreview = async () => {
 
   try {
     // TODO 调试待删除
-    console.log("listUrl: ", listUrl)
+    console.log('listUrl: ', listUrl)
     const res = await fetch(listUrl)
     if (res.ok) {
       const data = await res.json()
       // TODO 调试待删除
-      console.log("fetch(listUrl)响应json: ", data)
+      console.log('fetch(listUrl)响应json: ', data)
       if (data.code === 20000 && data.data?.files?.length) {
         const resolved = resolvePreviewUrlFromList(data.data.files)
         // TODO 调试待删除
-        console.log("resolvePreviewUrlFromList: ", resolved)
+        console.log('resolvePreviewUrlFromList: ', resolved)
         if (resolved) {
           previewUrl.value = resolved
           noPreviewAvailable.value = false
@@ -1289,7 +1432,7 @@ const downloadCode = async () => {
     if (contentDisposition) {
       const utf8Match = contentDisposition.match(/filename\*=UTF-8''(.+)/i)
       const directMatch = contentDisposition.match(/filename="?(.+?)"?$/)
-      fileName = utf8Match ? decodeURIComponent(utf8Match[1]) : (directMatch?.[1] || fileName)
+      fileName = utf8Match ? decodeURIComponent(utf8Match[1]) : directMatch?.[1] || fileName
     }
     const blob = await response.blob()
     const blobUrl = URL.createObjectURL(blob)
@@ -1561,8 +1704,8 @@ onUnmounted(() => {
 
 /* 独立代码展示面板 */
 .code-viewer-panel {
-  flex: 0 0 auto;          /* 默认:高度由内容决定,不参与 flex 伸展/压缩 */
-  max-height: 50%;         /* 最多占 50% */
+  flex: 0 0 auto; /* 默认:高度由内容决定,不参与 flex 伸展/压缩 */
+  max-height: 50%; /* 最多占 50% */
   padding: 8px 16px 16px;
   display: flex;
   flex-direction: column;
@@ -1571,14 +1714,14 @@ onUnmounted(() => {
 .code-viewer-panel .codeGen-viewer {
   display: flex;
   flex-direction: column;
-  min-height: 0;           /* 关键:保证子元素 overflow:auto 生效 */
-  flex: 1 1 auto;          /* 有固定父级高度时撑满,无固定高度时内容决定 */
+  min-height: 0; /* 关键:保证子元素 overflow:auto 生效 */
+  flex: 1 1 auto; /* 有固定父级高度时撑满,无固定高度时内容决定 */
 }
 
 .codeGen-codeBlock {
-  flex: 1 1 auto;          /* 占据剩余空间 */
-  min-height: 0;           /* 关键:保证 overflow:auto 生效 */
-  overflow: auto;          /* 内容多时滚动 */
+  flex: 1 1 auto; /* 占据剩余空间 */
+  min-height: 0; /* 关键:保证 overflow:auto 生效 */
+  overflow: auto; /* 内容多时滚动 */
 }
 
 /* 可拖拽分割线 */
@@ -1601,7 +1744,9 @@ onUnmounted(() => {
   height: 4px;
   background: #d9d9d9;
   border-radius: 2px;
-  transition: background 0.2s, width 0.2s;
+  transition:
+    background 0.2s,
+    width 0.2s;
 }
 
 .resize-handle:hover::before,

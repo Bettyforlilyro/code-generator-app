@@ -98,8 +98,20 @@ def _show_end(args, result, success) -> str:
     return f"\n\n❌ 文件修改失败！ \n\n"
 
 
+def preview(args: dict) -> str:
+    # TODO 本项目中暂时使用固定的预览URL，如果后续部署到生产环境，需要根据实际情况修改
+    context = get_runtime_context()
+    app_id = context.get("app_id")
+    if not app_id:
+        logging.error("app_id 未设置")
+        return ""
+    file_path = args.get("file_path")
+    return f"http://localhost:5000/api/v1/code/preview/{app_id}/{file_path}"
+
+
 register_tool_display(
     tool_name=TOOL_NAME,
     show_start=_show_start,
     show_end=_show_end,
+    preview=preview,
 )

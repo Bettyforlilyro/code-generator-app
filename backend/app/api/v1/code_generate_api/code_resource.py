@@ -213,6 +213,32 @@ def get_static_file_by_path(identifier, file_name):
     return success_response(data)
 
 
+@code_bp.route('/preview/<int:app_id>/<path:file_path>', methods=['GET'])
+def get_textfile_content_by_path(app_id: int, file_path):
+    """
+    获取文本文件内容，用于预览，file_path需要能匹配带/的路径，如：/src/app.vue？
+    """
+    app = get_app_by_id(app_id)
+    if not app:
+        return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
+    generated_path = f"{app.code_gen_type}_{app_id}"
+    base_dir = os.path.realpath(os.path.join(DEFAULT_GENERATE_ROOT, generated_path))
+    real_path = os.path.realpath(os.path.join(base_dir, file_path))
+
+    # 安全校验：确保 real_path 在 base_dir 之内
+    if not real_path.startswith(base_dir + os.sep) and real_path != base_dir:
+        return error_response(ErrorCode.FILE_NOT_FOUND, "文件路径不合法")
+
+    try:
+        with open(real_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except FileNotFoundError:
+        return error_response(ErrorCode.FILE_NOT_FOUND, f"文件 {file_path} 不存在")
+    except Exception as e:
+        return error_response(ErrorCode.INTERNAL_ERROR, f"读取文件 {file_path} 时出错: {e}")
+    return success_response(content)
+
+
 @code_bp.route('/app/download/<int:app_id>', methods=['GET'])
 @login_required
 def download_app_code(app_id: int):

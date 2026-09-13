@@ -138,3 +138,12 @@ def build_tool_end_content(tool_name: str, args: dict, result: str, success: boo
     icon = "✅" if success else "❌"
     status_text = "成功" if success else "失败"
     return f"{icon} **工具执行完成**: `{tool_name}` — {status_text}\n\n"  # 工具执行结果可能很长就不显示了
+
+
+def tool_result_preview(tool_name: str, args: dict) -> tuple[bool, str | None]:
+    """判断工具是否可以展示预览，返回预览请求url（如果有）"""
+    display = get_tool_display(tool_name)
+    preview = display.get("preview")
+    if callable(preview):
+        return True, preview(args)
+    return False, None

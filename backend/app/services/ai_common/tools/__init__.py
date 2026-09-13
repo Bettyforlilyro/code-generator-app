@@ -218,6 +218,7 @@ def register_tool_display(
     tool_name: str,
     show_start: Optional[Callable[[], str]] = None,
     show_end: Optional[Callable[[dict, str, bool], str]] = None,
+    preview: Optional[Callable[[dict], str]] = None,
 ) -> None:
     """
     注册某个工具的自定义展示函数，供流式调用显示工具调用情况。
@@ -225,12 +226,15 @@ def register_tool_display(
         tool_name:  工具的 name，必须和 StructuredTool.name 一致
         show_start: 工具开始执行时的展示函数（可选），签名 fn() -> str
         show_end:   工具执行完毕时的展示函数（可选），签名 fn(tool_args: dict, result: str, success: bool) -> str
+        preview:    工具预览展示函数（可选，定义了说明可以预览，返回预览请求url），签名 fn() -> str
     """
     entry = {}
     if show_start is not None:
         entry["show_start"] = show_start
     if show_end is not None:
         entry["show_end"] = show_end
+    if preview is not None:
+        entry["preview"] = preview
     _DISPLAY_REGISTRY[tool_name] = entry
     logger.debug(f"[tools] 注册展示函数: {tool_name} -> {list(entry.keys())}")
 

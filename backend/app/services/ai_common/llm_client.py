@@ -13,6 +13,7 @@ from backend.app.services.ai_common.tool_executor import (
     execute_tool_calls_batch,
     build_tool_start_content,
     build_tool_end_content,
+    tool_result_preview,
 )
 from backend.app.services.ai_common.tools.tool_context_store import set_runtime_context
 
@@ -275,7 +276,8 @@ class ChatClient:
                 tool_action = item[0]
                 if tool_action == "tool_end":
                     _, tool_name, tool_call_id, success, content, tool_args = item
-                    yield StreamChunk(
+                    preview_able, preview_url = tool_result_preview(tool_name, tool_args)
+                    ret_chunk = StreamChunk(
                         content=content,
                         is_last=False,
                         chunk_type="tool_end",
@@ -285,6 +287,10 @@ class ChatClient:
                             "tool_result": 'success' if success else 'failed',
                         },
                     )
+                    if preview_able:
+                        ret_chunk.metadata["preview"] = True
+                        ret_chunk.metadata["url"] = preview_url
+                    yield ret_chunk
                 elif tool_action == "tool_message":
                     tool_messages.append(item[1])
 
