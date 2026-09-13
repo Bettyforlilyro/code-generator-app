@@ -141,7 +141,7 @@ def _show_start() -> str:
 
 def _show_end(args: dict, result: str, success: bool) -> str:
     dir_path = args.get("dir_path")
-    if success and "读取成功" in result and dir_path:
+    if success:
         return f"✅ 读取目录: `{dir_path}` 完成 \n\n"
     return f"❌ 读取目录失败 \n\n"
 
