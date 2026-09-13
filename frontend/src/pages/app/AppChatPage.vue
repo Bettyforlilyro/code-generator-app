@@ -270,7 +270,7 @@
             <div class="placeholder-icon">📄</div>
             <p>当前内容不支持预览</p>
           </div>
-          <div v-else-if="!previewUrl && !isGenerating" class="preview-placeholder">
+          <div v-else-if="!previewUrl && !isGenerating && !isPollingPreview" class="preview-placeholder">
             <div class="placeholder-icon">🌐</div>
             <p>网站文件生成完成后将在这里展示</p>
           </div>
@@ -949,7 +949,7 @@ const fetchAppInfo = async () => {
   const id = route.params.id as string
   if (!id) {
     message.error('应用ID不存在')
-    router.push('/')
+    await router.push('/')
     return
   }
 
@@ -967,9 +967,12 @@ const fetchAppInfo = async () => {
 
       // 先加载对话历史
       await loadChatHistory()
-      // 如果有至少2条对话记录，展示对应的网站
-      if (messages.value.length >= 2) {
-        updatePreview()
+      // 如果有至少2条对话记录,展示对应的网站
+      // ⚠️ 如果正在进行预览轮询(vue_project 等异步构建中),不要 abort 掉! 让轮询继续跑
+      if (messages.value.length >= 2 && !isPollingPreview.value) {
+        // TODO 调试待删除
+        console.log("fetchAppInfo is calling updatePreview")
+        await updatePreview()
       }
       // 检查是否需要自动发送初始提示词
       // 只有在是自己的应用且没有对话历史时才自动发送
@@ -1166,18 +1169,29 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         appInfo.value.app_name = result.app_name
       }
 
+      const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
+      const needBuildPolling = needsBuildPolling(codeGenType)
+
       if (result.files.length > 0) {
         // 有代码块 → 设为 codeGen 消息,并刷新预览
         aiMessage.codeGen = result
         aiMessage.content = result.description // description 已过 extractDescription 过滤
-        setTimeout(async () => {
-          await fetchAppInfo()
-          await updatePreview()
-        }, 1000)
       } else {
         // 纯文本回复 → 必须过 extractDescription 过滤 app_name 行
-        // (不能直接用 rawContentBuffer,否则 app_name:xxx 会泄漏到聊天里)
         aiMessage.content = extractDescription(rawContentBuffer)
+      }
+
+      // 无论有没有代码块,需要后端异步构建的类型(vue_project 等)都要触发预览刷新
+      // (文件可能由后端工具写入,SSE 里没有 markdown 代码块,此时 result.files 为空)
+      if (result.files.length > 0 || needBuildPolling) {
+        setTimeout(async () => {
+          await fetchAppInfo().catch((err) => console.warn('fetchAppInfo failed (non-critical):', err))
+          if (!isPollingPreview.value) {
+            // TODO 调试待删除
+            console.log("is calling updatePreview, but not in fetchAppInfo callback")
+            await updatePreview()
+          }
+        }, 1000)
       }
 
       // 重置懒加载标志
@@ -1399,6 +1413,8 @@ function abortPreviewPolling() {
 
 // 更新预览
 const updatePreview = async () => {
+  // TODO 调试待删除
+  console.log('updatePreview is called...')
   if (!appId.value) return
   const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
 
@@ -1420,6 +1436,8 @@ const updatePreview = async () => {
 
       try {
         const res = await fetch(targetUrl, { signal: controller.signal })
+        // TODO 调试待删除
+        console.log('updatePreview res', res)
         if (res.ok) {
           // 构建完成! index.html 能访问了
           previewUrl.value = targetUrl
