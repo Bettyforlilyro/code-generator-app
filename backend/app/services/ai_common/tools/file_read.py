@@ -60,7 +60,7 @@ def _show_start() -> str:
     """
     显示开始读取文件的提示信息
     """
-    return f"开始读取文件......"
+    return f"\n\n开始读取文件......\n\n"
 
 
 def _show_end(args: dict, result: str, success: bool) -> str:
@@ -68,12 +68,11 @@ def _show_end(args: dict, result: str, success: bool) -> str:
     显示读取文件的提示。
     """
     file_path = args.get("file_path")
-    success = '成功' if success else '失败'
-    icon = '✅' if success else '❌'
-    if file_path:
-        return f"{icon} 读取文件: `{file_path}` {success}"
-    else:
-        return f"{icon} 读取文件 {success}"
+    if not file_path:
+        return "\n\n❌ 文件路径不存在，读取失败\n\n"
+    if not success:
+        return "\n\n❌ 读取文件失败\n\n"
+    return f"\n\n✅ 读取文件: `{file_path}` 完成\n\n"
 
 
 register_tool_display(

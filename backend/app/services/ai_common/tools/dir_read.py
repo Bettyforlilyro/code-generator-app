@@ -136,14 +136,14 @@ def dir_read_tool_with_context():
 
 
 def _show_start() -> str:
-    return f"开始读取目录...\n"
+    return f"\n\n开始读取目录...\n\n"
 
 
 def _show_end(args: dict, result: str, success: bool) -> str:
-    dir_path = args.get("dir_path")
+    dir_path = args.get("dir_path") or "项目根目录"
     if success:
-        return f"✅ 读取目录: `{dir_path}` 完成 \n\n"
-    return f"❌ 读取目录失败 \n\n"
+        return f"\n\n✅ 读取目录: `{dir_path}` 完成 \n\n"
+    return f"\n\n❌ 读取目录失败 \n\n"
 
 
 register_tool_display(

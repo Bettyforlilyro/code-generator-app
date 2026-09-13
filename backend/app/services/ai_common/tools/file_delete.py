@@ -64,7 +64,7 @@ def _show_start() -> str:
     """
     显示开始删除文件的提示。
     """
-    return f"开始删除文件......"
+    return f"\n\n开始删除文件......\n\n"
 
 
 def _show_end(args: dict, result: str, success: bool) -> str:
@@ -73,9 +73,9 @@ def _show_end(args: dict, result: str, success: bool) -> str:
     """
     file_path = args.get("file_path")
     if success and file_path:
-        return f"✅ 删除文件: `{file_path}` 已成功删除"
+        return f"\n\n✅ 删除文件: `{file_path}` 已成功删除\n\n"
     else:
-        return f"❌ 删除文件失败"
+        return f"\n\n❌ 删除文件失败\n\n"
 
 
 register_tool_display(
