@@ -84,11 +84,16 @@ def _file_names_in_this_dir(root_path: str):
 
 @tool(
     name_or_callable=TOOL_NAME,
-    description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例）：'
-                '{"name": "vue_project_128", "type": "folder", "path": "vue_project_128", "children": '
-                '[{"name": "vue_project_128/src", "type": "folder", "path": "vue_project_128/src", "children": '
-                '[{"name": "App.vue", "type": "file", "path": "vue_project_128/src/App.vue", "children": null}]}, '
-                '{"name": "index.html", "type": "file", "path": "vue_project_128/index.html", "children": null}]}',
+    description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例 读取/src目录）：'
+                '{"name": "src", "type": "folder", "path": "src", "children": '
+                '[{"name": "src/pages", "type": "folder", "path": "src/pages", "children": '
+                '[{"name": "Dashboard.vue", "type": "file", "path": "src/pages/Dashboard.vue", "children": null}, '
+                '{"name": "Members.vue", "type": "file", "path": "src/pages/Members.vue", "children": null}, '
+                '{"name": "Tasks.vue", "type": "file", "path": "src/pages/Tasks.vue", "children": null}'
+                ']}, '
+                '{"name": "src/router", "type": "folder", "path": "src/router", "children": '
+                '[{"name": "index.js", "type": "file", "path": "src/router/index.js", "children": null}]}, '
+                '{"name": "App.vue", "type": "file", "path": "src/App.vue", "children": null}]}',
     args_schema=DirReadToolArgs
 )
 def dir_read_tool(dir_path: str = "", recursive: bool = True) -> str:
@@ -110,11 +115,16 @@ def dir_read_tool_with_context():
 
     @tool(
         name_or_callable=TOOL_NAME,
-        description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例）：'
-                    '{"name": "vue_project_128", "type": "folder", "path": "vue_project_128", "children": '
-                    '[{"name": "vue_project_128/src", "type": "folder", "path": "vue_project_128/src", "children": '
-                    '[{"name": "App.vue", "type": "file", "path": "vue_project_128/src/App.vue", "children": null}]}, '
-                    '{"name": "index.html", "type": "file", "path": "vue_project_128/index.html", "children": null}]}',
+        description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例 读取/src目录）：'
+                    '{"name": "src", "type": "folder", "path": "src", "children": '
+                    '[{"name": "src/pages", "type": "folder", "path": "src/pages", "children": '
+                    '[{"name": "Dashboard.vue", "type": "file", "path": "src/pages/Dashboard.vue", "children": null}, '
+                    '{"name": "Members.vue", "type": "file", "path": "src/pages/Members.vue", "children": null}, '
+                    '{"name": "Tasks.vue", "type": "file", "path": "src/pages/Tasks.vue", "children": null}'
+                    ']}, '
+                    '{"name": "src/router", "type": "folder", "path": "src/router", "children": '
+                    '[{"name": "index.js", "type": "file", "path": "src/router/index.js", "children": null}]}, '
+                    '{"name": "App.vue", "type": "file", "path": "src/App.vue", "children": null}]}',
         args_schema=DirReadToolArgs
     )
     def _tool(dir_path: str = "", recursive: bool = True) -> str:

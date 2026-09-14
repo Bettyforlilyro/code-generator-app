@@ -102,6 +102,7 @@ class AICodeGeneratorFacade:
         )
         # 流式模式下不设置 response_format（结构化输出）
         # system_prompt 已经在 messages 中已经有了，这里手动添加一个空的 system_prompt 避免覆盖
+        # TODO 待优化，llm_client可以改成单例或者缓存+对象池（或者针对复杂度不同的应用请求，使用不同的llm_client），避免每次调用都创建
         llm_client_builder = ChatClientBuilder().set_system_prompt("")
         if tools and len(tools) > 0:
             if isinstance(tools[0], str) and app_id:
