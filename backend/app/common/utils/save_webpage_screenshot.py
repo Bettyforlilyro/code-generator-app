@@ -1,0 +1,128 @@
+import logging
+import os
+import time
+
+import requests
+from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+
+load_dotenv()
+
+IMAGE_BED_URL = os.getenv("IMAGE_BED_URL")
+IMAGE_BED_TOKEN = os.getenv("IMAGE_BED_TOKEN")
+SCREENSHOT_DIR = os.getenv("SCREENSHOT_DIR")
+
+
+def take_screenshot_and_save(
+        url: str,
+        output_path: str | None = None,
+        img_type: str = "jpeg",
+        quality: int | None = 80,
+        width: int = 1280,
+        height: int = 720,
+        full_page: bool = False,
+        timeout: int = 30000,
+        extra_wait_ms: int = 0,
+        disable_animations: bool = True,
+        omit_background: bool = False,
+) -> str:
+    """
+    截取网页截图并保存到指定路径
+
+    Args:
+        url: 目标网页 URL，必须带 scheme（如 https://）
+        output_path: 截图保存目录，若为 None 则自动生成到 SCREENSHOT_DIR
+        img_type: 图片格式，Playwright 仅支持 "png" | "jpeg"
+        quality: 图片压缩质量 0-100，仅 jpeg 有效，png 忽略
+        width: 视口宽度（CSS 像素）
+        height: 视口高度（CSS 像素）
+        full_page: 是否截取整个可滚动页面（而非仅可视区域）
+        timeout: goto 和 screenshot 的超时时间，单位毫秒，0 表示禁用
+        extra_wait_ms: goto 完成后的额外等待毫秒数（用于确保动态渲染完毕）
+        disable_animations: 是否冻结 CSS 动画/过渡，避免截图时动画还在播放
+        omit_background: 是否隐藏白色背景（仅 PNG 有效，支持透明截图）
+
+    Returns:
+        截图后保存的文件的绝对路径
+
+    Raises:
+        Exception: SSL 错误、URL 无效、超时、服务器不可达等
+    """
+    # 自动生成输出路径
+    if output_path is None:
+        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        safe_url = url.replace("https://", "").replace("http://", "").replace("/", "_")[:50]
+        output_path = f"{SCREENSHOT_DIR}/{safe_url}_{timestamp}.{img_type}"
+
+    with sync_playwright() as p:
+        # headless=True 为无头模式（不弹出浏览器）
+        browser = p.chromium.launch(headless=True)
+
+        # 设置 User-Agent 模拟真实浏览器
+        context = browser.new_context(
+            viewport={"width": width, "height": height},
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            # 绕过一部分网站的反爬检测
+            locale="zh-CN",
+            timezone_id="Asia/Shanghai",
+        )
+
+        page = context.new_page()
+
+        try:
+            # timeout 同时控制导航和截图
+            page.set_default_timeout(timeout)
+
+            page.goto(url, wait_until='load', timeout=timeout)
+
+            # 额外等待（由调用方按需传入，默认 0）
+            if extra_wait_ms:
+                page.wait_for_timeout(extra_wait_ms)
+
+            # 截图 —— type 仅支持 jpeg / png
+            page.screenshot(
+                path=output_path,
+                full_page=full_page,
+                type=img_type,
+                quality=quality if img_type == "jpeg" else None,
+                animations="disabled" if disable_animations else "allow",
+                omit_background=omit_background if img_type == "png" else False,
+            )
+
+            logging.info(f"✅ 截图成功: {os.path.abspath(output_path)}")
+            return os.path.abspath(output_path)
+
+        except Exception as e:
+            logging.error(f"❌ 截图失败: {e}")
+            raise
+        finally:
+            browser.close()
+
+
+def upload_image_to_bed(image_path: str) -> str:
+    """
+    上传图片到图床，返回图片 URL
+    暂时使用本地部署 easyimages 图床服务，后续可替换为其他图床服务，或者自行通过 COS 上传
+
+    Args:
+        image_path: 原图文件路径
+
+    Returns:
+        图片 URL
+
+    Raises:
+        Exception: 图片上传失败
+    """
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+        response = requests.post(IMAGE_BED_URL,
+                                 files={"image": image_data},
+                                 data={"token": IMAGE_BED_TOKEN})
+        if response.status_code != 200:
+            raise Exception(f"图片上传失败: {response.text}")
+        return response.json()["url"]

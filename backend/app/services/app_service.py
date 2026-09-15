@@ -17,7 +17,6 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEP
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.build_vue_project import build_vue_project_sync
-from backend.app.common.utils.get_random_picture import get_random_bz
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.models.user import User
@@ -28,6 +27,8 @@ from backend.app.schemas.responses.app_management_response import (
     AppDetailResponse, AppListResponse, AppCreateResponse
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
+from backend.app.services.ai_common.tools.generate_app_page_screenshot import \
+    generate_app_page_screenshot_and_save_async
 from backend.app.services.common import validate_sort_params
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ def create_app_svc(user_id: int, req: AppCreateRequest) -> AppCreateResponse:
 
     """
     app_name = req.app_name if req.app_name else req.init_prompt[:20]
-    app_coverage = req.app_coverage if req.app_coverage else get_random_bz()
+    app_coverage = req.app_coverage if req.app_coverage else ""
 
     new_app = AppModel(
         app_name=app_name,
@@ -336,15 +337,19 @@ def deploy_app_svc(app_id: int, user_id: int) -> dict:
 
     app.deploy_time = datetime.utcnow()
     db.session.commit()
+    deploy_url = f"http://localhost/{app.deploy_key}"
 
     # 启动 nginx（如未运行）
     if not _is_nginx_running():
         if not _start_nginx():
             raise BusinessException(ErrorCode.INTERNAL_ERROR, "启动 nginx 失败")
 
+    # 启动应用截图（异步，不阻塞主线程）
+    generate_app_page_screenshot_and_save_async(app_id, deploy_url)
+
     return {
         "deploy_key": app.deploy_key,
-        "deploy_url": f"http://localhost/{app.deploy_key}",
+        "deploy_url": deploy_url,
     }
 
 
@@ -403,3 +408,10 @@ def get_app_creator_by_app_id(app_id: int) -> User | None:
     if not app:
         return None
     return User.query.filter_by(id=app.user_id, is_delete=0).first()
+
+
+def update_app_coverage_svc(app_id: int, coverage_url: str):
+    """更新应用封面 URL"""
+    app = _get_app_or_raise(app_id)
+    app.app_coverage = coverage_url
+    db.session.commit()
