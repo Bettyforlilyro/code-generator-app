@@ -8,7 +8,7 @@ from backend.app.common.exceptions.error_codes import ErrorCode, BusinessExcepti
 from backend.app.common.utils.auth import login_required
 from backend.app.schemas.responses.BaseResponse import error_response, success_response
 from backend.app.services.app_service import get_app_by_deploy_key, get_app_by_id
-from backend.app.services.static_file_service import build_static_response, build_app_zip_response
+from backend.app.services.static_file_service import build_static_response, build_app_code_zip_response
 
 
 @code_bp.route('/static', methods=['GET'])
@@ -282,6 +282,6 @@ def download_app_code(app_id: int):
         return error_response(ErrorCode.APP_NOT_FOUND, "应用目录不存在，可能是应用未生成")
 
     try:
-        return build_app_zip_response(app_dir, f"{app.app_name}.zip")
+        return build_app_code_zip_response(app_dir, f"{app.app_name}.zip")
     except BusinessException as e:
         return error_response(e.error_code, e.message, e.data)

@@ -16,6 +16,60 @@ from backend.app.common.exceptions.error_codes import BusinessException, ErrorCo
 from backend.app.schemas.responses.BaseResponse import directory_response
 
 
+# ==================== 文件过滤规则 ====================
+
+# 需要排除的目录名（os.walk 遇到会整棵子树跳过，不再进入）
+EXCLUDED_DIRS: set[str] = {
+    # 依赖 / 包管理
+    'node_modules', '.pnpm-store', '.yarn',
+    # 构建产物
+    'dist', 'build', '.next', '.nuxt', '.output', '.cache', '.parcel-cache',
+    # Git / 版本控制
+    '.git', '.gitignore', '.gitattributes',
+    # Python
+    '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache',
+    # IDE / 编辑器
+    '.idea', '.vscode', '.eclipse', '.settings',
+    # 系统
+    '.DS_Store', 'Thumbs.db',
+    # 其他
+    'coverage', '.turbo',
+}
+
+# 需要排除的文件扩展名（小写，含点号）
+EXCLUDED_EXTENSIONS: set[str] = {
+    # 日志 / 临时
+    '.log', '.tmp', '.temp', '.bak', '.old', '.cache',
+    # Python 字节码
+    '.pyc', '.pyo', '.pyd',
+    # 编译 / 二进制
+    '.o', '.obj', '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.war',
+    # 压缩包
+    '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2',
+    # 图片资源
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.webp', '.avif',
+    # 音视频
+    '.mp3', '.mp4', '.wav', '.flac', '.mov', '.avi', '.wmv',
+    # 字体
+    '.woff', '.woff2', '.ttf', '.eot', '.otf',
+    # 数据库
+    '.db', '.sqlite', '.sqlite3',
+    # 大文件
+    '.psd', '.ai',
+}
+
+
+def _should_exclude_dir(dir_name: str) -> bool:
+    """判断目录是否应被排除（精确匹配目录名，不区分大小写）"""
+    return dir_name.lower() in EXCLUDED_DIRS
+
+
+def _should_exclude_file(file_name: str) -> bool:
+    """判断文件是否应被排除（根据扩展名）"""
+    ext = os.path.splitext(file_name)[1].lower()
+    return ext in EXCLUDED_EXTENSIONS
+
+
 # ==================== 路径工具 ====================
 
 def build_app_dir_path(root: str, identifier: str) -> str:
@@ -149,9 +203,9 @@ def build_static_response(
 
 # ==================== ZIP 打包下载 ====================
 
-def build_app_zip_response(app_dir: str, zip_filename: str):
+def build_app_code_zip_response(app_dir: str, zip_filename: str):
     """
-    将应用目录打包成 ZIP 并返回下载响应
+    将应用目录中所有的代码文件打包成 ZIP 并返回下载响应
 
     Args:
         app_dir: 应用代码目录
@@ -162,8 +216,14 @@ def build_app_zip_response(app_dir: str, zip_filename: str):
     """
     memory_file = io.BytesIO()
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for root, _dirs, files in os.walk(app_dir):
+        for root, dirs, files in os.walk(app_dir):
+            # 原地过滤目录，os.walk 不再进入这些子树
+            dirs[:] = [d for d in dirs if not _should_exclude_dir(d)]
+
             for file_name in files:
+                if _should_exclude_file(file_name):
+                    continue
+
                 file_path = os.path.join(root, file_name)
                 arc_name = os.path.relpath(file_path, app_dir).replace('\\', '/')
                 zf.write(file_path, arc_name)
