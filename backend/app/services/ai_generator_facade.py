@@ -59,17 +59,18 @@ class AICodeGeneratorFacade:
 
     @staticmethod
     def generate_code_and_save_file(user_message: str, code_gen_type: CodeFileType, app_id: int):
-        """生成代码并保存文件，返回保存路径"""
+        """生成代码并保存文件，返回保存路径，已弃用，"""
         pydantic_model = CodeFileType.get_cls_type(code_gen_type)
         memory_manager = get_chat_memory_manager()
         messages = memory_manager.get_llm_messages(
             app_id=app_id,
             extra_messages=[{"role": "user", "content": user_message}]
         )
+        system_prompt = CodeFileType.get_system_prompt(code_gen_type)
         # 1. 调用AI模型生成代码
         llm_client = (ChatClientBuilder()
                       .set_response_format(pydantic_model.get_response_format())
-                      .set_system_prompt("")  # system_prompt已经存到数据库中了，从messages中已经有了
+                      .set_system_prompt(system_prompt)
                       .build())
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
