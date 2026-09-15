@@ -79,7 +79,7 @@ CODE_GENERATE_MULTI_FILE_SYSTEM_PROMPT = """
 
 
 CODE_GENERATE_ROUTING_SYSTEM_PROMPT = """
-你是一个专业的代码生成方案路由器，需要根据用户需求返回最合适的代码生成类型。
+你是一个专业的代码生成方案路由器，需要根据用户需求返回最合适的代码生成类型，必须从可选的类型中选择一个。
 
 可选的代码生成类型：
 1. HTML - 适合简单的静态页面，单个 HTML 文件，包含内联 CSS 和 JS

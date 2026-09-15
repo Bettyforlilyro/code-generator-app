@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.ai_generate_results import HtmlCodeResult
+from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder, create_default_chat_client
 from backend.app.services.ai_common.advisor import (
     PreAdvisor, PostAdvisor, StreamPostAdvisor,
@@ -324,10 +325,27 @@ def test_system_prompt_update():
 
 
 def test_ai_code_generator_facade():
-    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过50行", CodeFileType.HTML, app_id=1)
+    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过20行", CodeFileType.HTML, app_id=1)
     assert res_file_path1 is not None, "生成的文件路径应为非空字符串"
-    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过100行", CodeFileType.MULTI_FILE, app_id=1)
+    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过30行", CodeFileType.MULTI_FILE, app_id=1)
     assert res_file_path2 is not None, "生成的文件路径应为非空字符串"
+
+
+def test_ai_code_routing():
+    """测试代码生成类型路由"""
+    init_prompt = "生成一个登录页面，代码不超过20行"   # 应该是简单需求，路由到 HTML 类型
+    code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
+    assert code_type == CodeFileType.HTML, "路由到 HTML 类型"
+    init_prompt = """
+    设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。
+    """
+    code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
+    assert code_type == CodeFileType.MULTI_FILE, "路由到 MULTI_FILE 类型"
+    init_prompt = """
+    创建一个基于Vue3的单页应用，包含登录、注册、个人中心、文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。
+    """
+    code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
+    assert code_type == CodeFileType.VUE_PROJECT, "路由到 VUE_PROJECT 类型"
 
 
 def main():
