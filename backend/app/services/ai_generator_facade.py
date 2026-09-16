@@ -12,6 +12,7 @@ from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.ai_common.llm_client_pool import get_or_create
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
 
 logger = logging.getLogger(__name__)
@@ -68,10 +69,10 @@ class AICodeGeneratorFacade:
         )
         system_prompt = CodeFileType.get_system_prompt(code_gen_type)
         # 1. 调用AI模型生成代码
-        llm_client = (ChatClientBuilder()
-                      .set_response_format(pydantic_model.get_response_format())
-                      .set_system_prompt(system_prompt)
-                      .build())
+        builder = (ChatClientBuilder()
+                   .set_response_format(pydantic_model.get_response_format())
+                   .set_system_prompt(system_prompt))
+        llm_client = get_or_create(builder)
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
         saver = CodeFileSaverFactory.get_saver(code_gen_type)
@@ -103,7 +104,6 @@ class AICodeGeneratorFacade:
         )
         # 流式模式下不设置 response_format（结构化输出）
         # system_prompt 已经在 messages 中已经有了，这里手动添加一个空的 system_prompt 避免覆盖
-        # TODO 待优化，llm_client可以改成单例或者缓存+对象池（或者针对复杂度不同的应用请求，使用不同的llm_client），避免每次调用都创建
         llm_client_builder = ChatClientBuilder().set_system_prompt("")
         if tools and len(tools) > 0:
             if isinstance(tools[0], str) and app_id:

@@ -122,6 +122,34 @@ class ChatClientBuilder:
         self._advisor_chain = advisor_chain
         return self
 
+    def get_available_tools(self) -> list:
+        """获取已注册的工具列表"""
+        return self._available_tools
+
+    def get_system_prompt(self) -> str:
+        """获取系统提示词"""
+        return self._system_prompt
+
+    def get_response_format(self) -> Any:
+        """获取响应格式"""
+        return self._response_format
+
+    def get_temperature(self) -> float:
+        """获取温度参数"""
+        return self._temperature
+
+    def get_max_tokens(self) -> int | None:
+        """获取最大生成token数"""
+        return self._max_tokens
+
+    def get_top_p(self) -> float:
+        """获取核采样参数"""
+        return self._top_p
+
+    def get_model(self) -> str:
+        """获取模型名称"""
+        return self._model
+
     def add_pre_advisor(self, advisor) -> 'ChatClientBuilder':
         """添加前置拦截器"""
         self._advisor_chain.add_pre_advisor(advisor)
