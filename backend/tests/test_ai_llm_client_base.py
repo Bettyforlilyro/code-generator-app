@@ -337,14 +337,14 @@ def test_ai_code_routing():
     code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
     assert code_type == CodeFileType.HTML, "路由到 HTML 类型"
     init_prompt = """
-    设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。
+    设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。总代码控制在300行以内
     """
     code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
-    assert code_type == CodeFileType.MULTI_FILE, "路由到 MULTI_FILE 类型"
+    assert code_type == CodeFileType.MULTI_FILE, "路由到 MULTI_FILE 类型"    # 不一定能 pass ，AI返回的结果不稳定
     init_prompt = """
-    创建一个基于Vue3的单页应用，包含登录、注册、个人中心、文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。
+    创建一个基于Vue3的单页应用，包含登录、注册、个人中心、文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。总代码控制在300行以内
     """
-    code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
+    code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)  # 这里有明确要求，pass成功率比较高
     assert code_type == CodeFileType.VUE_PROJECT, "路由到 VUE_PROJECT 类型"
 
 

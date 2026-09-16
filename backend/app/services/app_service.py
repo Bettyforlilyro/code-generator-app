@@ -27,6 +27,7 @@ from backend.app.schemas.responses.app_management_response import (
     AppDetailResponse, AppListResponse, AppCreateResponse
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
+from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
 from backend.app.services.ai_common.tools.generate_app_page_screenshot import \
     generate_app_page_screenshot_and_save_async
 from backend.app.services.common import validate_sort_params
@@ -51,9 +52,11 @@ def create_app_svc(user_id: int, req: AppCreateRequest) -> AppCreateResponse:
     app_name = req.app_name if req.app_name else req.init_prompt[:20]
     app_coverage = req.app_coverage if req.app_coverage else ""
 
+    code_gen_type = AiCodeTypeRouting.route_code_gen_type(req.init_prompt)
+
     new_app = AppModel(
         app_name=app_name,
-        code_gen_type=req.code_gen_type,
+        code_gen_type=code_gen_type,
         app_coverage=app_coverage,
         init_prompt=req.init_prompt,
         user_id=user_id,

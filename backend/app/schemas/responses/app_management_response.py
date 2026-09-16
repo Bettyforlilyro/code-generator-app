@@ -11,6 +11,7 @@ class AppCreateResponse(BaseModel):
     app_name: str
     init_prompt: str
     user_id: int
+    code_gen_type: str
 
 
 class AppDetailResponse(BaseModel):
