@@ -6,8 +6,10 @@ import { CodeGenTypeEnum } from '@/utils/codeGenTypes.ts'
 // 应用部署域名
 export const DEPLOY_DOMAIN = import.meta.env.VITE_DEPLOY_DOMAIN || 'http://localhost'
 
-// API 基础地址
-export const API_BASE_URL = 'http://localhost:5000/api/v1'
+// API 基础地址 — 使用相对路径,这样 iframe src 也走同域,Vite 代理转发到后端
+// 开发环境: VITE_API_BASE_URL=/api → /api/v1/... (Vite 代理到后端)
+// 生产环境: VITE_API_BASE_URL=/api → /api/v1/... (Nginx 同域部署)
+export const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || '/api'}/v1`
 
 // 获取静态资源预览URL
 export const getStaticPreviewUrl = (codeGenType: string, appId: string) => {
@@ -38,7 +40,8 @@ export const getDeployedStaticListUrl = (deployKey: string) => {
 export const resolvePreviewUrlFromList = (files: Array<{ file_name: string; file_url: string }>): string | null => {
   const indexFile = files.find((f) => f.file_name === 'index.html')
   if (!indexFile) return null
-  // 将相对路径转为绝对路径
+  // 将相对路径转为完整 URL
   if (indexFile.file_url.startsWith('http')) return indexFile.file_url
-  return `http://localhost:5000${indexFile.file_url}`
+  // 相对路径用当前域名(同域),Vite 代理或 Nginx 转发到后端
+  return `${indexFile.file_url}`
 }
