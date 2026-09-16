@@ -28,7 +28,7 @@ from backend.app.schemas.responses.app_management_response import (
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
 from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
-from backend.app.services.ai_common.tools.generate_app_page_screenshot import \
+from backend.app.common.utils.generate_app_page_screenshot import \
     generate_app_page_screenshot_and_save_async
 from backend.app.services.common import validate_sort_params
 
