@@ -63,7 +63,7 @@ declare namespace API {
     message?: string
   }
 
-  type BaseResponseAppVO = {
+  type CreateResponseAppVO = {
     code?: number
     data?: CreateAppResponse
     message?: string
@@ -74,6 +74,7 @@ declare namespace API {
     id?: number
     init_prompt?: string
     user_id?: number
+    code_gen_type?: string
   }
 
   type BaseResponseBoolean = {

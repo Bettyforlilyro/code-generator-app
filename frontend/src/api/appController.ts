@@ -4,7 +4,7 @@ import request from '@/request'
 
 /** 此处后端没有提供注释 POST /app */
 export async function addApp(body: API.AppAddRequest, options?: { [key: string]: any }) {
-  return request<API.BaseResponseAppVO>('/app', {
+  return request<API.CreateResponseAppVO>('/app', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
