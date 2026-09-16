@@ -27,7 +27,7 @@
           ghost
           @click="downloadCode"
           :loading="downloading"
-          :disabled="!isOwner"
+          :disabled="!isOwner || isGenerating"
         >
           <template #icon>
             <DownloadOutlined />
