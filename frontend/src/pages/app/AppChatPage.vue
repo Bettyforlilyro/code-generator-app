@@ -1465,8 +1465,14 @@ const updatePreview = async () => {
         // 其他错误(网络问题)继续等下一轮
       }
 
-      // 等下一轮
-      await new Promise<void>((resolve) => setTimeout(resolve, INTERVAL_MS))
+      // 等下一轮(可被 abort 打断,避免页面退出后还空等 3 秒)
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, INTERVAL_MS)
+        controller.signal.addEventListener('abort', () => {
+          clearTimeout(timer)
+          reject(new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      }).catch(() => { return })  // abort 时静默吞掉,下一轮循环开头会 return
     }
 
     // 超过最大次数:放弃
@@ -1679,6 +1685,8 @@ onMounted(() => {
 
 // 清理资源
 onUnmounted(() => {
+  // 取消可能还在进行的预览轮询
+  abortPreviewPolling()
   // EventSource 会在组件卸载时自动清理
 })
 </script>
