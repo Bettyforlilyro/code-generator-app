@@ -140,8 +140,6 @@ def dir_read_tool_with_context():
             root_path = os.path.join(f"vue_project_{app_id}", dir_path)
             return json.dumps(get_tree(root_path))
 
-    _tool.name = TOOL_NAME
-
     return _tool
 
 

@@ -16,6 +16,7 @@ class CalculateToolArgs(BaseModel):
 # 方式 A：无状态版本
 # ---------------------------------------------------------------------------
 @tool(
+    name_or_callable=TOOL_NAME,
     description="计算数学表达式的值，例如加减乘除运算",
     args_schema=CalculateToolArgs
 )
@@ -27,9 +28,6 @@ def calculate_tool(expression: str) -> str:
         return f"计算失败: {type(e).__name__}: {e}"
 
 
-calculate_tool.name = TOOL_NAME
-
-
 # ---------------------------------------------------------------------------
 # 方式 B：带 context 版本（工厂函数，无参，从 context_var 读取）
 # ---------------------------------------------------------------------------
@@ -39,6 +37,7 @@ def calculate_tool_with_context():
     """
 
     @tool(
+        name_or_callable=TOOL_NAME,
         description="计算数学表达式的值，例如加减乘除运算",
         args_schema=CalculateToolArgs
     )
@@ -52,7 +51,6 @@ def calculate_tool_with_context():
             return f"计算结果: {result}"
         except Exception as e:
             return f"计算失败: {type(e).__name__}: {e}"
-    _tool.name = TOOL_NAME
     return _tool
 
 

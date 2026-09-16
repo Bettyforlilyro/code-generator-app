@@ -33,9 +33,6 @@ def file_write_tool(file_path: str, content: str) -> str:
     return f"文件写入成功，文件路径：{relative_path}"
 
 
-file_write_tool.name = TOOL_NAME
-
-
 def file_write_tool_with_context():
     """
     工厂函数：工厂函数：返回一个 LLM 可调用的闭包工具，每次执行时从 context_var 读取当前请求的 context
@@ -67,8 +64,6 @@ def file_write_tool_with_context():
         except Exception as e:
             logging.error(f"文件写入失败：{e}")
             return f"文件写入失败，错误信息：{e}"
-
-    _tool.name = TOOL_NAME
 
     return _tool
 

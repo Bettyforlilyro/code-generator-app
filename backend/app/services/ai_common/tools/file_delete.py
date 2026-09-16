@@ -26,8 +26,35 @@ def file_delete_tool(file_path: str) -> str:
     abs_path = to_absolute(file_path)
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
+    if _is_important_file(file_path):
+        return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
     os.remove(abs_path)
     return f"文件 {file_path} 已成功删除"
+
+
+def _is_important_file(file_path: str) -> bool:
+    """
+    判断文件是否重要。
+    """
+    important_files = [
+        'package.json',
+        'package-lock.json',
+        'yarn.lock',
+        'pnpm-lock.yaml',
+        'vite.config.ts',
+        'vite.config.js',
+        'vue.config.js',
+        'tsconfig.json',
+        'tsconfig.node.json',
+        'tsconfig.app.json',
+        'index.html',
+        'main.js',
+        'main.ts',
+        'App.vue',
+        '.gitignore',
+        'README.md',
+    ]
+    return file_path in important_files
 
 
 def file_delete_tool_with_context():
@@ -52,10 +79,10 @@ def file_delete_tool_with_context():
         abs_path = to_absolute(real_path)
         if not os.path.isfile(abs_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
+        if _is_important_file(file_path):
+            return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
         os.remove(abs_path)
         return f"文件 {file_path} 已成功删除"
-
-    _tool.name = TOOL_NAME
 
     return _tool
 

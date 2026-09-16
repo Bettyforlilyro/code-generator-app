@@ -51,8 +51,6 @@ def file_read_tool_with_context():
         with open(abs_path, 'r', encoding='utf-8') as f:
             return f.read()
 
-    _tool.name = TOOL_NAME
-
     return _tool
 
 
