@@ -113,7 +113,7 @@ class AICodeGeneratorFacade:
                 llm_client_builder.add_tools_by_names(tools)
             else:
                 llm_client_builder.add_tools(tools)
-        llm_client = llm_client_builder.build()
+        llm_client = get_or_create(llm_client_builder)
 
         full_response_text = ""
 
