@@ -108,7 +108,7 @@ def _show_end(args, result, success) -> str:
     :return: 展示的字符串
     """
     file_path = args.get("file_path")
-    if success and "修改成功" in result and file_path:
+    if success and "修改完成" in result:
         return f"\n\n✅ 已修改文件: `{file_path}` \n\n"
     return f"\n\n❌ 文件修改失败！ \n\n"
 
