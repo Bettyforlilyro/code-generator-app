@@ -22,7 +22,7 @@ class FileWriteToolArgs(BaseModel):
 # ---------------------------------------------------------------------------
 @tool(
     name_or_callable=TOOL_NAME,
-    description="文件写入工具，用于将内容写入指定路径下的指定文件",
+    description="文件写入工具，用于将内容写入指定路径下的指定文件，如果文件已存在，则覆盖写入",
     args_schema=FileWriteToolArgs
 )
 def file_write_tool(file_path: str, content: str) -> str:
@@ -40,7 +40,7 @@ def file_write_tool_with_context():
 
     @tool(
         name_or_callable=TOOL_NAME,
-        description="文件写入工具，用于将内容写入指定路径下的指定文件",
+        description="文件写入工具，用于将内容写入指定路径下的指定文件，如果文件已存在，则覆盖写入",
         args_schema=FileWriteToolArgs
     )
     def _tool(file_path: str, content: str) -> str:

@@ -204,8 +204,8 @@ def filter_tools_by_names(tools: List[BaseTool], names: List[str]) -> List[BaseT
 #  注册工具的 show 函数，便于自定义显示工具调用情况
 #  key: tool.name（例如 "文件写入工具"）
 #  value: {
-#      "show_start": callable(tool_args: dict) -> str,   # 可选
-#      "show_end":   callable(result: str, success: bool) -> str,  # 可选
+#      "show_start": callable() -> str,   # 可选
+#      "show_end":   callable(tool_args: dict, result: str, success: bool) -> str,  # 可选
 #  }
 #
 #  工具文件里调用 register_tool_display("文件写入工具", show_start=..., show_end=...)

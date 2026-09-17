@@ -11,6 +11,81 @@ from backend.app.services.ai_common.tools.tool_context_store import get_runtime_
 
 TOOL_NAME = "目录读取工具"
 
+# 应该忽略的文件名（精确匹配，不含路径）
+IGNORE_FILES = [
+    # 环境 / 配置
+    '.env', '.env.local', '.env.*.local', '.gitignore', '.gitattributes',
+    # 日志 / 临时
+    '.log', '.tmp', '.temp', '.bak', '.old',
+    # 系统
+    '.DS_Store', 'Thumbs.db',
+    # Node
+    '.npmrc', '.yarnrc', '.yarnrc.yml',
+]
+
+# 应该忽略的文件夹（精确匹配目录名，不含路径）
+IGNORE_FOLDERS = [
+    # 依赖 / 包管理
+    'node_modules', '.pnpm-store', '.yarn',
+    # 构建产物
+    'dist', 'build', '.next', '.nuxt', '.output', '.cache', '.parcel-cache', 'target',
+    # Git / 版本控制
+    '.git',
+    # Python
+    '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache',
+    # IDE / 编辑器
+    '.idea', '.vscode', '.eclipse', '.settings',
+    # 其他
+    'coverage', '.turbo', '.pnpm-store',
+]
+
+# 应该忽略的文件扩展名（小写，含点号）
+IGNORE_EXTENSIONS = [
+    '.log', '.tmp', '.temp', '.bak', '.old', '.cache',
+    '.pyc', '.pyo', '.pyd',
+    '.o', '.obj', '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.war',
+    '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2',
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.webp', '.avif',
+    '.mp3', '.mp4', '.wav', '.flac', '.mov', '.avi', '.wmv',
+    '.woff', '.woff2', '.ttf', '.eot', '.otf',
+    '.db', '.sqlite', '.sqlite3',
+    '.psd', '.ai',
+]
+
+
+def _is_ignored(path: str) -> bool:
+    """
+    检查路径是否应被忽略。
+
+    规则：
+        - 若是目录：目录名（basename 部分，不区分大小写）在 IGNORE_FOLDERS 中则忽略
+        - 若是文件：文件的 basename 在 IGNORE_FILES 中，或扩展名在 IGNORE_EXTENSIONS 中则忽略
+    """
+    import fnmatch
+
+    name = os.path.basename(os.path.normpath(path))
+    if not name:
+        return False
+
+    # 目录 / 文件夹命中
+    if os.path.isdir(path):
+        if name.lower() in {f.lower() for f in IGNORE_FOLDERS}:
+            return True
+        return False
+
+    # 文件命中：精确匹配 + fnmatch 通配匹配 + 扩展名匹配
+    if name in IGNORE_FILES:
+        return True
+    for pattern in IGNORE_FILES:
+        if any(ch in pattern for ch in '*?[') and fnmatch.fnmatch(name, pattern):
+            return True
+
+    ext = os.path.splitext(name)[1].lower()
+    if ext in IGNORE_EXTENSIONS:
+        return True
+
+    return False
+
 
 class DirReadToolArgs(BaseModel):
     dir_path: str = Field(description="目录的根路径，如果不填默认读取根路径", default="")
@@ -42,21 +117,23 @@ def get_tree(rel_path: str = '') -> dict:
     }
 
     entries = sorted(os.listdir(abs_path))
-    folders = [e for e in entries if os.path.isdir(os.path.join(abs_path, e))]
-    files = [e for e in entries if os.path.isfile(os.path.join(abs_path, e))]
 
-    for name in folders:
-        sub_rel = to_relative(os.path.join(abs_path, name))
-        node['children'].append(get_tree(sub_rel))  # 递归
+    for name in entries:
+        full_path = os.path.join(abs_path, name)
+        if _is_ignored(full_path):
+            continue
 
-    for name in files:
-        file_rel = to_relative(os.path.join(abs_path, name))
-        node['children'].append({
-            'name': name,
-            'type': 'file',
-            'path': file_rel,
-            'children': None,
-        })
+        if os.path.isdir(full_path):
+            sub_rel = to_relative(full_path)
+            node['children'].append(get_tree(sub_rel))  # 递归
+        elif os.path.isfile(full_path):
+            file_rel = to_relative(full_path)
+            node['children'].append({
+                'name': name,
+                'type': 'file',
+                'path': file_rel,
+                'children': None,
+            })
 
     return node
 
@@ -73,6 +150,8 @@ def _file_names_in_this_dir(root_path: str):
     }
     # 非递归读取当前目录下的所有文件
     for file in os.listdir(root_path):
+        if _is_ignored(os.path.join(root_path, file)):
+            continue
         node['children'].append({
             'name': file,
             'type': 'file',

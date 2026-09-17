@@ -23,13 +23,16 @@ def file_delete_tool(file_path: str) -> str:
     """
     删除指定路径的文件。
     """
-    abs_path = to_absolute(file_path)
-    if not os.path.isfile(abs_path):
-        raise FileNotFoundError(f"文件不存在: {file_path}")
-    if _is_important_file(file_path):
-        return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
-    os.remove(abs_path)
-    return f"文件 {file_path} 已成功删除"
+    try:
+        abs_path = to_absolute(file_path)
+        if not os.path.isfile(abs_path):
+            return f"警告：文件不存在: {file_path}，无需删除"
+        if _is_important_file(file_path):
+            return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
+        os.remove(abs_path)
+        return f"文件 {file_path} 已成功删除"
+    except Exception as e:
+        return f"删除失败，错误：{str(e)}"
 
 
 def _is_important_file(file_path: str) -> bool:
@@ -76,13 +79,16 @@ def file_delete_tool_with_context():
             logging.error("app_id 未设置")
             return "app_id 未设置，删除失败"
         real_path = os.path.join(f"vue_project_{app_id}", file_path)
-        abs_path = to_absolute(real_path)
-        if not os.path.isfile(abs_path):
-            raise FileNotFoundError(f"文件不存在: {file_path}")
-        if _is_important_file(file_path):
-            return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
-        os.remove(abs_path)
-        return f"文件 {file_path} 已成功删除"
+        try:
+            abs_path = to_absolute(real_path)
+            if not os.path.isfile(abs_path):
+                raise FileNotFoundError(f"文件不存在: {file_path}")
+            if _is_important_file(file_path):
+                return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
+            os.remove(abs_path)
+            return f"文件 {file_path} 已成功删除"
+        except Exception as e:
+            return f"删除失败，错误：{str(e)}"
 
     return _tool
 
