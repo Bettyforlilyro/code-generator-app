@@ -31,6 +31,7 @@ db.init_app(app)
 if __name__ == '__main__':
     app.run(
         debug=config['DEBUG'],
+        use_reloader=False,     # 关闭热更新重载，利于边开发边调试
         host=config['HOST'],
         port=config['PORT']
     )
