@@ -4,10 +4,8 @@ import os.path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import to_absolute, register_tool_display
+from backend.app.services.ai_common.tools import to_absolute, register_tool_display, FILE_DELETE_TOOL_NAME
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
-
-TOOL_NAME = "文件删除工具"
 
 
 class FileDeleteToolArgs(BaseModel):
@@ -15,7 +13,7 @@ class FileDeleteToolArgs(BaseModel):
 
 
 @tool(
-    name_or_callable=TOOL_NAME,
+    name_or_callable=FILE_DELETE_TOOL_NAME,
     description="删除指定路径的文件",
     args_schema=FileDeleteToolArgs,
 )
@@ -65,7 +63,7 @@ def file_delete_tool_with_context():
     工厂函数：工厂函数：返回一个 LLM 可调用的闭包工具，每次执行时从 context_var 读取当前请求的 context
     """
     @tool(
-        name_or_callable=TOOL_NAME,
+        name_or_callable=FILE_DELETE_TOOL_NAME,
         description="删除指定路径的文件",
         args_schema=FileDeleteToolArgs,
     )
@@ -112,8 +110,7 @@ def _show_end(args: dict, result: str, success: bool) -> str:
 
 
 register_tool_display(
-    tool_name=TOOL_NAME,
+    tool_name=FILE_DELETE_TOOL_NAME,
     show_start=_show_start,
     show_end=_show_end,
 )
-

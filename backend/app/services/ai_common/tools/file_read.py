@@ -4,10 +4,8 @@ import os.path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import register_tool_display, to_absolute
+from backend.app.services.ai_common.tools import register_tool_display, to_absolute, FILE_READ_TOOL_NAME
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
-
-TOOL_NAME = "文件读取工具"
 
 
 class FileReadToolArgs(BaseModel):
@@ -15,7 +13,7 @@ class FileReadToolArgs(BaseModel):
 
 
 @tool(
-    name_or_callable=TOOL_NAME,
+    name_or_callable=FILE_READ_TOOL_NAME,
     description="读取文件内容，用于读取指定路径文件的内容",
     args_schema=FileReadToolArgs,
 )
@@ -40,7 +38,7 @@ def file_read_tool_with_context():
     """
 
     @tool(
-        name_or_callable=TOOL_NAME,
+        name_or_callable=FILE_READ_TOOL_NAME,
         description="读取文件内容，用于读取指定路径文件的内容",
         args_schema=FileReadToolArgs,
     )
@@ -82,7 +80,7 @@ def _show_end(args: dict, result: str, success: bool) -> str:
 
 
 register_tool_display(
-    tool_name=TOOL_NAME,
+    tool_name=FILE_READ_TOOL_NAME,
     show_start=_show_start,
     show_end=_show_end,
 )

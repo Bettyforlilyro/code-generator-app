@@ -26,6 +26,16 @@ _CACHE_KEY_BASE_TOOLS = "__base_tools__"
 _CACHE_KEY_FACTORIES = "__context_factories__"
 _ROOT_PATH = DEFAULT_GENERATE_ROOT
 
+DIR_READ_TOOL_NAME = "目录读取工具"
+FILE_WRITE_TOOL_NAME = "文件写入工具"
+FILE_MODIFY_TOOL_NAME = "文件修改工具"
+FILE_READ_TOOL_NAME = "文件读取工具"
+FILE_DELETE_TOOL_NAME = "文件删除工具"
+
+
+def get_all_tools_name() -> List[str]:
+    return [DIR_READ_TOOL_NAME, FILE_WRITE_TOOL_NAME, FILE_MODIFY_TOOL_NAME, FILE_READ_TOOL_NAME, FILE_DELETE_TOOL_NAME]
+
 
 # ---------------------------------------------------------------------------
 # 通用工具发现逻辑

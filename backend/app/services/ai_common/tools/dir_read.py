@@ -6,10 +6,9 @@ from pathlib import Path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import register_tool_display, to_absolute, to_relative, _ROOT_PATH
+from backend.app.services.ai_common.tools import register_tool_display, to_absolute, to_relative, _ROOT_PATH, \
+    DIR_READ_TOOL_NAME
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
-
-TOOL_NAME = "目录读取工具"
 
 # 应该忽略的文件名（精确匹配，不含路径）
 IGNORE_FILES = [
@@ -162,7 +161,7 @@ def _file_names_in_this_dir(root_path: str):
 
 
 @tool(
-    name_or_callable=TOOL_NAME,
+    name_or_callable=DIR_READ_TOOL_NAME,
     description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例 读取/src目录）：'
                 '{"name": "src", "type": "folder", "path": "src", "children": '
                 '[{"name": "src/pages", "type": "folder", "path": "src/pages", "children": '
@@ -193,7 +192,7 @@ def dir_read_tool_with_context():
     """
 
     @tool(
-        name_or_callable=TOOL_NAME,
+        name_or_callable=DIR_READ_TOOL_NAME,
         description='目录读取工具，用于读取指定路径下的所有文件和子目录，返回 JSON 格式字符串描述的目录树，格式如下（示例 读取/src目录）：'
                     '{"name": "src", "type": "folder", "path": "src", "children": '
                     '[{"name": "src/pages", "type": "folder", "path": "src/pages", "children": '
@@ -234,7 +233,7 @@ def _show_end(args: dict, result: str, success: bool) -> str:
 
 
 register_tool_display(
-    tool_name=TOOL_NAME,
+    tool_name=DIR_READ_TOOL_NAME,
     show_start=_show_start,
     show_end=_show_end,
 )

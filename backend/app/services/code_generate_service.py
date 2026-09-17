@@ -17,6 +17,7 @@ from backend.app.common.exceptions.error_codes import ErrorCode, BusinessExcepti
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.ai_common.tools import get_all_tools_name
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 from backend.app.services.chat_history_service import (
     create_chat_history,
@@ -77,7 +78,7 @@ def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id:
     """
     tools = None
     if code_gen_type == CodeFileType.VUE_PROJECT:
-        tools = ['文件写入工具', '文件读取工具', '文件删除工具', '目录读取工具', '文件修改工具']
+        tools = get_all_tools_name()
     return AICodeGeneratorFacade.generate_code_and_save_file_streaming(
         user_message, code_gen_type, app_id, tools=tools
     )

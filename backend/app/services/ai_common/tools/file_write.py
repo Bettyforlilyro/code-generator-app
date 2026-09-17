@@ -6,10 +6,8 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
-from backend.app.services.ai_common.tools import register_tool_display
+from backend.app.services.ai_common.tools import register_tool_display, FILE_WRITE_TOOL_NAME
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
-
-TOOL_NAME = "文件写入工具"
 
 
 class FileWriteToolArgs(BaseModel):
@@ -21,7 +19,7 @@ class FileWriteToolArgs(BaseModel):
 # 方式 A：无状态版本（不需要 context，会被 get_all_tools_in_module 自动收集）
 # ---------------------------------------------------------------------------
 @tool(
-    name_or_callable=TOOL_NAME,
+    name_or_callable=FILE_WRITE_TOOL_NAME,
     description="文件写入工具，用于将内容写入指定路径下的指定文件，如果文件已存在，则覆盖写入",
     args_schema=FileWriteToolArgs
 )
@@ -39,7 +37,7 @@ def file_write_tool_with_context():
     """
 
     @tool(
-        name_or_callable=TOOL_NAME,
+        name_or_callable=FILE_WRITE_TOOL_NAME,
         description="文件写入工具，用于将内容写入指定路径下的指定文件，如果文件已存在，则覆盖写入",
         args_schema=FileWriteToolArgs
     )
@@ -111,7 +109,7 @@ def preview(args: dict) -> str:
 
 
 register_tool_display(
-    tool_name=TOOL_NAME,
+    tool_name=FILE_WRITE_TOOL_NAME,
     show_start=_show_start,
     show_end=_show_end,
     preview=preview,
