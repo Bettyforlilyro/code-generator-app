@@ -51,6 +51,8 @@ def processed_chunk(chunk: StreamChunk):
         return 'web_search', _compose_task_info(chunk)
     elif msg_type == StreamChunk.TYPE_WEB_SEARCH_DONE:  # 网络搜索完成
         return 'web_search_done', _compose_task_info(chunk)
+    elif msg_type == StreamChunk.CODE_UPDATED:  # 代码已更新
+        return 'code_updated', {}
     else:
         return 'error', {"d": chunk.content or "AI 无任何响应，请检查 API_KEY 或者网络连接"}
 
@@ -157,6 +159,11 @@ class AICodeGeneratorFacade:
                 if result.is_code_modified():
                     saver = CodeFileSaverFactory.get_saver(code_gen_type)
                     saver.save_code_file(result, app_id)
+                    # 通知前端代码已修改，请刷新预览界面
+                    yield processed_chunk(StreamChunk(
+                        content="",
+                        chunk_type=StreamChunk.CODE_UPDATED
+                    ))
                 if result.is_name_modified():
                     update_app_svc(
                         app_id, get_app_creator_by_app_id(app_id),

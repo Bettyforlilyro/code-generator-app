@@ -204,6 +204,10 @@ class VueProjectCodeFileSaver(CodeFileSaver):
                 f"VueProjectCodeFileSaver 只接受 VueProjectFileCodeResult，收到 {type(code_result).__name__}"
             )
         vue_project_path = os.path.join(DEFAULT_GENERATE_ROOT, f"vue_project_{app_id}")
+        # 启动构建前先删除旧的构建产物，让前端轮询拿不到结果
+        dist_html_path = os.path.join(vue_project_path, 'dist', 'index.html')
+        if os.path.exists(dist_html_path):
+            os.remove(dist_html_path)
         # 用 try catch 捕获异常，避免程序崩溃，内部消化异常并记录日志，不抛出异常
         try:
             build_vue_project_async(vue_project_path, timeout=500)

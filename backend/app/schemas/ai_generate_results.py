@@ -92,7 +92,7 @@ class MultiFileCodeResult(BaseCodeResult):
     def get_files_dict(self) -> dict[str, str]:
         return {
             "index.html": self.html_code if self.html_code else "",
-            "styles.css": self.css_code if self.css_code else "",
+            "style.css": self.css_code if self.css_code else "",
             "script.js": self.js_code if self.js_code else ""
         }
 

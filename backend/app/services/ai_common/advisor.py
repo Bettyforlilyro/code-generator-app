@@ -31,6 +31,7 @@ class StreamChunk:
         "tool_end"    —— 工具执行完毕，前端可以更新「工具调用卡片」为完成状态
         "error"       —— 错误信息，前端可以用红色/警告样式渲染
         "done"        —— 整轮结束（is_last=True 的时候 chunk_type=done）
+        "code_updated" —— 代码已更新，前端可以刷新预览区域
 
     metadata 字段存放结构化数据，前端可以直接用：
         tool_start 时: {tool_name, args_str, tool_call_id}
@@ -44,6 +45,7 @@ class StreamChunk:
     TYPE_WEB_SEARCH = "web_search"
     TYPE_WEB_SEARCH_DONE = "web_search_done"
     TYPE_DONE = "done"
+    CODE_UPDATED = "code_updated"
 
     def __init__(
         self,

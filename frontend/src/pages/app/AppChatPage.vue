@@ -248,6 +248,18 @@
           <h3>生成后的网页展示</h3>
           <div class="preview-actions">
             <a-button
+              v-if="previewUrl"
+              type="link"
+              :loading="isRefreshingPreview"
+              @click="refreshPreview"
+              style="padding: 0; height: auto; margin-right: 12px"
+            >
+              <template #icon>
+                <ReloadOutlined :spin="isRefreshingPreview" />
+              </template>
+              刷新
+            </a-button>
+            <a-button
               v-if="isOwner && previewUrl"
               type="link"
               :danger="isEditMode"
@@ -349,6 +361,7 @@ import {
   EditOutlined,
   ExportOutlined,
   InfoCircleOutlined,
+  ReloadOutlined,
   SendOutlined,
 } from '@ant-design/icons-vue'
 
@@ -853,6 +866,31 @@ const noPreviewAvailable = ref(false)
 const isPollingPreview = ref(false)
 let previewPollingAbortController: AbortController | null = null
 
+// 手动刷新预览的 loading 状态
+const isRefreshingPreview = ref(false)
+
+// 手动刷新预览
+async function refreshPreview() {
+  isRefreshingPreview.value = true
+  try {
+    // 取消可能还在进行的轮询,让 updatePreview 从头开始
+    abortPreviewPolling()
+    // 触发完整的预览刷新逻辑(内部会根据 codeGenType 决定是轮询还是直接查文件列表)
+    await updatePreview()
+    // 如果已有 previewUrl(非轮询模式下 updatePreview 已赋值),强制 reload iframe 内容
+    if (previewUrl.value) {
+      const iframe = document.querySelector('.preview-iframe') as HTMLIFrameElement | null
+      if (iframe) {
+        // 强制重新加载 src(加时间戳避免浏览器缓存)
+        const sep = previewUrl.value.includes('?') ? '&' : '?'
+        iframe.src = `${previewUrl.value}${sep}_t=${Date.now()}`
+      }
+    }
+  } finally {
+    isRefreshingPreview.value = false
+  }
+}
+
 // 部署相关
 const deploying = ref(false)
 const deployModalVisible = ref(false)
@@ -1187,11 +1225,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         appInfo.value.app_name = result.app_name
       }
 
-      const codeGenType = selectedCodeGenType.value || CodeGenTypeEnum.HTML
-      const needBuildPolling = needsBuildPolling(codeGenType)
-
       if (result.files.length > 0) {
-        // 有代码块 → 设为 codeGen 消息,并刷新预览
         aiMessage.codeGen = result
         aiMessage.content = result.description // description 已过 extractDescription 过滤
       } else {
@@ -1199,16 +1233,9 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         aiMessage.content = extractDescription(rawContentBuffer)
       }
 
-      // 无论有没有代码块,需要后端异步构建的类型(vue_project 等)都要触发预览刷新
-      // (文件可能由后端工具写入,SSE 里没有 markdown 代码块,此时 result.files 为空)
-      if (result.files.length > 0 || needBuildPolling) {
-        setTimeout(async () => {
-          // 先同步 appInfo(主要是为了拿到后端可能更新的 code_gen_type 和刷新对话记录)
-          // skipUpdatePreview=true: 不触发预览,预览由下方显式调用 updatePreview 统一控制
-          await fetchAppInfo(true).catch((err) => console.warn('fetchAppInfo failed (non-critical):', err))
-          await updatePreview()
-        }, 1000)
-      }
+      // 同步 appInfo(刷新 code_gen_type 等后端可能更新的字段)
+      // 不触发预览:预览刷新完全由后端 code_updated 事件驱动
+      fetchAppInfo(true).catch((err) => console.warn('fetchAppInfo failed (non-critical):', err))
 
       // 重置懒加载标志
       hasCodeBlockInStream.value = false
@@ -1241,6 +1268,25 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
         if (eventType === 'done') {
           finalizeGeneration()
+          continue
+        }
+
+        // ======== 后端通知:代码已修改 ========
+        // 后端在文件写入/修改完成时发送此事件(不等待构建)
+        // 前端收到后立即触发预览刷新:vue_project 走轮询(等构建),其他类型直接查文件列表
+        if (eventType === 'code_updated') {
+          // 取消可能还在进行的旧轮询,从头开始刷新
+          abortPreviewPolling()
+          // 用微任务调度,避免在 SSE 循环里阻塞太久
+          // fetchAppInfo 先确保 selectedCodeGenType 是最新的
+          setTimeout(async () => {
+            try {
+              await fetchAppInfo(true)
+              await updatePreview()
+            } catch (err) {
+              console.warn('[code_updated] preview refresh failed:', err)
+            }
+          }, 0)
           continue
         }
 
