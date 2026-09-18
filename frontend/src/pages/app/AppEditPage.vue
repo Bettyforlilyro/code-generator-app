@@ -152,13 +152,28 @@ const isAdmin = computed(() => {
   return loginUserStore.loginUser.user_role === 'admin'
 })
 
+// URL 校验器：使用原生 URL 构造函数，兼容 localhost / 内网主机名 / IP 等形式
+const isValidUrl = (_rule: unknown, value: string) => {
+  if (!value) return Promise.resolve() // 封面允许为空，不强制必填
+  try {
+    const url = new URL(value)
+    // 限定协议为 http(s)，避免 javascript: / file: 等危险或无意义的协议
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return Promise.reject(new Error('仅支持 http 或 https 协议'))
+    }
+    return Promise.resolve()
+  } catch {
+    return Promise.reject(new Error('请输入有效的URL'))
+  }
+}
+
 // 表单验证规则
 const rules = {
   appName: [
     { required: true, message: '请输入应用名称', trigger: 'blur' },
     { min: 1, max: 50, message: '应用名称长度在1-50个字符', trigger: 'blur' },
   ],
-  cover: [{ type: 'url', message: '请输入有效的URL', trigger: 'blur' }],
+  cover: [{ validator: isValidUrl, trigger: 'blur' }],
   priority: [{ type: 'number', min: 0, max: 99, message: '优先级范围0-99', trigger: 'blur' }],
 }
 
