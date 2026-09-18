@@ -866,6 +866,10 @@ const noPreviewAvailable = ref(false)
 const isPollingPreview = ref(false)
 let previewPollingAbortController: AbortController | null = null
 
+// code_updated 事件里 setTimeout 调度的待执行回调 ID
+// 用于在新生成/页面卸载时取消还没执行的回调,防止泄漏
+let pendingCodeUpdatedTimerId: ReturnType<typeof setTimeout> | null = null
+
 // 手动刷新预览的 loading 状态
 const isRefreshingPreview = ref(false)
 
@@ -1279,12 +1283,15 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           abortPreviewPolling()
           // 用微任务调度,避免在 SSE 循环里阻塞太久
           // fetchAppInfo 先确保 selectedCodeGenType 是最新的
-          setTimeout(async () => {
+          // 保存 timerId 到模块变量,新生成/页面卸载时可以取消
+          pendingCodeUpdatedTimerId = setTimeout(async () => {
             try {
               await fetchAppInfo(true)
               await updatePreview()
             } catch (err) {
               console.warn('[code_updated] preview refresh failed:', err)
+            } finally {
+              pendingCodeUpdatedTimerId = null
             }
           }, 0)
           continue
@@ -1465,12 +1472,19 @@ function needsBuildPolling(codeGenType: string): boolean {
 }
 
 // 取消正在进行的预览轮询(新生成开始/页面卸载时调用)
+// 同时清除 code_updated 里排队但还没执行的 setTimeout 回调
 function abortPreviewPolling() {
   if (previewPollingAbortController) {
     previewPollingAbortController.abort()
     previewPollingAbortController = null
   }
   isPollingPreview.value = false
+
+  // 清除 code_updated 里排队但还没执行的 setTimeout 回调
+  if (pendingCodeUpdatedTimerId) {
+    clearTimeout(pendingCodeUpdatedTimerId)
+    pendingCodeUpdatedTimerId = null
+  }
 }
 
 // 更新预览
