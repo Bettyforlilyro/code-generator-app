@@ -101,9 +101,6 @@ def code_reviewer_node(state: WorkflowState) -> dict:
         "qa_feedback": qa_result.qa_feedback,
         "retry_count": new_retry_count,
         "current_node": "code_reviewer",
-        # 审查通过情况下，将 code_generator 的结果保存到消息列表，由 reducer 自动合并
-        # TODO 当前先将消息转换成 json 字符串临时保存观察效果
-        "messages": json.dumps(generate_output),
     }
 
 
