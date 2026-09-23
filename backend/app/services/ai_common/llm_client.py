@@ -33,7 +33,7 @@ class ChatClient:
     def __init__(
         self,
         chat_llm: ChatOpenAI,
-        system_prompt: str = "You are a helpful assistant.",
+        system_prompt: str = "",
         advisor_chain: AdvisorChain | None = None,
         available_tools: list | None = None,
     ):
