@@ -10,6 +10,8 @@
 import logging
 from typing import List
 
+from langchain_core.messages import HumanMessage, AIMessage
+
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.prompts import CODE_GENERATE_VUE_PROJECT_SYSTEM_PROMPT
@@ -115,10 +117,69 @@ def _build_chat_messages(state: WorkflowState) -> list:
     return extra_messages
 
 
-def _extract_ai_response_message(generate_output, task_type, code_gen_type) -> str:
-    """TODO 从 code_generator 的输出中提取给前端展示的纯文本 ai_response_message """
-    ai_response_message = ""
-    return ai_response_message
+def _extract_ai_response_message(
+    response: str,
+    task_type: str,
+    code_gen_type: CodeFileType,
+) -> str:
+    """
+    从 llm_client.chat() 的完整响应中，提取给前端展示的纯文本 ai_response_message
+    Args:
+        response: llm_client.chat() 的完整响应
+        task_type: 任务类型（chat / new_build / modify）
+        code_gen_type: 代码生成类型（HTML / MULTI_FILE / VUE_PROJECT）
+    Returns:
+        ai_response_message: 给前端展示的纯文本 ai_response_message（同时也保存到数据库对话历史表）
+    """
+    # 1. chat 类型直接返回（markdown 回答本身就是给用户看的）
+    if task_type == "chat":
+        return str(response) if response else ""
+
+    # TODO 其他 task 类型的处理，分 modify / new_build 分支
+    if task_type == "modify":
+        return ""
+    else:
+        logger.warning(f"[_extract_ai_response_message] 未知类型: {type(response)}")
+        return ""
+
+
+def _chat_answer(state: WorkflowState) -> dict:
+    """
+    chat 类型专门分支：直接回答用户问题（markdown 文本），不解析代码
+
+    和 new_build/modify 的区别：
+    - 不走 ChatCodeResult 结构化解析
+    - generate_output = ai_response_message = markdown 回答
+    - 直接路由到 chat_history_save → END
+    """
+    messages = _build_chat_messages(state)
+    # chat 类型不需要 system prompt 里的代码生成约束，直接回答
+    llm_client = create_spec_llm_in_graph(system_prompt="")
+
+    try:
+        response = llm_client.chat(messages)
+        generate_output = response  # str
+        ai_response_message = response  # chat 类型两者相等
+
+        user_prompt = state.get("original_prompt", "")
+        return {
+            "current_node": "code_generator",
+            "generate_output": generate_output,
+            "ai_response_message": ai_response_message,
+            "messages": [
+                HumanMessage(content=user_prompt),
+                AIMessage(content=response),
+            ],
+        }
+    except Exception as e:
+        logger.error(f"[code_generator] chat 回复失败: {e}")
+        error_msg = f"抱歉，回答你的问题时出错了：{e}"
+        return {
+            "current_node": "code_generator",
+            "error_info": str(e),
+            "generate_output": error_msg,
+            "ai_response_message": error_msg,
+        }
 
 
 def _generate_vue_project(state: WorkflowState) -> dict:
@@ -136,58 +197,96 @@ def _generate_vue_project(state: WorkflowState) -> dict:
     messages = _build_chat_messages(state)
 
     try:
-        # 工具执行需要 context（比如 app_id），这里从 state 中取
         tool_context = {
             "app_id": state.get("app_id"),
         }
         response = llm_client.chat(messages, tool_context=tool_context)
         result = CodeFileType.get_cls_type(CodeFileType.VUE_PROJECT.value).parse_response_from_llm(response)
         logger.info(f"[code_generator] VUE_PROJECT 生成完成...")
-        ai_response_message = _extract_ai_response_message(result, state.get("task_type", "new_build"), CodeFileType.VUE_PROJECT.value)
+        ai_response_message = _extract_ai_response_message(response, state.get("task_type", "new_build"), CodeFileType.VUE_PROJECT.value)
+
+        # 本轮交互写入 state.messages，供 reviewer 等节点查看
+        user_prompt = _build_user_prompt(state)
         return {
             "current_node": "code_generator",
             "generate_output": result,
             "ai_response_message": ai_response_message,
+            "messages": [
+                HumanMessage(content=user_prompt),
+                AIMessage(content=response),
+            ],
         }
     except Exception as e:
         logger.error(f"[code_generator] VUE_PROJECT 生成失败: {e}")
+        error_msg = f"Vue 项目生成失败：{e}"
         return {
             "current_node": "code_generator",
-            "error_info": f"Vue 项目生成失败: {e}",
-            "generate_output": f"Vue 项目生成失败：{e}",
+            "error_info": error_msg,
+            "generate_output": error_msg,
+            "ai_response_message": error_msg,
         }
 
 
 def code_generator_node(state: WorkflowState) -> dict:
     """
-    代码生成节点主函数，历史消息都已经准备好，直接调用 AI 返回结果即可
-    TODO 这里需要写 ai_response_message，展示给前端
+    代码生成节点主函数
+
+    三种场景分支（**task_type 优先于 code_gen_type 判断**）：
+    ┌─────────────┬──────────────────┬──────────────────────────────────┐
+    │ task_type   │ code_gen_type    │ 走哪个内部函数                    │
+    ├─────────────┼──────────────────┼──────────────────────────────────┤
+    │ chat        │ 任意（忽略）     │ _chat_answer（直接 markdown 回答）│
+    │ new_build / │ VUE_PROJECT      │ _generate_vue_project（Agent）   │
+    │ modify      │ HTML / MULTI_FILE│ 主流程（结构化解析）              │
+    └─────────────┴──────────────────┴──────────────────────────────────┘
+
+    输出字段：
+    - generate_output: BaseCodeResult（结构化）或 str（失败/chat）
+    - ai_response_message: str（前端展示 + 对话历史持久化）
+    - messages: [HumanMessage, AIMessage]（本轮交互，写入 state.messages）
     """
+    task_type = state.get("task_type", "new_build")
     code_gen_type = state.get("code_gen_type", CodeFileType.HTML.value)
 
+    # ① chat 类型：直接回答，不走代码生成
+    if task_type == "chat":
+        return _chat_answer(state)
+
+    # ② VUE_PROJECT：Agent 模式
     if code_gen_type == CodeFileType.VUE_PROJECT.value:
         return _generate_vue_project(state)
-    else:
-        try:
-            messages = _build_chat_messages(state)
-            llm_client = create_spec_llm_in_graph(system_prompt="", timeout=600)     # system_prompt 已经保存在对话历史中了
-            response = llm_client.chat(messages)
-            # 解析 LLM 回复为 pydantic 结构化数据
-            result = CodeFileType.get_cls_type(code_gen_type).parse_response_from_llm(response)
-            logger.info(f"[code_generator] 生成完成...")
-            ai_response_message = _extract_ai_response_message(result, state.get("task_type", "new_build"), code_gen_type)
-            return {
-                "current_node": "code_generator",
-                "generate_output": result,
-                "ai_response_message": ai_response_message,
-            }
-        except Exception as e:
-            logger.error(f"[code_generator] 生成失败: {e}")
-            return {
-                "current_node": "code_generator",
-                "error_info": f"代码生成失败: {e}",
-                "generate_output": f"代码生成失败：{e}",
-            }
+
+    # ③ HTML / MULTI_FILE：结构化解析
+    try:
+        messages = _build_chat_messages(state)
+        llm_client = create_spec_llm_in_graph(system_prompt="", timeout=600)
+        response = llm_client.chat(messages)
+
+        result = CodeFileType.get_cls_type(code_gen_type).parse_response_from_llm(response)
+        logger.info(f"[code_generator] 生成完成...")
+
+        ai_response_message = _extract_ai_response_message(response, task_type, code_gen_type)
+
+        # 本轮交互写入 state.messages
+        user_prompt = _build_user_prompt(state)
+        return {
+            "current_node": "code_generator",
+            "generate_output": result,
+            "ai_response_message": ai_response_message,
+            "messages": [
+                HumanMessage(content=user_prompt),
+                AIMessage(content=response),
+            ],
+        }
+    except Exception as e:
+        logger.error(f"[code_generator] 生成失败: {e}")
+        error_msg = f"代码生成失败：{e}"
+        return {
+            "current_node": "code_generator",
+            "error_info": error_msg,
+            "generate_output": error_msg,
+            "ai_response_message": error_msg,
+        }
 
 
 # ==================== 条件边函数 ====================
