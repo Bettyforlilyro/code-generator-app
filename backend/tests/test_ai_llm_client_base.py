@@ -72,10 +72,12 @@ class LogStreamPostAdvisor(StreamPostAdvisor):
 
     def post_handle_stream(self, chunk: StreamChunk, context: AdvisorContext) -> StreamChunk:
         if not chunk.is_last:
-            print(f"[StreamPostAdvisor] 收到chunk: '{chunk.content[:30]}...'" if len(chunk.content) > 30 else f"[StreamPostAdvisor] 收到chunk: '{chunk.content}'")
+            print(f"[StreamPostAdvisor] 收到chunk: '{chunk.content[:30]}...'" if len(
+                chunk.content) > 30 else f"[StreamPostAdvisor] 收到chunk: '{chunk.content}'")
         else:
             print("[StreamPostAdvisor] 流式响应结束")
         return chunk
+
 
 # ============================================================
 # 测试用例
@@ -109,14 +111,16 @@ def test_custom_build():
     print("=" * 60)
     from backend.app.services.ai_common.prompts import CODE_GENERATE_HTML_SYSTEM_PROMPT
     client = (ChatClientBuilder()
-        .set_temperature(0.3)
-        .set_max_tokens(50000)
-        .set_response_format(HtmlCodeResult.get_response_format())
-        .set_system_prompt(CODE_GENERATE_HTML_SYSTEM_PROMPT)
-        .build())
+              .set_temperature(0.3)
+              .set_max_tokens(50000)
+              .set_response_format(HtmlCodeResult.get_response_format())
+              .set_system_prompt(CODE_GENERATE_HTML_SYSTEM_PROMPT)
+              .set_timeout(600)
+              .build())
 
-    messages = [
-        {"role": "user", "content": "写一个简易的个人博客网页，代码100行以内即可，尽量简单一点"}
+    messages = [{
+        'role': 'user',
+        'content': "\n【网站需求描述】\n请帮我构建一个简洁、现代的个人作品集网站。该网站应专注于展示个人项目、技能和服务，设计风格需保持干净、专业且易于导航。请确保页面结构清晰，包含首页、关于我、作品展示和联系方式等核心板块，并具备良好的响应式布局以适应不同设备。\n\n【可用素材资源，请根据描述将素材放入合适的位置】\n  [内容图片] A clean, modern office desk setup featuring a keyboard, mouse, and laptop.。图片直链URL: https://images.pexels.com/photos/27559487/pexels-photo-27559487.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [内容图片] Clean and organized desk setup featuring a laptop, smartphone, and plants for a modern workspace vibe.。图片直链URL: https://images.pexels.com/photos/4006143/pexels-photo-4006143.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [内容图片] Two software developers work collaboratively on a coding project in a modern office setting.。图片直链URL: https://images.pexels.com/photos/12899167/pexels-photo-12899167.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [内容图片] Blurred figure at a desk with a laptop displaying colorful code, indicating a programming environment.。图片直链URL: https://images.pexels.com/photos/12899149/pexels-photo-12899149.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [内容图片] A seamless abstract 3D render with a modern geometric pattern and techno art style.。图片直链URL: https://images.pexels.com/photos/12939552/pexels-photo-12939552.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [内容图片] Abstract digital art featuring futuristic geometric patterns with vibrant neon lighting.。图片直链URL: https://images.pexels.com/photos/18419508/pexels-photo-18419508.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940\n  [插画图片] My Resume。图片直链URL: https://cdn.undraw.co/illustration/my-resume_etai.svg\n  [插画图片] Contact Us。图片直链URL: https://cdn.undraw.co/illustration/contact-us_s4jn.svg\n  [Logo 图片] Logo设计描述：名称为'Portfolio'，行业为个人创意/开发，风格为极简现代，使用简洁的无衬线字体或抽象的几何图形，颜色为深灰色或黑色，背景透明，体现专业与干练。。图片直链URL: http://easyimages:90/app/thumb.php?img=/i/2026/09/22/zjsch2-0.png\n\n"}
     ]
 
     response = client.chat_structured(messages, HtmlCodeResult)
@@ -204,10 +208,10 @@ def test_interceptor_chain():
     print("=" * 60)
 
     client = (ChatClientBuilder()
-        .add_pre_advisor(LogPreAdvisor())
-        .add_post_advisor(LogPostAdvisor())
-        .add_stream_post_advisor(LogStreamPostAdvisor())
-        .build())
+              .add_pre_advisor(LogPreAdvisor())
+              .add_post_advisor(LogPostAdvisor())
+              .add_stream_post_advisor(LogStreamPostAdvisor())
+              .build())
 
     messages = [
         {"role": "user", "content": "说一句名言。"}
@@ -319,28 +323,31 @@ def test_system_prompt_update():
     print("✅ 测试8通过\n")
     return True
 
+
 # ============================================================
 # 主测试入口
 # ============================================================
 
 
 def test_ai_code_generator_facade():
-    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过20行", CodeFileType.HTML, app_id=1)
+    res_file_path1 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个登录页面，代码不超过20行",
+                                                                       CodeFileType.HTML, app_id=1)
     assert res_file_path1 is not None, "生成的文件路径应为非空字符串"
-    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过30行", CodeFileType.MULTI_FILE, app_id=1)
+    res_file_path2 = AICodeGeneratorFacade.generate_code_and_save_file("生成一个注册页面，代码不超过30行",
+                                                                       CodeFileType.MULTI_FILE, app_id=1)
     assert res_file_path2 is not None, "生成的文件路径应为非空字符串"
 
 
 def test_ai_code_routing():
     """测试代码生成类型路由"""
-    init_prompt = "生成一个登录页面，代码不超过20行"   # 应该是简单需求，路由到 HTML 类型
+    init_prompt = "生成一个登录页面，代码不超过20行"  # 应该是简单需求，路由到 HTML 类型
     code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
     assert code_type == CodeFileType.HTML, "路由到 HTML 类型"
     init_prompt = """
     设计一个专业的企业官网，包含公司介绍、产品服务展示、新闻资讯、联系我们等页面。采用商务风格的设计，包含轮播图、产品展示卡片、团队介绍、客户案例展示，支持多语言切换和在线客服功能。总代码控制在300行以内
     """
     code_type = AiCodeTypeRouting.route_code_gen_type(init_prompt)
-    assert code_type == CodeFileType.MULTI_FILE, "路由到 MULTI_FILE 类型"    # 不一定能 pass ，AI返回的结果不稳定
+    assert code_type == CodeFileType.MULTI_FILE, "路由到 MULTI_FILE 类型"  # 不一定能 pass ，AI返回的结果不稳定
     init_prompt = """
     创建一个基于Vue3的单页应用，包含登录、注册、个人中心、文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。总代码控制在300行以内
     """
@@ -401,7 +408,7 @@ def main():
     passed = sum(1 for _, s in results if s == "PASS")
     total = len(results)
     print(f"\n  通过: {passed}/{total}")
-    print(f"  通过率: {passed/total*100:.1f}%")
+    print(f"  通过率: {passed / total * 100:.1f}%")
 
     return passed == total
 

@@ -73,7 +73,9 @@ class AICodeGeneratorFacade:
         # 1. 调用AI模型生成代码
         builder = (ChatClientBuilder()
                    .set_response_format(pydantic_model.get_response_format())
-                   .set_system_prompt(system_prompt))
+                   .set_system_prompt(system_prompt)
+                   .set_timeout(600)
+                   )
         llm_client = get_or_create(builder)
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
