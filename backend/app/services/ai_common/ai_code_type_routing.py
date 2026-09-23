@@ -20,5 +20,5 @@ class AiCodeTypeRouting:
                    .set_system_prompt(CODE_GENERATE_ROUTING_SYSTEM_PROMPT))
         llm_client = get_or_create(builder)
         messages = [{"role": "user", "content": init_prompt}]
-        response = llm_client.chat_structured(messages, CodeFileType)
+        response = llm_client.chat_structured(messages, CodeFileType)   # CodeFileType 必须覆盖实现 model_validate_json
         return response.value if response else CodeFileType.HTML
