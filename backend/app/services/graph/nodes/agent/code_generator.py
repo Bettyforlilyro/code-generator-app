@@ -8,6 +8,7 @@
 3. code_gen_type == VUE_PROJECT     → 带文件工具的 Agent，多轮迭代生成工程
 """
 import logging
+import re
 from typing import List
 
 from langchain_core.messages import HumanMessage, AIMessage
@@ -124,23 +125,58 @@ def _extract_ai_response_message(
 ) -> str:
     """
     从 llm_client.chat() 的完整响应中，提取给前端展示的纯文本 ai_response_message
+
+    核心策略：从完整文本里**剥离机器可读部分**，保留 LLM 给用户写的自然语言说明。
+    这样能最大程度保留 LLM 自己组织的说明文字，而不是我们自己拼摘要。
+
+    要剥离的内容：
+    - ```html / ```css / ```javascript 等 markdown 代码块（机器要解析的）
+    - Vue 工具调用结果：✅ 已生成/修改/删除文件: `path`
+    - 元数据行：app_name: XXX
+    - 纯文件列表项：- `src/main.js` （没有描述的文件列表）
+
     Args:
-        response: llm_client.chat() 的完整响应
+        response: llm_client.chat() 的完整原始响应（str）
         task_type: 任务类型（chat / new_build / modify）
         code_gen_type: 代码生成类型（HTML / MULTI_FILE / VUE_PROJECT）
-    Returns:
-        ai_response_message: 给前端展示的纯文本 ai_response_message（同时也保存到数据库对话历史表）
-    """
-    # 1. chat 类型直接返回（markdown 回答本身就是给用户看的）
-    if task_type == "chat":
-        return str(response) if response else ""
 
-    # TODO 其他 task 类型的处理，分 modify / new_build 分支
-    if task_type == "modify":
-        return ""
-    else:
-        logger.warning(f"[_extract_ai_response_message] 未知类型: {type(response)}")
-        return ""
+    Returns:
+        ai_response_message: 提取出的自然语言说明文本
+    """
+    # ---- chat 类型：不剥离，markdown 回答本身就是给用户看的 ----
+    if task_type == "chat":
+        return str(response).strip() if response else ""
+
+    # ---- new_build / modify TODO 暂时仅使用简单去空格 ----
+    text = response or ""
+    # 剥离 app_name 行
+    text = re.sub(r'^app_name:[^\n]*\n?', '', text, flags=re.MULTILINE)
+    # 清理多余空行（3+ 连续空行压缩成 2 行）
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = text.strip()
+
+    # ---- 如果什么都没剩，兜底返回构建摘要 ----
+    if not text:
+        logger.info(
+            f"[_extract_ai_response_message] 剥离后无自然语言说明，兜底返回摘要 "
+            f"(task_type={task_type}, code_gen_type={code_gen_type})"
+        )
+        # 尝试从原始 response 里提取 app_name
+        app_name_match = re.search(r'app_name:\s*([^\n]+)', response or '')
+        app_name = app_name_match.group(1).strip() if app_name_match else "未命名应用"
+
+        if code_gen_type == CodeFileType.VUE_PROJECT.value:
+            return f"已为你{'修改' if task_type == 'modify' else '生成'}「{app_name}」Vue 3 工程项目"
+        elif code_gen_type == CodeFileType.HTML.value:
+            return f"已为你{'修改' if task_type == 'modify' else '生成'}「{app_name}」单 HTML 文件"
+        else:
+            return f"已为你{'修改' if task_type == 'modify' else '生成'}「{app_name}」HTML/CSS/JS 三件套"
+
+    logger.info(
+        f"[_extract_ai_response_message] 提取成功，长度 {len(text)} 字符 "
+        f"(task_type={task_type}, code_gen_type={code_gen_type})"
+    )
+    return text
 
 
 def _chat_answer(state: WorkflowState) -> dict:
