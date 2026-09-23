@@ -24,7 +24,7 @@ class ChatClientBuilder:
         self._top_p = 1.0
         self._frequency_penalty = 0.0
         self._presence_penalty = 0.0
-        self._system_prompt = "You are a helpful assistant."
+        self._system_prompt = ""
         self._timeout = 60
         self._max_retries = 3
         self._advisor_chain = AdvisorChain()
