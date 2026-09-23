@@ -21,6 +21,8 @@ class WorkflowState(TypedDict, total=False):
     
     # ========== 输入上下文 ==========
     # 会话历史和上下文记忆（带 reducer：自动追加）
+    # TODO 这个当前没怎么使用，是否可以考虑用这个管理对话历史？而非用内存+数据库？但是要注意历史记录的长度，避免无限增长 token 溢出
+    # 如果用不到，可以考虑删除？当前已经通过数据库+缓存实现对话历史管理了，哪个方案更合适？
     messages: Annotated[list[AnyMessage], add_messages]
     # 用户原始输入
     original_prompt: str
@@ -42,7 +44,7 @@ class WorkflowState(TypedDict, total=False):
     code_gen_type: CodeFileType
     # 代码生成结果的结构化数据，或者修改回复/问题回复（文本），内部处理
     generate_output: str | BaseCodeResult
-    # TODO 代码生成 Agent 的回复消息，纯文本（用于保存对话历史），注意在 vue 项目中，需要实时显示调用了哪些工具
+    # TODO 代码生成 Agent 的回复消息，纯文本（用于保存对话历史以及展示给前端），注意在 vue 项目中，需要实时显示调用了哪些工具
     # 用于展示给前端，当 task_type 是 chat 时，generate_output 和 ai_response_message 是一样的
     ai_response_message: str | None
 

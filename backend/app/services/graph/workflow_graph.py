@@ -208,8 +208,8 @@ if __name__ == "__main__":
     
     # 简单测试
     result = run_workflow(
-        original_prompt="帮我做一个简洁的个人作品集网站",
-        app_id=999,
+        original_prompt="帮我做一个简洁的用户管理应用，数据采用一些固定的假数据即可，总代码不超过300行",
+        app_id=998,
         user_id=1001,
     )
     print("final state keys:", list(result.keys()))

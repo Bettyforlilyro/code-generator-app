@@ -69,42 +69,6 @@ def _should_save(state: WorkflowState) -> bool:
     return False
 
 
-def _build_ai_message(state: WorkflowState) -> str:
-    """
-    组装 AI 端应该保存的消息内容
-    # TODO 待完善，后续流式响应改造之后再修改，当前仅将格式不对的 AI 回复保存到内存缓存
-    # TODO 后续需要将 AI 回复内容格式规范化，尤其是中途如果存在工具调用
-
-    - chat 类型：直接用 generate_output（就是 markdown 回答）
-    - new_build/modify：在 generate_output 基础上补充保存路径/构建结果
-    """
-    generate_output = state.get("generate_output", "")
-    task_type = state.get("task_type", "new_build")
-
-    if task_type == "chat":
-        return generate_output
-
-    # new_build / modify：补充构建结果
-    code_save_path = state.get("code_save_path", "")
-    code_gen_type = state.get("code_gen_type", "")
-    error_info = state.get("error_info", "")
-
-    if error_info:
-        # save_or_build 失败了，记录失败信息
-        return f"{generate_output}\n\n⚠️ 保存/构建失败：{error_info}"
-
-    suffix_parts = []
-    if code_gen_type:
-        suffix_parts.append(f"代码类型：{code_gen_type}")
-    if code_save_path:
-        suffix_parts.append(f"保存路径：{code_save_path}")
-
-    if suffix_parts:
-        return f"{generate_output}\n\n" + "\n".join(suffix_parts)
-
-    return generate_output
-
-
 def chat_history_save(state: WorkflowState) -> dict:
     """
     对话历史保存节点主函数
@@ -118,6 +82,7 @@ def chat_history_save(state: WorkflowState) -> dict:
     app_id = state.get("app_id")
     user_id = state.get("user_id")
     original_prompt = state.get("original_prompt", "")
+    ai_response_message = state.get("ai_response_message", "")
 
     # 1. 是否需要保存？
     if not _should_save(state):
@@ -133,8 +98,7 @@ def chat_history_save(state: WorkflowState) -> dict:
             "error_info": "缺少 app_id 或 user_id",
         }
 
-    ai_message = _build_ai_message(state)
-    if not original_prompt and not ai_message:
+    if not original_prompt and not ai_response_message:
         logger.warning("[chat_history_save] user 和 ai 消息都为空，跳过保存")
         return {"current_node": "chat_history_save"}
 
@@ -170,7 +134,7 @@ def chat_history_save(state: WorkflowState) -> dict:
 
     # --- ai 消息 ---
     ai_db_id = None
-    if ai_message:
+    if ai_response_message:
         # TODO 开发测试阶段，跳过数据库读写
         # try:
         #     ai_record = create_chat_history(
@@ -189,7 +153,7 @@ def chat_history_save(state: WorkflowState) -> dict:
             memory_manager.add_message(
                 app_id=app_id,
                 role="assistant",
-                content=ai_message,
+                content=ai_response_message,
                 db_id=ai_db_id,
             )
         except Exception as e:
