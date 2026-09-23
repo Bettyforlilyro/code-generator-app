@@ -115,6 +115,12 @@ def _build_chat_messages(state: WorkflowState) -> list:
     return extra_messages
 
 
+def _extract_ai_response_message(generate_output, task_type, code_gen_type) -> str:
+    """TODO 从 code_generator 的输出中提取给前端展示的纯文本 ai_response_message """
+    ai_response_message = ""
+    return ai_response_message
+
+
 def _generate_vue_project(state: WorkflowState) -> dict:
     """
     VUE_PROJECT 任务：Agent 模式 + 文件工具
@@ -137,9 +143,11 @@ def _generate_vue_project(state: WorkflowState) -> dict:
         response = llm_client.chat(messages, tool_context=tool_context)
         result = CodeFileType.get_cls_type(CodeFileType.VUE_PROJECT.value).parse_response_from_llm(response)
         logger.info(f"[code_generator] VUE_PROJECT 生成完成...")
+        ai_response_message = _extract_ai_response_message(result, state.get("task_type", "new_build"), CodeFileType.VUE_PROJECT.value)
         return {
             "current_node": "code_generator",
             "generate_output": result,
+            "ai_response_message": ai_response_message,
         }
     except Exception as e:
         logger.error(f"[code_generator] VUE_PROJECT 生成失败: {e}")
@@ -167,9 +175,11 @@ def code_generator_node(state: WorkflowState) -> dict:
             # 解析 LLM 回复为 pydantic 结构化数据
             result = CodeFileType.get_cls_type(code_gen_type).parse_response_from_llm(response)
             logger.info(f"[code_generator] 生成完成...")
+            ai_response_message = _extract_ai_response_message(result, state.get("task_type", "new_build"), code_gen_type)
             return {
                 "current_node": "code_generator",
                 "generate_output": result,
+                "ai_response_message": ai_response_message,
             }
         except Exception as e:
             logger.error(f"[code_generator] 生成失败: {e}")
