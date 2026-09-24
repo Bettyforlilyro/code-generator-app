@@ -48,11 +48,11 @@ def code_reviewer_node(state: WorkflowState) -> dict:
     elif isinstance(generate_output, HtmlCodeResult):
         code_content = generate_output.html_code
         tech = "单HTML"
-        review_user_prompt = f"目前采用的技术栈：{tech}\n请检查以下 HTML 代码：\n\n{code_content}"
+        review_user_prompt = f"目前采用的技术栈：{tech}\n请检查以下 HTML 代码：```html\n{code_content}\n```"
     elif isinstance(generate_output, MultiFileCodeResult):
-        code_content = (f"HTML代码：\n{generate_output.html_code}\n\n"
-                        f"CSS代码：\n{generate_output.css_code}\n\n"
-                        f"JavaScript代码：\n{generate_output.js_code}")
+        code_content = (f"HTML代码：```html\n{generate_output.html_code}\n\n"
+                        f"CSS代码：```css\n{generate_output.css_code}\n\n"
+                        f"JavaScript代码：```js\n{generate_output.js_code}\n```")
         tech = "前端三件套（HTML/CSS/JavaScript）"
         review_user_prompt = f"目前采用的技术栈：{tech}\n请检查以下 HTML/CSS/JavaScript 代码：\n\n{code_content}"
     else:   # str 类型兜底，直接检查生成结果
