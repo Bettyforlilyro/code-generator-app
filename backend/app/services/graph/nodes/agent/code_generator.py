@@ -127,13 +127,10 @@ def _extract_ai_response_message(
     从 llm_client.chat() 的完整响应中，提取给前端展示的纯文本 ai_response_message
 
     核心策略：从完整文本里**剥离机器可读部分**，保留 LLM 给用户写的自然语言说明。
-    这样能最大程度保留 LLM 自己组织的说明文字，而不是我们自己拼摘要。
+    这样能最大程度保留 LLM 自己组织的说明文字。
 
     要剥离的内容：
-    - ```html / ```css / ```javascript 等 markdown 代码块（机器要解析的）
-    - Vue 工具调用结果：✅ 已生成/修改/删除文件: `path`
     - 元数据行：app_name: XXX
-    - 纯文件列表项：- `src/main.js` （没有描述的文件列表）
 
     Args:
         response: llm_client.chat() 的完整原始响应（str）
@@ -226,8 +223,9 @@ def _generate_vue_project(state: WorkflowState) -> dict:
     """
     # Vue 项目需要绑定文件操作工具
     llm_client = create_spec_llm_in_graph(
-        system_prompt=CODE_GENERATE_VUE_PROJECT_SYSTEM_PROMPT,
+        system_prompt="",   # system_prompt 在前面的结点已经保存到 messages 中了
         tools=tools_factory_with_context(),
+        timeout=1200,
     )
 
     messages = _build_chat_messages(state)
