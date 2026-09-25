@@ -12,3 +12,5 @@ langgraph>=1.2
 openai>=3.0
 flasgger>=0.9
 psycopg2-binary>=2.9
+dashscope>=1.2
+playwright>=1.63.0
