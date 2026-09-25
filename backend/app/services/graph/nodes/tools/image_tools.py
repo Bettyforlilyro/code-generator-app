@@ -15,7 +15,6 @@ import shutil
 import subprocess
 import tempfile
 from http import HTTPStatus
-from typing import List
 from urllib.parse import quote
 
 import dashscope
@@ -275,7 +274,7 @@ def search_content_images(
             continue
         result.append(
             ImageResource(
-                category=ImageTypeEnum.CONTENT.value,
+                category=ImageTypeEnum.CONTENT,
                 description=photo.get("alt") or query,
                 image_url=image_url,
             )
@@ -318,7 +317,7 @@ def search_illustration_images(
             continue
         result.append(
             ImageResource(
-                category=ImageTypeEnum.ILLUSTRATION.value,
+                category=ImageTypeEnum.ILLUSTRATION,
                 description=item.get("title") or query,
                 image_url=media_url,
             )
@@ -359,7 +358,7 @@ def generate_architecture_image(
 
     return [
         ImageResource(
-            category=ImageTypeEnum.ARCHITECTURE.value,
+            category=ImageTypeEnum.ARCHITECTURE,
             description=description,
             image_url=image_url,
         )
@@ -425,17 +424,21 @@ def generate_logo_image(description: str) -> list[ImageResource]:
             image_content = requests.get(image_url, stream=True).content
             open(image_file, "wb").write(image_content)
             if image_file:
-                # 上传到图床服务
-                new_image_url = upload_image_to_bed(image_file)
-                # 删除本地临时文件
-                os.remove(image_file)
-                result.append(
-                    ImageResource(
-                        category=ImageTypeEnum.LOGO.value,
-                        description=description,
-                        image_url=new_image_url,
+                try:
+                    # 上传到图床服务
+                    new_image_url = upload_image_to_bed(image_file)
+                    result.append(
+                        ImageResource(
+                            category=ImageTypeEnum.LOGO,
+                            description=description,
+                            image_url=new_image_url,
+                        )
                     )
-                )
+                except Exception as e:
+                    logger.error(f"[image_tools] 上传 Logo 失败，AI 生成的图片 URL（24h过期）: {image_url}, 错误信息: {e}，请检查图床是否正常！")
+                finally:
+                    # 删除本地临时文件
+                    os.remove(image_file)
         return result
     except Exception as e:
         logger.error(f"[image_tools] 生成 Logo 失败: {e}, prompt={logo_prompt}")
