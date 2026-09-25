@@ -48,7 +48,7 @@ def code_reviewer_node(state: WorkflowState) -> dict:
     elif isinstance(generate_output, HtmlCodeResult):
         code_content = generate_output.html_code
         tech = "单HTML"
-        review_user_prompt = f"目前采用的技术栈：{tech}\n请检查以下 HTML 代码：```html\n{code_content}\n```"
+        review_user_prompt = f"目前采用的技术栈：{tech}\n请检查以下 HTML 代码：\n\n```html\n{code_content}\n```"
     elif isinstance(generate_output, MultiFileCodeResult):
         code_content = (f"HTML代码：```html\n{generate_output.html_code}\n\n"
                         f"CSS代码：```css\n{generate_output.css_code}\n\n"
