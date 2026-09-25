@@ -44,7 +44,7 @@ def code_reviewer_node(state: WorkflowState) -> dict:
     if isinstance(generate_output, VueProjectFileCodeResult):
         file_list = generate_output.vue_project_code_file_paths
         tech = "Vue 3框架开发"
-        review_user_prompt = f"目前采用的技术栈：{tech}\n项目的所有代码保存在以下文件中：\n\n{file_list}，请检查这些代码是否符合要求。"
+        review_user_prompt = f"目前采用的技术栈：{tech}\n整个项目目前的所有代码文件如下：\n{file_list}\n\n请检查这些代码是否符合要求。"
     elif isinstance(generate_output, HtmlCodeResult):
         code_content = generate_output.html_code
         tech = "单HTML"

@@ -223,7 +223,7 @@ class ChatClientBuilder:
         chat_llm = ChatOpenAI(**llm_params)
 
         if self._available_tools:
-            chat_llm = chat_llm.bind_tools(self._available_tools)
+            chat_llm = chat_llm.bind_tools(self._available_tools, strict=True)
 
         return ChatClient(
             chat_llm=chat_llm,

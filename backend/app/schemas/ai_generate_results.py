@@ -123,6 +123,10 @@ class VueProjectFileCodeResult(BaseCodeResult):
         return {file_path: "" for file_path in self.vue_project_code_file_paths}
 
     def is_code_modified(self) -> bool:
+        """
+        判断代码是否修改
+        修改的三种情况：新增文件、修改文件、删除文件都算修改
+        """
         return self.vue_project_code_file_paths is not None and len(self.vue_project_code_file_paths) > 0
 
     def is_name_modified(self) -> bool:
@@ -130,7 +134,11 @@ class VueProjectFileCodeResult(BaseCodeResult):
 
     @classmethod
     def parse_response_from_llm(cls, response: str) -> "VueProjectFileCodeResult":
-        """从LLM响应中解析代码生成结果"""
+        """从LLM响应中解析代码生成结果 TODO 这里解析保留项目的完整文件列表
+        新增的文件：加入list
+        修改的文件：不处理
+        删除的文件：从list中移除
+        """
         result = cls()
         # 应用名称:<app_name>
         # ✅ 已生成代码并存入文件: `src/main.js`

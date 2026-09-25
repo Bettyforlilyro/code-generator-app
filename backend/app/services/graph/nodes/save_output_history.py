@@ -31,8 +31,25 @@
 """
 import logging
 
+from langchain_core.messages import AIMessage
+
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.graph.state.workflow_state import WorkflowState
+
+
+def _extract_ai_message(state: WorkflowState) -> str:
+    """
+    从 state.messages 中提取最后一条 AIMessage 的 content
+    
+    code_generator 节点在 return 时会写入 [HumanMessage, AIMessage]，
+    add_messages reducer 会自动追加到 state.messages 里。
+    我们取最后一条 AIMessage 就是本轮 AI 完整回复。
+    """
+    messages = state.get("messages", [])
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and msg.content:
+            return str(msg.content)
+    return ""
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +99,7 @@ def chat_history_save(state: WorkflowState) -> dict:
     app_id = state.get("app_id")
     user_id = state.get("user_id")
     original_prompt = state.get("original_prompt", "")
-    ai_response_message = state.get("ai_response_message", "")
+    ai_message = _extract_ai_message(state)
 
     # 1. 是否需要保存？
     if not _should_save(state):
@@ -98,7 +115,7 @@ def chat_history_save(state: WorkflowState) -> dict:
             "error_info": "缺少 app_id 或 user_id",
         }
 
-    if not original_prompt and not ai_response_message:
+    if not original_prompt and not ai_message:
         logger.warning("[chat_history_save] user 和 ai 消息都为空，跳过保存")
         return {"current_node": "chat_history_save"}
 
@@ -134,7 +151,7 @@ def chat_history_save(state: WorkflowState) -> dict:
 
     # --- ai 消息 ---
     ai_db_id = None
-    if ai_response_message:
+    if ai_message:
         # TODO 开发测试阶段，跳过数据库读写
         # try:
         #     ai_record = create_chat_history(
@@ -153,7 +170,7 @@ def chat_history_save(state: WorkflowState) -> dict:
             memory_manager.add_message(
                 app_id=app_id,
                 role="assistant",
-                content=ai_response_message,
+                content=ai_message,
                 db_id=ai_db_id,
             )
         except Exception as e:

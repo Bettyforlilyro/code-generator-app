@@ -76,6 +76,9 @@ QA_CHECK_SYSTEM_PROMPT = """
    - HTML/MULTI_FILE：禁止使用外部 CSS/JS 框架
    - VUE_PROJECT：vite.config.js 必须配置 base: './' 和 @ 别名；路由必须使用 hash 模式
 
+## 特别注意
+你是专门负责审查代码质量的，不需要你修复这些问题，只需要判断代码是否符合要求以及给出反馈即可。
+
 ## 输出要求（严格 JSON）
 ```json
 { "qa_pass": true/false, "qa_feedback": "不通过时写详细问题和修复建议；通过时写 '代码审查通过'" }

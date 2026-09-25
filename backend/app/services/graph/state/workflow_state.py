@@ -7,6 +7,7 @@ from typing_extensions import TypedDict
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.schemas.ai_generate_results import BaseCodeResult
+from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.graph.model.image_resource import ImageResource, merge_image_list
 
 
@@ -44,9 +45,12 @@ class WorkflowState(TypedDict, total=False):
     code_gen_type: CodeFileType
     # 代码生成结果的结构化数据，或者修改回复/问题回复（文本），内部处理
     generate_output: str | BaseCodeResult
-    # TODO 代码生成 Agent 的回复消息，纯文本（用于保存对话历史以及展示给前端），注意在 vue 项目中，需要实时显示调用了哪些工具
-    # 用于展示给前端，当 task_type 是 chat 时，generate_output 和 ai_response_message 是一样的
-    ai_response_message: str | None
+
+    # ========== 流式透传通道 ==========
+    # code_generator 节点流式执行时透传的原始 StreamChunk
+    # 外层 run_workflow_streaming() 拿到后统一调 processed_chunk() 转前端格式
+    # （避免节点里手动判断 chunk 类型丢失原始信息）
+    streaming_chunk: Optional[StreamChunk]
 
     # ========== 代码审查阶段 ==========
     # 重试次数（防止审查无限循环）
