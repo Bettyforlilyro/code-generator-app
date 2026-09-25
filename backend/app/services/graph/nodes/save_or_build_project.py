@@ -8,6 +8,8 @@
 """
 import logging
 
+from langchain_core.messages import AIMessage
+
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.ai_generate_results import BaseCodeResult
@@ -40,7 +42,12 @@ def save_or_build_project_node(state: WorkflowState) -> dict:
     try:
         # HTML/MULTI_FILE：直接落盘到服务器目录（generate_output 已经是结构化 BaseCodeResult 类型）
         # VUE_PROJECT 在 save_code_file 中已实现将保存的所有文件启动异步构建流程，因此统一调用即可
-        if isinstance(generate_output, BaseCodeResult) and generate_output.is_code_modified():
+        ai_full_message = ""
+        for message in reversed(state.get("messages", [])):
+            if isinstance(message, AIMessage) and message.content:
+                ai_full_message = message.content
+                break
+        if isinstance(generate_output, BaseCodeResult) and generate_output.is_code_modified(ai_full_message):
             saver = CodeFileSaverFactory.get_saver(code_gen_type)
             save_path = saver.save_code_file(generate_output, app_id)
             logger.info(f"[save_or_build] {code_gen_type} 保存成功: {save_path}")

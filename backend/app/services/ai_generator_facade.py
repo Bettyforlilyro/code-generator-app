@@ -158,7 +158,7 @@ class AICodeGeneratorFacade:
         try:
             if result and isinstance(result, BaseCodeResult):
                 # 由工厂提供处理保存文件更改的方法，VUE 项目 save_code_file 需要额外实现安装和构建逻辑（无需保存文件，这里只是使用统一接口）
-                if result.is_code_modified():
+                if result.is_code_modified(full_response_text):
                     saver = CodeFileSaverFactory.get_saver(code_gen_type)
                     saver.save_code_file(result, app_id)
                     # 通知前端代码已修改，请刷新预览界面

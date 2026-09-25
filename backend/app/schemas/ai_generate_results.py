@@ -18,19 +18,19 @@ class BaseCodeResult(BaseModel, ABC):
         pass
 
     @abstractmethod
-    def is_code_modified(self) -> bool:
-        """判断代码是否修改"""
+    def is_code_modified(self, response: str) -> bool:
+        """判断代码是否修改，请确保在调用前解析了LLM响应"""
         pass
 
     @abstractmethod
     def is_name_modified(self) -> bool:
-        """判断应用名称是否修改"""
+        """判断应用名称是否修改，请确保在调用前解析了LLM响应"""
         pass
 
     @classmethod
     @abstractmethod
     def parse_response_from_llm(cls, response: str) -> "BaseCodeResult":
-        """从LLM响应中解析代码生成结果"""
+        """从LLM响应中解析代码生成结果，请先调用此方法解析响应再调用 is_code_modified 和 is_name_modified 方法"""
         pass
 
 
@@ -54,11 +54,11 @@ class HtmlCodeResult(BaseCodeResult):
     def get_files_dict(self) -> dict[str, str]:
         return {"index.html": self.html_code if self.html_code else ""}
 
-    def is_code_modified(self) -> bool:
-        return self.html_code is not None and self.html_code.strip() != ""
+    def is_code_modified(self, response: str) -> bool:
+        return self.html_code and self.html_code.strip() != ""
 
     def is_name_modified(self) -> bool:
-        return self.app_name is not None and self.app_name.strip() != ""
+        return self.app_name and self.app_name.strip() != ""
 
     @classmethod
     def parse_response_from_llm(cls, response: str) -> "HtmlCodeResult":
@@ -96,8 +96,10 @@ class MultiFileCodeResult(BaseCodeResult):
             "script.js": self.js_code if self.js_code else ""
         }
 
-    def is_code_modified(self) -> bool:
-        return self.html_code is not None or self.css_code is not None or self.js_code is not None
+    def is_code_modified(self, response: str) -> bool:
+        return (self.html_code and self.html_code.strip() != ""
+                or self.css_code and self.css_code.strip() != ""
+                or self.js_code and self.js_code.strip() != "")
 
     def is_name_modified(self) -> bool:
         return self.app_name is not None and self.app_name.strip() != ""
@@ -122,12 +124,31 @@ class VueProjectFileCodeResult(BaseCodeResult):
     def get_files_dict(self) -> dict[str, str]:
         return {file_path: "" for file_path in self.vue_project_code_file_paths}
 
-    def is_code_modified(self) -> bool:
+    def is_code_modified(self, response: str) -> bool:
         """
         判断代码是否修改
         修改的三种情况：新增文件、修改文件、删除文件都算修改
         """
-        return self.vue_project_code_file_paths is not None and len(self.vue_project_code_file_paths) > 0
+        # 应用名称:<app_name>
+        # ✅ 已生成代码并存入文件: `src/main.js`
+        # ✅ 已修改文件: `src/main.js`
+        # ✅ 删除文件: `src/main.js`
+        write_success = re.compile(
+            r'✅ 已生成代码并存入文件: `'  # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
+        )
+        write_files = [match.group(1) for match in write_success.finditer(response)]
+        mod_success = re.compile(
+            r'✅ 已修改文件: `'  # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
+        )
+        mod_files = [match.group(1) for match in mod_success.finditer(response)]
+        delete_success = re.compile(
+            r'✅ 删除文件: `'  # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
+        )
+        delete_files = [match.group(1) for match in delete_success.finditer(response)]
+        return len(write_files) > 0 or len(mod_files) > 0 or len(delete_files) > 0
 
     def is_name_modified(self) -> bool:
         return self.app_name is not None and self.app_name.strip() != ""
@@ -150,17 +171,15 @@ class VueProjectFileCodeResult(BaseCodeResult):
             r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
         )
         write_files = [match.group(1) for match in write_success.finditer(response)]
-        mod_success = re.compile(
-            r'✅ 已修改文件: `'           # 固定锚点
-            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
-        )
-        mod_files = [match.group(1) for match in mod_success.finditer(response)]
         delete_success = re.compile(
             r'✅ 删除文件: `'           # 固定锚点
             r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
         )
         delete_files = [match.group(1) for match in delete_success.finditer(response)]
-        result.vue_project_code_file_paths = write_files + mod_files + delete_files
+        result.vue_project_code_file_paths.extend(write_files)
+        for delete_file in delete_files:
+            if delete_file in result.vue_project_code_file_paths:
+                result.vue_project_code_file_paths.remove(delete_file)
         return result
 
 
