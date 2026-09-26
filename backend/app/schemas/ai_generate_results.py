@@ -161,6 +161,8 @@ class VueProjectFileCodeResult(BaseCodeResult):
         删除的文件：从list中移除
         """
         result = cls()
+        result.vue_project_code_file_paths = []
+        result.app_name = ""
         # 应用名称:<app_name>
         # ✅ 已生成代码并存入文件: `src/main.js`
         # ✅ 已修改文件: `src/main.js`
