@@ -183,10 +183,17 @@ def code_generator_node(state: WorkflowState):
         tool_context = {"app_id": state.get("app_id")}
     else:       # modify 以及 HTML / MULTI_FILE 的 new_build
         llm_client = create_spec_llm_in_graph(system_prompt="", timeout=600)
-
+    from backend.app.services.ai_common.advisor import StreamChunk
     try:
+        ai_message_to_history = ""  # 需要保存到对话历史中去的 AI 回复消息（包含：AI 回复文本 + 工具调用结束信息 + 错误信息，工具开始调用信息不保存）
         for chunk in llm_client.chat_stream(messages, tool_context=tool_context):
             full_response += chunk.content or ""
+            if chunk.chunk_type == StreamChunk.TYPE_TEXT:
+                ai_message_to_history += chunk.content or ""
+            if chunk.chunk_type == StreamChunk.TYPE_ERROR:
+                ai_message_to_history += chunk.content or ""
+            if chunk.chunk_type == StreamChunk.TYPE_TOOL_END:
+                ai_message_to_history += chunk.content or ""
             # ✅ 直接用 processed_chunk 转前端约定格式，writer 立刻推出去
             event_type, data = processed_chunk(chunk)
             writer({"event_type": event_type, "data": data})
@@ -201,16 +208,14 @@ def code_generator_node(state: WorkflowState):
         return {
             "current_node": "code_generator",
             "generate_output": result,
-            "ai_response_message": full_response,
             "messages": [
                 HumanMessage(content=user_prompt),
-                AIMessage(content=full_response),
+                AIMessage(content=ai_message_to_history),
             ],
         }
     except Exception as e:
         logger.error(f"[code_generator] 流式生成失败: {e}")
         # 给前端也发一条 error 事件（让用户知道失败了）
-        from backend.app.services.ai_common.advisor import StreamChunk
         err_event_type, err_data = processed_chunk(StreamChunk(
             content=f"生成失败：{e}",
             chunk_type=StreamChunk.TYPE_ERROR,
