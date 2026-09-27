@@ -108,11 +108,13 @@ class TestGenerateArchitectureImage:
 
     def test_simple_flowchart(self):
         """简单流程图渲染"""
-        mermaid_code = """graph TD
-    A[Start] --> B{Is it working?}
-    B -->|Yes| C[Great!]
-    B -->|No| D[Debug]
-    D --> B"""
+        mermaid_code = """
+        graph TD
+            A[Start] --> B{Is it working?}
+            B -->|Yes| C[Great!]
+            B -->|No| D[Debug]
+            D --> B
+        """
         result = generate_architecture_image.invoke({
             "mermaid_code": mermaid_code,
             "description": "简单的调试决策流程图",
@@ -123,18 +125,20 @@ class TestGenerateArchitectureImage:
 
     def test_complex_graph(self):
         """稍复杂的系统架构图"""
-        mermaid_code = """graph TD;
-	__start__ --> task_evaluate;
-	assets_collector --> type_router;
-	code_generator -.-> chat_history_save;
-	code_generator -.-> code_reviewer;
-	code_reviewer -.-> code_generator;
-	code_reviewer -.-> save_or_build;
-	save_or_build --> chat_history_save;
-	task_evaluate -.-> assets_collector;
-	task_evaluate -.-> code_generator;
-	type_router --> code_generator;
-	chat_history_save --> __end__;"""
+        mermaid_code = """
+        graph TD;
+            __start__ --> task_evaluate;
+            assets_collector --> type_router;
+            code_generator -.-> chat_history_save;
+            code_generator -.-> code_reviewer;
+            code_reviewer -.-> code_generator;
+            code_reviewer -.-> save_or_build;
+            save_or_build --> chat_history_save;
+            task_evaluate -.-> assets_collector;
+            task_evaluate -.-> code_generator;
+            type_router --> code_generator;
+            chat_history_save --> __end__;
+        """
         result = generate_architecture_image.invoke({
             "mermaid_code": mermaid_code,
             "description": "系统整体架构图",
