@@ -173,16 +173,17 @@ def code_generator_node(state: WorkflowState):
     full_response = ""
     tool_context = None
     if task_type == "chat":
-        llm_client = create_spec_llm_in_graph(system_prompt="")
+        llm_client = create_spec_llm_in_graph(system_prompt="", app_id=state.get("app_id", ""))
     elif task_type == "new_build" and code_gen_type == CodeFileType.VUE_PROJECT.value:
         llm_client = create_spec_llm_in_graph(
             system_prompt="",
+            app_id=state.get("app_id", ""),
             tools=tools_factory_with_context(),
             timeout=1200,
         )
         tool_context = {"app_id": state.get("app_id")}
     else:       # modify 以及 HTML / MULTI_FILE 的 new_build
-        llm_client = create_spec_llm_in_graph(system_prompt="", timeout=600)
+        llm_client = create_spec_llm_in_graph(system_prompt="", app_id=state.get("app_id", ""), timeout=600)
     from backend.app.services.ai_common.advisor import StreamChunk
     try:
         ai_message_to_history = ""  # 需要保存到对话历史中去的 AI 回复消息（包含：AI 回复文本 + 工具调用结束信息 + 错误信息，工具开始调用信息不保存）

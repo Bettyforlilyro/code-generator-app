@@ -38,11 +38,11 @@ _building_keys: set[str] = set()
 _lock = threading.Lock()
 
 
-def _make_cache_key(builder: 'ChatClientBuilder') -> str:
+def _make_cache_key(builder: 'ChatClientBuilder', app_id: str) -> str:
     """
-    从 ChatClientBuilder 的配置生成稳定的缓存 key
+    从 ChatClientBuilder 的配置生成稳定的缓存 key，包含 app_id 以避免跨应用共享
 
-    只选取影响 ChatClient 运行时行为的字段，忽略 api_key / base_url / timeout 等
+    只选取影响 ChatClient 运行时行为的字段以及 app_id，忽略 api_key / base_url / timeout 等
     所有请求都相同的字段（它们都来自环境变量，不会因业务场景变化）。
     """
     # tools 部分：按名称排序后拼接，保证顺序不影响 key
@@ -64,25 +64,28 @@ def _make_cache_key(builder: 'ChatClientBuilder') -> str:
         'temperature': builder.get_temperature(),
         'top_p': builder.get_top_p(),
         'max_tokens': builder.get_max_tokens(),
+        'app_id': app_id,
     }
 
     raw = json.dumps(key_parts, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.md5(raw.encode('utf-8')).hexdigest()
 
 
-def get_or_create(builder: 'ChatClientBuilder'):
+def get_or_create(builder: 'ChatClientBuilder', app_id: str):
     """
-    从缓存池获取 ChatClient，未命中则构建并缓存
+    从缓存池获取 ChatClient，未命中则构建并缓存，app_id 也用于缓存 key，避免跨应用共享
+    不同的 app_id 之间不会共享 ChatClient 实例。
 
     Args:
         builder: 已配置好的 ChatClientBuilder
+        app_id: 应用 ID，用于缓存 key，避免跨应用共享
 
     Returns:
         ChatClient 实例
 
     线程安全：并发请求同一 key 时只 build 一次，其余请求等待结果返回
     """
-    cache_key = _make_cache_key(builder)
+    cache_key = _make_cache_key(builder, app_id)
 
     # 1. 快速路径：命中直接返回
     cached = _LLM_CLIENT_CACHE.get(cache_key)
@@ -127,14 +130,14 @@ def tool_names_str(builder: 'ChatClientBuilder') -> str:
     return ','.join(names) if names else '(none)'
 
 
-def invalidate(builder: 'ChatClientBuilder') -> None:
+def invalidate(builder: 'ChatClientBuilder', app_id: str) -> None:
     """
     主动让某个配置的缓存失效（一般不需要手动调用，TTL 自动清理）
 
     使用场景：极特殊情况下你确定某个 ChatClient 的状态已经不可用
     （例如底层 API_KEY 被热更新了）
     """
-    cache_key = _make_cache_key(builder)
+    cache_key = _make_cache_key(builder, app_id)
     _LLM_CLIENT_CACHE.delete(cache_key)
     logger.info(f"[LLMClientPool] 手动失效缓存, key={cache_key[:8]}")
 

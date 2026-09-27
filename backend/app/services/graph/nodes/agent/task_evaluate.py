@@ -81,6 +81,7 @@ def task_evaluate_node(state: WorkflowState) -> dict:
     # 2. 创建带结构化输出约束的 LLM 客户端
     llm_client = create_spec_llm_in_graph(
         system_prompt=TASK_CLASSIFIER_SYSTEM_PROMPT,
+        app_id=state.get("app_id", ""),
         response_format=TaskEvaluateResult.get_response_format(),
     )
 

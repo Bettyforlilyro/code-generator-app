@@ -62,6 +62,7 @@ def code_reviewer_node(state: WorkflowState) -> dict:
     # 审查 system prompt 里要注入当前生成类型的特殊约束，如果是 vue 项目，需要注入目录读取、文件读取等相关工具
     llm_client = create_spec_llm_in_graph(
         system_prompt=QA_CHECK_SYSTEM_PROMPT,
+        app_id=state.get("app_id", ""),
         response_format=QAResult.get_response_format(),
         tools=tools_factory_with_context() if is_vue_project else [],
         timeout=300     # 审查代码时间可能较长

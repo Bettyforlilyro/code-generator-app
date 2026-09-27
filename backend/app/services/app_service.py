@@ -9,6 +9,7 @@ import random
 import shutil
 import string
 import subprocess
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -50,8 +51,8 @@ def create_app_svc(user_id: int, req: AppCreateRequest) -> AppCreateResponse:
     """
     app_name = req.app_name if req.app_name else req.init_prompt[:20]
     app_coverage = req.app_coverage if req.app_coverage else ""
-
-    code_gen_type = AiCodeTypeRouting.route_code_gen_type(req.init_prompt)
+    # 这里拿不到 app_id，但是保证每次调用时参数不同即可，直接拿当前时间戳作为入参
+    code_gen_type = AiCodeTypeRouting.route_code_gen_type(req.init_prompt, str(int(time.time())))
 
     new_app = AppModel(
         app_name=app_name,

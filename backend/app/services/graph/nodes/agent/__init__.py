@@ -10,6 +10,7 @@ from backend.app.services.ai_common.llm_client_pool import get_or_create
 
 def create_spec_llm_in_graph(
         system_prompt: str,
+        app_id: str,
         model_name: Optional[str] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -24,6 +25,7 @@ def create_spec_llm_in_graph(
 
     Args:
         system_prompt: 系统提示，用于引导模型的行为
+        app_id: 应用ID
         model_name: 要使用的模型名称
         base_url: OpenAI API 基础 URL
         api_key: OpenAI API 密钥
@@ -52,4 +54,4 @@ def create_spec_llm_in_graph(
         builder.add_tools(tools)
     if timeout:
         builder = builder.set_timeout(timeout)
-    return get_or_create(builder)
+    return get_or_create(builder, str(app_id))

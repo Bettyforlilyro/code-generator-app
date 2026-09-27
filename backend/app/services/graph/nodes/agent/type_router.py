@@ -32,6 +32,7 @@ def type_router_node(state: WorkflowState) -> dict:
 
     llm_client = create_spec_llm_in_graph(
         system_prompt=CODE_GENERATE_ROUTING_SYSTEM_PROMPT,
+        app_id=state.get("app_id", ""),
         response_format=CodeFileType.get_response_format(),
     )
 

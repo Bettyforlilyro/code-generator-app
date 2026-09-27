@@ -76,7 +76,7 @@ class AICodeGeneratorFacade:
                    .set_system_prompt(system_prompt)
                    .set_timeout(600)
                    )
-        llm_client = get_or_create(builder)
+        llm_client = get_or_create(builder, str(app_id))
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
         saver = CodeFileSaverFactory.get_saver(code_gen_type)
@@ -117,7 +117,7 @@ class AICodeGeneratorFacade:
                 llm_client_builder.add_tools_by_names(tools)
             else:
                 llm_client_builder.add_tools(tools)
-        llm_client = get_or_create(llm_client_builder)
+        llm_client = get_or_create(llm_client_builder, str(app_id))
 
         full_response_text = ""
 

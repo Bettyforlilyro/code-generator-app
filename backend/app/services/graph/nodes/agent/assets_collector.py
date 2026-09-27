@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 def _plan_image_collection(
         enhanced_prompt: str,
+        app_id: str,
         task_type: str,
         existing_images: List[ImageResource],
 ) -> ImageAIResponse:
@@ -56,6 +57,7 @@ def _plan_image_collection(
     """
     llm: ChatClient = create_spec_llm_in_graph(
         system_prompt=MATERIAL_PLANNER_SYSTEM_PROMPT,
+        app_id=app_id,
         response_format=ImageAIResponse.get_response_format(),
         temperature=0.3,  # 规划不需要太高创造性
         # 注意：这里不传 tools，因为 chat_structured 模式下 tools 没用
@@ -168,7 +170,8 @@ def assets_collector_node(state: WorkflowState) -> dict:
 
     # --- 阶段 1：LLM 规划 ---
     try:
-        plan = _plan_image_collection(enhanced_prompt, task_type, existing_images)
+        app_id = state.get("app_id", "")
+        plan = _plan_image_collection(enhanced_prompt, app_id, task_type, existing_images)
     except Exception as e:
         logger.error(f"[assets_collector] 规划失败: {e}")
         return {"current_node": "assets_collector"}
