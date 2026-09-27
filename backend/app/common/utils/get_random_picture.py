@@ -1,13 +1,12 @@
-import os
 import json
 import logging
+import os
 import time
+from urllib.error import URLError, HTTPError
 from urllib.parse import urlencode
 from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
 
 from dotenv import load_dotenv
-
 
 logger = logging.getLogger(__name__)
 

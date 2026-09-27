@@ -1,7 +1,9 @@
-import jwt
 from datetime import datetime, timedelta
 from functools import wraps
+
+import jwt
 from flask import request, current_app, g
+
 from backend.app.common.exceptions.error_codes import AuthenticationError, PermissionDeniedError
 from backend.app.models.user import User
 

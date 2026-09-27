@@ -8,7 +8,6 @@
 3. 返回 qa_pass / qa_feedback
 4. 不通过且 retry_count < 3 时触发重试
 """
-import json
 import logging
 
 from backend.app.common.emuns.code_file_type import CodeFileType

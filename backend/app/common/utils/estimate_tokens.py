@@ -1,5 +1,5 @@
-from loguru import logger
 import tiktoken
+from loguru import logger
 
 
 def estimate_tokens(text: str) -> int:

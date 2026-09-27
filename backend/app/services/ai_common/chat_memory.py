@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.utils.cache import MemoryCache

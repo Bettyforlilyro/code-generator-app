@@ -1,5 +1,6 @@
-from typing import Optional, Any
-from pydantic import BaseModel, Field
+from typing import Optional
+
+from pydantic import BaseModel
 
 
 class UserRegisterResponse(BaseModel):
@@ -30,4 +31,3 @@ class UserSummaryResponse(BaseModel):
     user_avatar: Optional[str] = None
     user_profile: Optional[str] = None
     user_role: str
-

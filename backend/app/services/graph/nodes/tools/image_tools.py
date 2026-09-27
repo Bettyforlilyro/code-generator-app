@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.common.utils.save_webpage_screenshot import upload_image_to_bed
+from backend.app.common.utils.upload_image import upload_image_to_bed
 from backend.app.services.graph.model.image_resource import ImageResource
 from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
 

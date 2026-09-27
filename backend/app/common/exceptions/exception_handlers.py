@@ -3,6 +3,7 @@ import traceback
 
 from flask import request
 from werkzeug.exceptions import HTTPException
+
 from .error_codes import BusinessException, ErrorCode
 from ...schemas.responses import BaseResponse
 

@@ -17,6 +17,7 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEP
 from backend.app.common.emuns.user_role import UserRole
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.build_vue_project import build_vue_project_sync
+from backend.app.common.utils.generate_app_page_screenshot import generate_app_page_screenshot_and_save_async
 from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.models.user import User
@@ -28,8 +29,6 @@ from backend.app.schemas.responses.app_management_response import (
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
 from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
-from backend.app.common.utils.generate_app_page_screenshot import \
-    generate_app_page_screenshot_and_save_async
 from backend.app.services.common import validate_sort_params
 
 logger = logging.getLogger(__name__)

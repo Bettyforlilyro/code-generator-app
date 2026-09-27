@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 from backend.app.services.ai_common.tools import register_tool_display
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
-
 TOOL_NAME = "计算器工具"
 
 

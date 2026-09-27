@@ -1,6 +1,7 @@
+import io
 import logging
+import sys
 from datetime import datetime
-import sys, io
 
 from backend.app.services.ai_common.advisor import PreAdvisor, AdvisorContext, PostAdvisor, StreamPostAdvisor, \
     StreamChunk

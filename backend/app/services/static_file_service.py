@@ -15,7 +15,6 @@ from flask import send_file
 from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
 from backend.app.schemas.responses.BaseResponse import directory_response
 
-
 # ==================== 文件过滤规则 ====================
 
 # 需要排除的目录名（os.walk 遇到会整棵子树跳过，不再进入）

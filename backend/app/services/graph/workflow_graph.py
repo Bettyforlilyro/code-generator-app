@@ -7,20 +7,20 @@ LangGraph 工作流主入口
       ↓
     task_evaluate ──(chat)────────────────────→ code_generator ──→ chat_history_save ──→ END
       │
-      │ (new_build/modify)
-      ↓
-    assets_collector
-      ↓
-    type_router
-      ↓
-    code_generator
-      │
-      ↓ (new_build/modify)
-    code_reviewer ──(qa_pass || retry>=3)──→ save_or_build ──→ chat_history_save ──→ END
-      │
-      │ (qa_pass=False && retry<3)
-      ↓
-    code_generator  (回到上一步重试)
+      │ (new_build/modify) ── 并行分发 ──┐
+      ↓                                   ↓
+    assets_collector               type_router
+      │                                   │
+      └──────────────┬────────────────────┘
+                     ↓  ← 并行汇合：等两个都完成
+                code_generator
+                     │
+                     ↓ (new_build/modify)
+                code_reviewer ──(qa_pass || retry>=3)──→ save_or_build ──→ chat_history_save ──→ END
+                     │
+                     │ (qa_pass=False && retry<3)
+                     ↓
+                code_generator  (回到上一步重试)
 
 对话历史保存规则（chat_history_save 节点）：
 - chat 类型：总是保存 user + assistant
@@ -102,10 +102,9 @@ def _build_graph() -> StateGraph:
         },
     )
 
-    # 3. assets_collector → type_router（素材收集完选生成模式）
-    graph.add_edge("assets_collector", "type_router")
-
-    # 4. type_router → code_generator（路由完开始生成代码）
+    # 3. assets_collector + type_router 并行 → code_generator
+    #    LangGraph Pregel 会自动等两个上游都完成后才执行 code_generator
+    graph.add_edge("assets_collector", "code_generator")
     graph.add_edge("type_router", "code_generator")
 
     # 5. code_generator 条件分支:

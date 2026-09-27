@@ -14,6 +14,7 @@
 """
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 from backend.app.services.ai_common.llm_client import ChatClient
@@ -91,7 +92,10 @@ def _plan_image_collection(
 
 def _execute_plan(plan: ImageAIResponse) -> List[ImageResource]:
     """
-    根据 LLM 输出的规划，手动调用对应的图片工具
+    根据 LLM 输出的规划，并行调用所有图片工具（ThreadPoolExecutor）
+
+    4 类图片工具完全独立（content / illustration / architecture / logo），
+    同类工具内的多个任务也互不依赖，全部并发执行最大化网络 IO 利用率。
 
     Args:
         plan: ImageAIResponse 规划结果
@@ -101,44 +105,46 @@ def _execute_plan(plan: ImageAIResponse) -> List[ImageResource]:
     """
     collected: List[ImageResource] = []
 
-    # TODO 后续可以优化成并行执行，可以考虑使用官方文档中的函数式API task
+    # ---- 先把所有工具调用提交成 futures ----
+    futures = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        # --- content 图片（Pexels 搜索）---
+        for task in plan.content:
+            futures.append(executor.submit(
+                search_content_images.invoke,
+                {"query": task.query, "count": task.count}
+            ))
 
-    # --- content 图片（Pexels 搜索）---
-    for search_task in plan.content:
-        try:
-            results = search_content_images.invoke({"query": search_task.query, "count": search_task.count})
-            collected.extend(results)
-        except Exception as e:
-            logger.error(f"    ← 失败: {e}")
+        # --- illustration 插画（Undraw）---
+        for task in plan.illustration:
+            futures.append(executor.submit(
+                search_illustration_images.invoke,
+                {"query": task.query, "count": task.count}
+            ))
 
-    # --- illustration 插画（Undraw）---
-    for search_task in plan.illustration:
-        try:
-            results = search_illustration_images.invoke({"query": search_task.query, "count": search_task.count})
-            collected.extend(results)
-        except Exception as e:
-            logger.error(f"    ← 失败: {e}")
+        # --- architecture 架构图（Mermaid CLI）---
+        for task in plan.architecture:
+            futures.append(executor.submit(
+                generate_architecture_image.invoke,
+                {"mermaid_code": task.mermaid_code, "description": task.description}
+            ))
 
-    # --- architecture 架构图（Mermaid CLI）---
-    for architecture_task in plan.architecture:
-        try:
-            results = generate_architecture_image.invoke(
-                {"mermaid_code": architecture_task.mermaid_code, "description": architecture_task.description}
-            )
-            collected.extend(results)
-            logger.info(f"    ← 返回 {len(results)} 张 architecture 图片")
-        except Exception as e:
-            logger.error(f"    ← 失败: {e}")
+        # --- logo 设计 ---
+        for task in plan.logo:
+            futures.append(executor.submit(
+                generate_logo_image.invoke,
+                {"description": task.description}
+            ))
 
-    # --- logo 设计 --- 
-    for logo_task in plan.logo:
-        try:
-            results = generate_logo_image.invoke({"description": logo_task.description})
-            collected.extend(results)
-            logger.info(f"    ← 返回 {len(results)} 张 logo 图片")
-        except Exception as e:
-            logger.error(f"    ← 失败: {e}")
+        # ---- 收集所有结果（按完成顺序）----
+        for future in as_completed(futures):
+            try:
+                results = future.result()
+                collected.extend(results)
+            except Exception as e:
+                logger.error(f"[assets_collector] 工具调用异常: {e}")
 
+    logger.info(f"[assets_collector] 执行完成，共收集 {len(collected)} 张图片")
     return collected
 
 

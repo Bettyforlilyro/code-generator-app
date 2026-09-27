@@ -10,7 +10,6 @@
 """
 import logging
 import logging.handlers
-import os
 from pathlib import Path
 
 # 日志路径：项目根目录下的 logs/

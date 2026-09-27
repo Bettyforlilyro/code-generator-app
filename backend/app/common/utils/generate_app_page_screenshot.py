@@ -6,7 +6,8 @@ from flask import copy_current_request_context
 
 from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
 from backend.app.common.utils.get_random_picture import get_random_bz
-from backend.app.common.utils.save_webpage_screenshot import upload_image_to_bed, take_screenshot_and_save
+from backend.app.common.utils.save_webpage_screenshot import take_screenshot_and_save
+from backend.app.common.utils.upload_image import upload_image_to_bed
 
 logger = logging.getLogger(__name__)
 

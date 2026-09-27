@@ -105,13 +105,15 @@ def task_evaluate_node(state: WorkflowState) -> dict:
 
 # ==================== 条件边函数 ====================
 
-def route_after_task_evaluate(state: WorkflowState) -> str:
+def route_after_task_evaluate(state: WorkflowState) -> str | list[str]:
     """
     根据任务类型决定走向
-    - chat → 直接结束（在 code_generator 里处理 chat 回复）
-    - new_build / modify → 继续素材收集
+    - chat → 直接走 code_generator（它会输出 markdown 回答）
+    - new_build / modify → 并行激活 assets_collector + type_router
+      LangGraph Pregel 支持条件边返回列表，列表里的每个节点会同时被激活
     """
     task_type = state.get("task_type", "new_build")
     if task_type == "chat":
-        return "code_generator"  # chat 类型也走 code_generator，它会输出 markdown 回答
-    return "assets_collector"
+        return "code_generator"
+    # ✅ 并行：两个节点同时执行，最后都指向 code_generator 汇合
+    return ["assets_collector", "type_router"]
