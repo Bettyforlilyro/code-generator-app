@@ -22,8 +22,6 @@ class WorkflowState(TypedDict, total=False):
     
     # ========== 输入上下文 ==========
     # 会话历史和上下文记忆（带 reducer：自动追加）
-    # TODO 这个当前没怎么使用，是否可以考虑用这个管理对话历史？而非用内存+数据库？但是要注意历史记录的长度，避免无限增长 token 溢出
-    # 如果用不到，可以考虑删除？当前已经通过数据库+缓存实现对话历史管理了，哪个方案更合适？
     messages: Annotated[list[AnyMessage], add_messages]
     # 用户原始输入
     original_prompt: str
@@ -65,6 +63,7 @@ class WorkflowState(TypedDict, total=False):
     code_save_path: str
     # ========= 调试保留字段 ========
     # 当前执行节点（用于调试/监控）
-    current_node: str
+    # 加 last_wins reducer：并行节点同时更新时取后执行的值，串行时就是普通覆盖
+    current_node: Annotated[str, lambda old, new: new]
     # 错误信息（用于调试）
-    error_info: str
+    error_info: Annotated[str, lambda old, new: new]

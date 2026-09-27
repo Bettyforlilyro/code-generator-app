@@ -98,6 +98,7 @@ def _build_graph() -> StateGraph:
         route_after_task_evaluate,
         {
             "assets_collector": "assets_collector",
+            "type_router": "type_router",
             "code_generator": "code_generator",
         },
     )

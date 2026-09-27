@@ -1,8 +1,9 @@
-import json
+import logging
 import re
 import warnings
 from typing import List
 
+from json_repair import json_repair
 from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
@@ -168,15 +169,34 @@ class ChatClient:
             Pydantic 模型实例
         """
         response = self.chat(messages, conversation_id, tool_context)
+
+        # ---- 路径 1: 标准 Pydantic JSON 解析 ----
         try:
             return pydantic_model.model_validate_json(response)
-        except Exception as e:
-            # 降级处理：尝试提取JSON再解析
+        except Exception:
+            pass
+
+        # ---- 路径 2: json_repair 修复后解析 ----
+        # LLM 偶发输出非法转义（\d, \u 等）、截断 JSON，json_repair 能智能修复
+        try:
+            repaired = json_repair.repair_json(response, return_objects=True)
+            if isinstance(repaired, dict):
+                return pydantic_model.model_validate(repaired)
+        except ImportError:
+            logging.warning("[chat_structured] json_repair 未安装，跳过修复层")
+        except Exception as repair_err:
+            logging.warning(f"[chat_structured] json_repair 修复失败: {repair_err}")
+
+        # ---- 路径 3: 正则提取 JSON 降级 ----
+        try:
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
-                data = json.loads(json_match.group())
-                return pydantic_model.model_validate(data)
-            raise ValueError(f"无法将AI响应解析为{pydantic_model.__name__}: {e}\n原始响应: {response}")
+                repaired = json_repair.repair_json(json_match.group(), return_objects=True)
+                return pydantic_model.model_validate(repaired)
+        except Exception:
+            pass
+
+        raise ValueError(f"无法将AI响应解析为{pydantic_model.__name__}\n原始响应: {response}")
 
     def chat_stream(
         self,

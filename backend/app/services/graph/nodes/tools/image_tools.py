@@ -383,6 +383,7 @@ def generate_logo_image(description: str) -> list[ImageResource]:
     Returns:
         图片资源列表
     """
+    logger.info(f"[tool] generate_logo_image: desc={description}")
     # TODO 代码已写好，但是测试由于成本过高，开发阶段统一返回 mock 数据，开发完成后删除这段 return
     return [
         ImageResource(
@@ -392,7 +393,6 @@ def generate_logo_image(description: str) -> list[ImageResource]:
         )
     ]
 
-    logger.info(f"[tool] generate_logo_image: desc={description}")
     logo_prompt = f"生成一张 Logo 图片，Logo中禁止包含任何文字！Logo 介绍：{description}"
     dashscope.base_http_api_url = os.getenv("TONGYI_DASHSCOPE_BASE_URL")
     temp_dir = tempfile.mkdtemp(prefix="logo_")

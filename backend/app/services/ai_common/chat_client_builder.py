@@ -24,7 +24,7 @@ class ChatClientBuilder:
         self._frequency_penalty = 0.0
         self._presence_penalty = 0.0
         self._system_prompt = ""
-        self._timeout = 60
+        self._timeout = 120
         self._max_retries = 3
         self._advisor_chain = AdvisorChain()
         self._response_format = None

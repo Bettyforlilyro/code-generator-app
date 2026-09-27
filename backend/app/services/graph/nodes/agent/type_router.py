@@ -64,7 +64,7 @@ def type_router_node(state: WorkflowState) -> dict:
         #     user_id=user_id,
         # )
     return {
-        "messages": {"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)},
+        "messages": [{"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)}],
         "code_gen_type": code_gen_type,
         "current_node": "type_router",
     }
