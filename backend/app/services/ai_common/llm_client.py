@@ -1,12 +1,10 @@
-import logging
-import re
 import warnings
 from typing import List
 
-from json_repair import json_repair
 from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
+from backend.app.common.utils.parse_llm_response import parse_llm_json_response
 from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext, StreamChunk
 from backend.app.services.ai_common.tool_executor import (
     ToolExecResult,
@@ -161,7 +159,7 @@ class ChatClient:
 
         Args:
             messages: 消息列表
-            pydantic_model: 用于解析的 Pydantic 模型类（如 HtmlCodeResult, MultiFileCodeResult）
+            pydantic_model: 用于解析的 Pydantic 模型类
             conversation_id: 会话 ID
             tool_context: 工具调用上下文
 
@@ -169,34 +167,7 @@ class ChatClient:
             Pydantic 模型实例
         """
         response = self.chat(messages, conversation_id, tool_context)
-
-        # ---- 路径 1: 标准 Pydantic JSON 解析 ----
-        try:
-            return pydantic_model.model_validate_json(response)
-        except Exception:
-            pass
-
-        # ---- 路径 2: json_repair 修复后解析 ----
-        # LLM 偶发输出非法转义（\d, \u 等）、截断 JSON，json_repair 能智能修复
-        try:
-            repaired = json_repair.repair_json(response, return_objects=True)
-            if isinstance(repaired, dict):
-                return pydantic_model.model_validate(repaired)
-        except ImportError:
-            logging.warning("[chat_structured] json_repair 未安装，跳过修复层")
-        except Exception as repair_err:
-            logging.warning(f"[chat_structured] json_repair 修复失败: {repair_err}")
-
-        # ---- 路径 3: 正则提取 JSON 降级 ----
-        try:
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                repaired = json_repair.repair_json(json_match.group(), return_objects=True)
-                return pydantic_model.model_validate(repaired)
-        except Exception:
-            pass
-
-        raise ValueError(f"无法将AI响应解析为{pydantic_model.__name__}\n原始响应: {response}")
+        return parse_llm_json_response(response, pydantic_model)
 
     def chat_stream(
         self,
