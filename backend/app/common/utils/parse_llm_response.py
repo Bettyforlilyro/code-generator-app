@@ -93,7 +93,7 @@ def parse_llm_json_response(response: str, pydantic_model):
     """
     从 LLM 的自由文本回复中，用四层防御策略精准提取 JSON 并解析为 Pydantic 模型。
 
-    四层防御（按成功率从高到低，命中即返回）：
+    四层防御（按效率从高到低，先尝试快速解析，命中即返回）：
       Layer1  model_validate_json              标准路径（纯 JSON 最快）
       Layer2  json_repair 整体解析             跳过 prose + 修复非法转义 + 嵌套遍历
       Layer3  括号平衡精准切分 + json_repair    手动定位边界再逐个修复
