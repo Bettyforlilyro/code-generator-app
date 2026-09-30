@@ -133,8 +133,7 @@ def _build_chat_messages(state: WorkflowState) -> list:
 
     if app_id:
         try:
-            # TODO 需要注入 flask 上下文，否则无法调用 db 相关操作，开发阶段跳过数据库读写（memory_only=True）
-            chat_messages = get_chat_memory_manager(memory_only=True).get_llm_messages(
+            chat_messages = get_chat_memory_manager().get_llm_messages(
                 app_id=app_id,
                 extra_messages=extra_messages,
             )

@@ -76,9 +76,10 @@ def create_app():
     data = parse_json_body()
     if 'init_prompt' not in data:
         return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
+    use_graph = data.get('use_graph', False)
 
     req = AppCreateRequest(**data)
-    result = create_app_svc(user.id, req)
+    result = create_app_svc(user.id, req, use_graph)
     return success_response(result, 201)
 
 

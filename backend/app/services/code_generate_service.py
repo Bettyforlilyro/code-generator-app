@@ -14,20 +14,18 @@ import logging
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.extensions.db_instance import db
 from backend.app.models.app_model import AppModel
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.tools import get_all_tools_name
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 from backend.app.services.chat_history_service import (
     create_chat_history,
-    get_system_prompt_by_app_id,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_type: str) -> AppModel:
+def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_type: str):
     """
     校验应用存在性、用户权限、设置 code_gen_type
 
@@ -40,28 +38,12 @@ def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_typ
         BusinessException: 应用不存在 / 无权限 / 代码生成类型无效
 
     Returns:
-        校验通过的 AppModel 实例
     """
     app = AppModel.query.filter_by(id=app_id, is_delete=0).first()
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND, "应用不存在")
     if app.user_id != user_id:
         raise BusinessException(ErrorCode.PERMISSION_DENIED, "您没有权限操作该应用")
-
-    # 保存 code_gen_type 到数据库
-    app.code_gen_type = code_gen_type
-    db.session.commit()
-
-    # 如果应用还没有系统 Prompt，先插入一条
-    if not get_system_prompt_by_app_id(app_id):
-        create_chat_history(
-            message=CodeFileType.get_system_prompt(code_gen_type),
-            message_type=ChatMessageType.SYSTEM.value,
-            app_id=app_id,
-            user_id=user_id,
-        )
-
-    return app
 
 
 def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id: int):

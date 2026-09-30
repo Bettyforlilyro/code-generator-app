@@ -81,28 +81,72 @@ def generate_code_stream():
     if not prompt:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
 
+    # ── 新增：是否使用 LangGraph 工作流 ──────────────
+    use_graph = json_data.get('use_graph', False)
+
     code_gen_type = json_data.get('code_gen_type')
-    if not code_gen_type:
+    if not code_gen_type and not use_graph:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "code_gen_type不能为空")
 
-    if not CodeFileType.is_valid_file_type(code_gen_type):
+    if code_gen_type and not CodeFileType.is_valid_file_type(code_gen_type):
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "code_gen_type无效")
 
-    # 1. 应用校验 + 权限校验 + code_gen_type 持久化 + 系统 Prompt 存数据库
+    # ── 公共：应用校验 + 权限校验 ──
     validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
-
-    # 2. 构建流式生成器
-    generator = build_code_generator(prompt, CodeFileType(code_gen_type), int(app_id))
 
     user_id = user.id
 
-    def on_done(chunks: list[tuple[str, dict]]):
-        persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
+    if use_graph:
+        generator = _build_workflow_generator(prompt, int(app_id), user_id)
 
-    def on_error(error: Exception, chunks: list[tuple[str, dict]]):
-        persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
-        full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
-        logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
-        return "AI 暂时不能回答这个问题"
+        # 工作流模式：chat_history_save 节点已自动持久化对话历史，路由节点已自动更新 code_gen_type 持久化 + 系统 Prompt 存数据库
+        # 但 on_done / on_error 仍然需要，用于统一回调签名
+        def on_done(chunks):
+            pass  # 已由工作流内部 chat_history_save 节点处理
+
+        def on_error(error, chunks):
+            logging.error(f"[workflow] 工作流执行异常: {str(error)}, app_id={app_id}")
+            return "AI 暂时不能回答这个问题"
+    else:
+        # ── 原有逻辑保持不变 code_gen_type 持久化 + 系统 Prompt 存数据库 ────────────────────────────
+        update_app_code_gen_type_svc(int(app_id), code_gen_type)
+        create_app_system_prompt_svc(int(app_id), CodeFileType.get_system_prompt(code_gen_type))
+        generator = build_code_generator(prompt, CodeFileType(code_gen_type), int(app_id))
+
+        def on_done(chunks: list[tuple[str, dict]]):
+            persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
+
+        def on_error(error: Exception, chunks: list[tuple[str, dict]]):
+            persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
+            full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
+            logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
+            return "AI 暂时不能回答这个问题"
 
     return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)
+
+
+def _build_workflow_generator(original_prompt: str, app_id: int, user_id: int):
+    """
+    构建 LangGraph 工作流流式生成器
+
+    适配工作流 run_workflow_streaming 的三元组输出 → stream_response 期望的二元组
+
+    工作流产出:
+        ("stream", event_type, data)  ← 前端关心的流式事件
+        ("state", node_name, updates)  ← 内部调试用，过滤掉
+
+    stream_response 期望:
+        (event, data)                   ← SSE 的 event 和 data
+    """
+    from backend.app.services.graph.workflow_graph import run_workflow_streaming
+
+    for kind, *payload in run_workflow_streaming(
+            original_prompt=original_prompt,
+            app_id=app_id,
+            user_id=user_id,
+    ):
+        if kind == "stream":
+            # ("stream", event_type, data) → (event_type, data)
+            event_type, data = payload
+            yield event_type, data
+        # kind == "state": 过滤掉，前端不需要内部节点状态更新

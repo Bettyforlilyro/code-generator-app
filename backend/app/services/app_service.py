@@ -37,13 +37,14 @@ logger = logging.getLogger(__name__)
 
 # ==================== 创建 ====================
 
-def create_app_svc(user_id: int, req: AppCreateRequest) -> AppCreateResponse:
+def create_app_svc(user_id: int, req: AppCreateRequest, use_graph: bool = False) -> AppCreateResponse:
     """
     创建新应用
 
     Args:
         user_id: 创建应用的用户 ID
         req: 应用创建请求
+        use_graph: 是否使用 LangGraph 工作流
 
     Returns:
         AppCreateResponse: 包含应用 ID、应用名称、应用覆盖范围、初始化提示的响应模型
@@ -52,15 +53,23 @@ def create_app_svc(user_id: int, req: AppCreateRequest) -> AppCreateResponse:
     app_name = req.app_name if req.app_name else req.init_prompt[:20]
     app_coverage = req.app_coverage if req.app_coverage else ""
     # 这里拿不到 app_id，但是保证每次调用时参数不同即可，直接拿当前时间戳作为入参
-    code_gen_type = AiCodeTypeRouting.route_code_gen_type(req.init_prompt, str(int(time.time())))
-
-    new_app = AppModel(
-        app_name=app_name,
-        code_gen_type=code_gen_type,
-        app_coverage=app_coverage,
-        init_prompt=req.init_prompt,
-        user_id=user_id,
-    )
+    if not use_graph:
+        code_gen_type = AiCodeTypeRouting.route_code_gen_type(req.init_prompt, str(int(time.time())))
+        new_app = AppModel(
+            app_name=app_name,
+            code_gen_type=code_gen_type,
+            app_coverage=app_coverage,
+            init_prompt=req.init_prompt,
+            user_id=user_id,
+        )
+    else:
+        # 由 langgraph 中的路由节点更新 code_gen_type，暂时默认 HTML 类型
+        new_app = AppModel(
+            app_name=app_name,
+            app_coverage=app_coverage,
+            init_prompt=req.init_prompt,
+            user_id=user_id,
+        )
     db.session.add(new_app)
     db.session.commit()
 
@@ -417,4 +426,18 @@ def update_app_coverage_svc(app_id: int, coverage_url: str):
     """更新应用封面 URL"""
     app = _get_app_or_raise(app_id)
     app.app_coverage = coverage_url
+    db.session.commit()
+
+
+def update_app_code_gen_type_svc(app_id: int, code_gen_type: CodeFileType):
+    """更新应用代码生成类型"""
+    app = _get_app_or_raise(app_id)
+    app.code_gen_type = code_gen_type
+    db.session.commit()
+
+
+def create_app_system_prompt_svc(app_id: int, system_prompt: str):
+    """创建应用系统 Prompt"""
+    app = _get_app_or_raise(app_id)
+    app.system_prompt = system_prompt
     db.session.commit()
