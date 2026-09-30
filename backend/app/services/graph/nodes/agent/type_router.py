@@ -9,9 +9,12 @@
 """
 import logging
 
+from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
+from backend.app.services.app_service import update_app_code_gen_type_svc
+from backend.app.services.chat_history_service import create_chat_history
 from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
@@ -50,20 +53,20 @@ def type_router_node(state: WorkflowState) -> dict:
         task_type = state.get("task_type", "")
         app_id = state.get("app_id", "")
         if task_type == "new_build":
-            chat_memory_manager = get_chat_memory_manager(memory_only=True)     # 开发阶段 memory_only 为 True，后续上线再 False
+            chat_memory_manager = get_chat_memory_manager()
             chat_memory_manager.add_message(
                 app_id=app_id,
                 role="system",
                 content=CodeFileType.get_system_prompt(code_gen_type),
             )
-        # TODO 开发阶段没有 flask 上下文，注释掉这段代码，不存数据库了，后续上线再开启
-        # user_id = state.get("user_id", "")
-        # create_chat_history(
-        #     message=CodeFileType.get_system_prompt(code_gen_type),
-        #     message_type=ChatMessageType.SYSTEM.value,
-        #     app_id=app_id,
-        #     user_id=user_id,
-        # )
+            update_app_code_gen_type_svc(app_id, code_gen_type)
+            user_id = state.get("user_id", "")
+            create_chat_history(
+                message=CodeFileType.get_system_prompt(code_gen_type),
+                message_type=ChatMessageType.SYSTEM.value,
+                app_id=app_id,
+                user_id=user_id,
+            )
     return {
         "messages": [{"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)}],
         "code_gen_type": code_gen_type,

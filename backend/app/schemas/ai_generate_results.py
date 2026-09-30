@@ -155,7 +155,7 @@ class VueProjectFileCodeResult(BaseCodeResult):
 
     @classmethod
     def parse_response_from_llm(cls, response: str) -> "VueProjectFileCodeResult":
-        """从LLM响应中解析代码生成结果 TODO 这里解析保留项目的完整文件列表
+        """从LLM响应中解析代码生成结果
         新增的文件：加入list
         修改的文件：不处理
         删除的文件：从list中移除

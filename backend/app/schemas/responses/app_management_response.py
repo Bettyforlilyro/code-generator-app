@@ -11,7 +11,7 @@ class AppCreateResponse(BaseModel):
     app_name: str
     init_prompt: str
     user_id: int
-    code_gen_type: str
+    code_gen_type: Optional[str] = None
 
 
 class AppDetailResponse(BaseModel):

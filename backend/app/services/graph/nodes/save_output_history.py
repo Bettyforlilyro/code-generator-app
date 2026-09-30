@@ -33,7 +33,9 @@ import logging
 
 from langchain_core.messages import AIMessage
 
+from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.chat_history_service import create_chat_history
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 
@@ -119,24 +121,23 @@ def chat_history_save(state: WorkflowState) -> dict:
         logger.warning("[chat_history_save] user 和 ai 消息都为空，跳过保存")
         return {"current_node": "chat_history_save"}
 
-    # 3. 先写 DB（拿到 db_id），再写内存缓存 TODO 开发测试环境使用memory_only跳过数据库读写
-    memory_manager = get_chat_memory_manager(memory_only=True)
+    # 3. 先写 DB（拿到 db_id），再写内存缓存
+    memory_manager = get_chat_memory_manager()
 
     # --- user 消息 ---
     user_db_id = None
     if original_prompt:
-        # TODO 开发测试阶段，跳过数据库读写
-        # try:
-        #     user_record = create_chat_history(
-        #         message=original_prompt,
-        #         message_type=ChatMessageType.USER.value,  # "user"
-        #         app_id=app_id,
-        #         user_id=user_id,
-        #     )
-        #     user_db_id = user_record.id
-        #     logger.info(f"[chat_history_save] user 消息已入库: id={user_db_id}")
-        # except Exception as e:
-        #     logger.error(f"[chat_history_save] user 消息入库失败: {e}")
+        try:
+            user_record = create_chat_history(
+                message=original_prompt,
+                message_type=ChatMessageType.USER.value,  # "user"
+                app_id=app_id,
+                user_id=user_id,
+            )
+            user_db_id = user_record.id
+            logger.info(f"[chat_history_save] user 消息已入库: id={user_db_id}")
+        except Exception as e:
+            logger.error(f"[chat_history_save] user 消息入库失败: {e}")
 
         # 写内存缓存（带上 db_id）
         try:
@@ -152,18 +153,17 @@ def chat_history_save(state: WorkflowState) -> dict:
     # --- ai 消息 ---
     ai_db_id = None
     if ai_message:
-        # TODO 开发测试阶段，跳过数据库读写
-        # try:
-        #     ai_record = create_chat_history(
-        #         message=ai_message,
-        #         message_type=ChatMessageType.AI.value,  # "assistant"
-        #         app_id=app_id,
-        #         user_id=user_id,
-        #     )
-        #     ai_db_id = ai_record.id
-        #     logger.info(f"[chat_history_save] ai 消息已入库: id={ai_db_id}, length={len(ai_message)}")
-        # except Exception as e:
-        #     logger.error(f"[chat_history_save] ai 消息入库失败: {e}")
+        try:
+            ai_record = create_chat_history(
+                message=ai_message,
+                message_type=ChatMessageType.AI.value,  # "assistant"
+                app_id=app_id,
+                user_id=user_id,
+            )
+            ai_db_id = ai_record.id
+            logger.info(f"[chat_history_save] ai 消息已入库: id={ai_db_id}, length={len(ai_message)}")
+        except Exception as e:
+            logger.error(f"[chat_history_save] ai 消息入库失败: {e}")
 
         # 写内存缓存
         try:

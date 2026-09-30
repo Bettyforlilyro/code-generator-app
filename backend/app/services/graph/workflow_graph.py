@@ -61,6 +61,7 @@ from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+
 # TODO 开发阶段，开启 INFO 日志打印，方便观察工作流执行流程
 logging.basicConfig(
     level=logging.INFO,
@@ -141,20 +142,18 @@ def _build_graph() -> StateGraph:
     return graph
 
 
-# ==================== 编译 & 导出 ====================
-
-# 编译后的可执行 Graph（单例，整个应用共享）
-workflow_graph = _build_graph().compile()
+# ── 全局单例 ──────────────────────────────────────
+_workflow_graph = _build_graph().compile()
 
 
 def get_workflow_graph():
     """
     获取编译后的工作流 Graph
-    
+
     Returns:
         Compiled StateGraph 实例
     """
-    return workflow_graph
+    return _workflow_graph
 
 
 def run_workflow(
@@ -178,7 +177,7 @@ def run_workflow(
     initial_state: dict = _build_initial_state(original_prompt, app_id, user_id, messages)
 
     logger.info(f"[workflow_graph] 开始执行 (invoke), prompt={original_prompt[:50]!r}, app_id={app_id}")
-    final_state = workflow_graph.invoke(initial_state)
+    final_state = _workflow_graph.invoke(initial_state)
     logger.info(
         f"[workflow_graph] 执行完成, task_type={final_state.get('task_type')}, "
         f"code_gen_type={final_state.get('code_gen_type')}, "
@@ -243,9 +242,8 @@ def run_workflow_streaming(
     initial_state = _build_initial_state(original_prompt, app_id, user_id, messages)
 
     logger.info(f"[workflow_graph] 开始流式执行, prompt={original_prompt[:50]!r}, app_id={app_id}")
-
     # 双模式 stream：custom 拿节点 writer 推的实时事件，updates 拿节点完成后的 state 合并
-    for mode, payload in workflow_graph.stream(
+    for mode, payload in _workflow_graph.stream(
             initial_state, stream_mode=["updates", "custom"]
     ):
         if mode == "custom":
@@ -284,7 +282,7 @@ def run_workflow_streaming(
 
 if __name__ == "__main__":
     # 打印 Mermaid 图
-    mermaid_code = workflow_graph.get_graph().draw_mermaid(with_styles=False)
+    mermaid_code = _workflow_graph.get_graph().draw_mermaid(with_styles=False)
     print("mermaid_code:\n", mermaid_code)
     print("\n" + "=" * 50 + "\n")
 

@@ -171,7 +171,6 @@ class ChatMemoryManager:
         reserved_for_reply: int = DEFAULT_RESERVED_TOKENS_FOR_REPLY,
         memory_ttl_seconds: int = DEFAULT_MEMORY_TTL_SECONDS,
         max_cached_sessions: int = DEFAULT_MAX_CACHED_SESSIONS,
-        memory_only: bool = False,  # TODO 开发完成后删除
     ):
         if getattr(self, "_initialized", False):
             return
@@ -179,12 +178,9 @@ class ChatMemoryManager:
 
         self._max_context_tokens = max_context_tokens
         self._reserved_for_reply = reserved_for_reply
-        self._memory_only = memory_only  # 纯内存模式：跳过所有 DB 操作  # TODO 开发完成后删除
 
         # 消息缓存，key 为 app_id，value 为 SessionMemory
         self._cache: MemoryCache[int, SessionMemory] = MemoryCache(
-            max_size=max_cached_sessions if not memory_only else 0,   # TODO 开发阶段仅内存模式，设置无限制,
-            ttl_seconds=memory_ttl_seconds if not memory_only else 0,   # TODO 开发阶段仅内存模式，设置永不过期
         )
         self._cache.start_auto_evict()  # 启用自动清理过期缓存的守护线程
 
@@ -197,12 +193,6 @@ class ChatMemoryManager:
         解决 LangGraph 独立测试时没有 Flask app context 的问题。
         """
         session = SessionMemory(app_id=app_id)
-        # TODO 开发完成后删除
-        if self._memory_only:
-            logger.info(
-                f"[ChatMemory] memory_only=True，跳过 DB 加载 app_id={app_id}，返回空 session"
-            )
-            return session
 
         try:
             from backend.app.services.chat_history_service import (
@@ -336,27 +326,13 @@ class ChatMemoryManager:
         self._cache.delete(app_id)
 
 
+_manager: ChatMemoryManager = ChatMemoryManager()  # 模块加载时创建
+
+
 # ==================== 获取全局单例 ChatMemoryManager ====================
 
-def get_chat_memory_manager(memory_only: bool = False) -> ChatMemoryManager:
+def get_chat_memory_manager() -> ChatMemoryManager:
     """
     获取全局唯一的 ChatMemoryManager 实例
-
-    Args:
-        memory_only: 是否为纯内存模式（跳过所有 DB 操作）
-                     - False（默认）：正式环境，需要 Flask app context
-                     - True：LangGraph 独立测试用，完全不碰 DB
     """
-    # 单例模式：如果已有实例且 memory_only 参数变化，需要重建
-    # 这里用一种简单的方式：只有首次创建时传入 memory_only，后续调用会复用
-    manager = ChatMemoryManager()  # TODO 开发完成后仅保留这一行即可
-    # 如果用户明确要切换 memory_only 模式且和当前不一致，强制重建（清缓存）
-    if memory_only and not getattr(manager, '_memory_only', False):
-        manager._memory_only = True
-        manager._cache.clear()
-        manager._initialized = True
-        logger.info("[ChatMemory] 已切换为 memory_only=True 模式")
-    elif not memory_only and getattr(manager, '_memory_only', False):
-        manager._memory_only = False
-        logger.info("[ChatMemory] 已切换为 memory_only=False 模式")
-    return manager
+    return _manager

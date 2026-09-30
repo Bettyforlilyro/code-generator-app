@@ -9,10 +9,12 @@
 import logging
 
 from langchain_core.messages import AIMessage
+from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.ai_generate_results import BaseCodeResult
+from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,9 @@ def save_or_build_project_node(state: WorkflowState) -> dict:
             saver = CodeFileSaverFactory.get_saver(code_gen_type)
             save_path = saver.save_code_file(generate_output, app_id)
             logger.info(f"[save_or_build] {code_gen_type} 保存成功: {save_path}")
-
+            # 向前端 yield 代码更新事件，通知前端开始轮询
+            writer = get_stream_writer()
+            writer({"event_type": StreamChunk.CODE_UPDATED, "data": {}})
             return {
                 "current_node": "save_or_build",
                 "code_save_path": save_path,

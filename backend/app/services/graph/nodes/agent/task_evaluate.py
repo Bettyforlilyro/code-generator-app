@@ -44,8 +44,7 @@ def _build_chat_messages(state: WorkflowState) -> List[Dict[str, str]]:
     if app_id:
         # 有 app_id：从 ChatMemoryManager 加载历史 + token 裁剪
         try:
-            # TODO 需要注入 flask 上下文，否则无法调用 db 相关操作，开发阶段跳过数据库读写
-            chat_messages = get_chat_memory_manager(memory_only=True).get_llm_messages(
+            chat_messages = get_chat_memory_manager().get_llm_messages(
                 app_id=app_id,
                 extra_messages=extra_messages,
             )
