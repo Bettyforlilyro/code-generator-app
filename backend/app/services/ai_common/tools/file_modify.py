@@ -1,12 +1,12 @@
 import logging
-import os.path
 from pathlib import Path
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
-from backend.app.services.ai_common.tools import register_tool_display, FILE_MODIFY_TOOL_NAME
+from backend.app.services.ai_common.tools import (
+    register_tool_display, to_absolute, to_app_absolute, FILE_MODIFY_TOOL_NAME,
+)
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 
@@ -41,8 +41,7 @@ def _do_modify_file(full_path: Path, old_content: str, new_content: str) -> (boo
 )
 def file_modify_tool(file_path: str, old_content: str, new_content: str) -> str:
     try:
-        relative_path = Path(file_path)
-        full_path = Path(os.path.join(Path(DEFAULT_GENERATE_ROOT), "test")) / relative_path
+        full_path = Path(to_absolute(file_path))
         success, msg = _do_modify_file(full_path, old_content, new_content)
         if success:
             return msg
@@ -64,20 +63,17 @@ def file_modify_tool_with_context():
         args_schema=FileModifyToolArgs
     )
     def _tool(file_path: str, old_content: str, new_content: str) -> str:
-        # 被调用时获取上下文参数
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
             logging.error("app_id 未设置")
             return f"文件修改失败，app_id 未设置"
         try:
-            relative_path = Path(file_path)
-            # 把相对路径转换为绝对路径
-            if not relative_path.is_absolute():
-                full_dir_name = f"vue_project_{app_id}"
-            else:
-                return f"文件修改失败，路径参数只能输入相对路径！"
-            full_path = Path(os.path.join(DEFAULT_GENERATE_ROOT, full_dir_name)) / relative_path
+            abs_path = to_app_absolute(app_id, file_path)
+        except ValueError as e:
+            return f"文件修改失败，非法路径: {e}"
+        try:
+            full_path = Path(abs_path)
             success, msg = _do_modify_file(full_path, old_content, new_content)
             if success:
                 return msg

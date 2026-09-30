@@ -4,7 +4,9 @@ import os.path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import register_tool_display, to_absolute, FILE_READ_TOOL_NAME
+from backend.app.services.ai_common.tools import (
+    register_tool_display, to_absolute, to_app_absolute, FILE_READ_TOOL_NAME,
+)
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 
@@ -21,6 +23,7 @@ def file_read_tool(file_path: str) -> str:
     """
     读取文件内容，用于读取指定路径文件的内容。
     """
+    # to_absolute 内部会自动清洗 Linux/Windows 分隔符和前导斜杠
     abs_path = to_absolute(file_path)
     if not os.path.isfile(abs_path):
         raise FileNotFoundError(f"【{abs_path}】文件不存在")
@@ -48,8 +51,7 @@ def file_read_tool_with_context():
         if not app_id:
             logging.error("app_id 未设置")
             return f"文件读取失败，app_id 未设置"
-        real_path = os.path.join(f"vue_project_{app_id}", file_path)
-        abs_path = to_absolute(real_path)
+        abs_path = to_app_absolute(app_id, file_path)
         try:
             with open(abs_path, 'r', encoding='utf-8') as f:
                 return f.read()

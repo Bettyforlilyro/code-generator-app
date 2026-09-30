@@ -1,13 +1,14 @@
 import json
 import logging
 import os.path
-from pathlib import Path
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import register_tool_display, to_absolute, to_relative, _ROOT_PATH, \
-    DIR_READ_TOOL_NAME
+from backend.app.services.ai_common.tools import (
+    register_tool_display, to_absolute, to_relative, to_app_absolute,
+    _normalize_rel_path, DIR_READ_TOOL_NAME,
+)
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 # 应该忽略的文件名（精确匹配，不含路径）
@@ -211,12 +212,20 @@ def dir_read_tool_with_context():
         if not app_id:
             logging.error("app_id 未设置")
             return f"目录读取失败，app_id 未设置"
+
+        # 先清洗 LLM 脏路径（Unix/Windows 分隔符、前导斜杠等）
+        cleaned_dir = _normalize_rel_path(dir_path)
+
         if not recursive:
-            root_path = os.path.join(Path(_ROOT_PATH), f"vue_project_{app_id}", dir_path)
-            return json.dumps(_file_names_in_this_dir(root_path))
+            # 非递归：直接拿绝对路径，_file_names_in_this_dir 要绝对路径
+            abs_path = to_app_absolute(app_id, cleaned_dir)
+            return json.dumps(_file_names_in_this_dir(abs_path))
         else:
-            root_path = os.path.join(f"vue_project_{app_id}", dir_path)
-            return json.dumps(get_tree(root_path))
+            # 递归：拼出 ROOT_PATH 下的相对路径，交给 get_tree 内部的 to_absolute 处理
+            # 形如: "vue_project_123/src/components"
+            app_rel_prefix = f"vue_project_{app_id}"
+            root_for_get_tree = os.path.join(app_rel_prefix, cleaned_dir) if cleaned_dir else app_rel_prefix
+            return json.dumps(get_tree(root_for_get_tree))
 
     return _tool
 

@@ -4,7 +4,9 @@ import os.path
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.services.ai_common.tools import to_absolute, register_tool_display, FILE_DELETE_TOOL_NAME
+from backend.app.services.ai_common.tools import (
+    to_absolute, to_app_absolute, register_tool_display, FILE_DELETE_TOOL_NAME,
+)
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 
@@ -68,17 +70,16 @@ def file_delete_tool_with_context():
         args_schema=FileDeleteToolArgs,
     )
     def _tool(file_path: str) -> str:
-        """
-        删除指定路径的文件。
-        """
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
             logging.error("app_id 未设置")
             return "app_id 未设置，删除失败"
-        real_path = os.path.join(f"vue_project_{app_id}", file_path)
         try:
-            abs_path = to_absolute(real_path)
+            abs_path = to_app_absolute(app_id, file_path)
+        except ValueError as e:
+            return f"删除失败，非法路径: {e}"
+        try:
             if not os.path.isfile(abs_path):
                 raise FileNotFoundError(f"文件不存在: {file_path}")
             if _is_important_file(file_path):

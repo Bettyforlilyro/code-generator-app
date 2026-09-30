@@ -1,12 +1,12 @@
 import logging
-import os.path
 from pathlib import Path
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
-from backend.app.services.ai_common.tools import register_tool_display, FILE_WRITE_TOOL_NAME
+from backend.app.services.ai_common.tools import (
+    register_tool_display, to_absolute, to_app_absolute, FILE_WRITE_TOOL_NAME,
+)
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
 
@@ -24,11 +24,11 @@ class FileWriteToolArgs(BaseModel):
     args_schema=FileWriteToolArgs
 )
 def file_write_tool(file_path: str, content: str) -> str:
-    relative_path = Path(file_path)
-    full_path = Path(os.path.join(Path(DEFAULT_GENERATE_ROOT), "test")) / relative_path
+    # to_absolute 自动清洗分隔符和前导斜杠，带 .. 安全检查
+    full_path = Path(to_absolute(file_path))
     full_path.parent.mkdir(parents=True, exist_ok=True)
     full_path.write_text(content, encoding="utf-8")
-    return f"文件写入成功，文件路径：{relative_path}"
+    return f"文件写入成功，文件路径：{file_path}"
 
 
 def file_write_tool_with_context():
@@ -42,23 +42,20 @@ def file_write_tool_with_context():
         args_schema=FileWriteToolArgs
     )
     def _tool(file_path: str, content: str) -> str:
-        # 被调用时获取上下文参数
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
             logging.error("app_id 未设置")
             return f"文件写入失败，app_id 未设置"
         try:
-            relative_path = Path(file_path)
-            # 把相对路径转换为绝对路径
-            if not relative_path.is_absolute():
-                full_dir_name = f"vue_project_{app_id}"
-            else:
-                return f"文件写入失败，路径参数只能输入相对路径！"
-            full_path = Path(os.path.join(DEFAULT_GENERATE_ROOT, full_dir_name)) / relative_path
+            abs_path = to_app_absolute(app_id, file_path)
+        except ValueError as e:
+            return f"文件写入失败，非法路径: {e}"
+        try:
+            full_path = Path(abs_path)
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(content, encoding="utf-8")
-            return f"文件写入成功，文件路径：{relative_path}"
+            return f"文件写入成功，文件路径：{file_path}"
         except Exception as e:
             logging.error(f"文件写入失败：{e}")
             return f"文件写入失败，错误信息：{e}"

@@ -258,9 +258,42 @@ def get_tool_display(tool_name: str) -> Dict[str, Callable]:
     return _DISPLAY_REGISTRY.get(tool_name, {})
 
 
+def _normalize_rel_path(rel_path: str) -> str:
+    """
+    清洗 LLM 传入的相对路径，兼容 Linux/Windows 分隔符、前导斜杠等脏输入。
+
+    LLM 几乎总是输出 Unix 风格路径，但在 Windows 上 os.path 处理会有坑：
+      - '/src/App.vue' 在 os.path.join 时会吃掉前半段（被当作根路径）
+      - 'src\\App.vue' 混着反斜杠也需要统一
+
+    清洗规则：
+      1. 把所有 \\ 统一替换为 /，再用 os.path.normpath 转为当前平台分隔符
+      2. 去掉前导的 /、\\、.\\、./ 等无意义前缀
+      3. 去掉末尾多余的 / 或 \\
+    """
+    if rel_path is None:
+        return ''
+    # 统一替换所有反斜杠为正斜杠，然后 normpath
+    cleaned = rel_path.replace('\\', '/')
+    # 反复 strip 掉前导 "/" 和 "./" 直到没有为止
+    while cleaned.startswith('/') or cleaned.startswith('./') or cleaned.startswith('.\\'):
+        if cleaned.startswith('./'):
+            cleaned = cleaned[2:]
+        else:
+            cleaned = cleaned[1:]
+    # 去掉末尾多余分隔符（根路径 '.' 例外）
+    cleaned = cleaned.rstrip('/')
+    # 用平台原生分隔符 norm 一次
+    return os.path.normpath(cleaned) if cleaned else ''
+
+
 def to_absolute(rel_path: str) -> str:
     """工具：把基于 ROOT_PATH 的相对路径转为绝对路径"""
     if rel_path in ('', '.', '/'):
+        return _ROOT_PATH
+    # 先清洗 LLM 脏输入
+    rel_path = _normalize_rel_path(rel_path)
+    if not rel_path:
         return _ROOT_PATH
     abs_path = os.path.normpath(os.path.join(_ROOT_PATH, rel_path))
     # 安全检查：防止外部通过 .. 逃逸出 ROOT_PATH
@@ -268,6 +301,23 @@ def to_absolute(rel_path: str) -> str:
             and abs_path != os.path.normpath(_ROOT_PATH):
         raise ValueError(f"非法路径（超出根目录范围）: {rel_path}")
     return abs_path
+
+
+def to_app_absolute(app_id: int, rel_path: str) -> str:
+    """
+    把 LLM 传入的相对路径（相对于 vue_project_{app_id}）转为绝对路径。
+    统一给 file_read/file_write/file_modify/file_delete/dir_read 的 _with_context 版本使用。
+
+    自动处理：
+      - Linux/Windows 分隔符混用
+      - 前导 / 或 \\
+      - .. 路径逃逸（由 to_absolute 内部安全检查兜底）
+    """
+    # 拼接: ROOT_PATH / vue_project_{app_id} / 清洗后的 rel_path
+    prefix = f"vue_project_{app_id}"
+    cleaned = _normalize_rel_path(rel_path)
+    full_rel = os.path.join(prefix, cleaned) if cleaned else prefix
+    return to_absolute(full_rel)
 
 
 def to_relative(abs_path: str) -> str:
