@@ -16,19 +16,22 @@ class FileModifyToolArgs(BaseModel):
     new_content: str = Field(description="替换后的新内容")
 
 
-def _do_modify_file(full_path: Path, old_content: str, new_content: str) -> (bool, str):
+def _do_modify_file(full_path: Path, old_content: str, new_content: str,
+                    rel_path: str = "") -> tuple[bool, str]:
     """
     执行文件修改操作。
+    rel_path: 用于返回给 LLM 的消息中，避免泄露绝对路径。
     """
+    display_path = rel_path or str(full_path.name)
     if not full_path.exists():
-        return False, f"{full_path} 文件不存在！"
+        return False, f"{display_path} 文件不存在！"
     origin_content = full_path.read_text(encoding="utf-8")
     if old_content not in origin_content:
-        return False, f"{old_content} 在文件中不存在！"
+        return False, f"目标内容在 {display_path} 中不存在！"
     if new_content == old_content:
-        return False, f"新内容与旧内容相同，无需修改"
+        return False, "新内容与旧内容相同，无需修改"
     full_path.write_text(origin_content.replace(old_content, new_content), encoding="utf-8")
-    return True, f"{full_path} 已修改完成"
+    return True, f"{display_path} 已修改完成"
 
 
 # ---------------------------------------------------------------------------
@@ -42,14 +45,14 @@ def _do_modify_file(full_path: Path, old_content: str, new_content: str) -> (boo
 def file_modify_tool(file_path: str, old_content: str, new_content: str) -> str:
     try:
         full_path = Path(to_absolute(file_path))
-        success, msg = _do_modify_file(full_path, old_content, new_content)
+        success, msg = _do_modify_file(full_path, old_content, new_content, rel_path=file_path)
         if success:
             return msg
         else:
             return f"文件修改失败，原因：{msg}"
     except Exception as e:
-        logging.error(f"文件修改失败：{e}")
-        return f"文件修改失败，错误信息：{e}"
+        logging.error(f"文件修改失败 [{file_path}]: {e}")
+        return f"文件修改失败: {file_path}"
 
 
 def file_modify_tool_with_context():
@@ -74,14 +77,14 @@ def file_modify_tool_with_context():
             return f"文件修改失败，非法路径: {e}"
         try:
             full_path = Path(abs_path)
-            success, msg = _do_modify_file(full_path, old_content, new_content)
+            success, msg = _do_modify_file(full_path, old_content, new_content, rel_path=file_path)
             if success:
                 return f"{file_path} 已完成修改"
             else:
                 return f"文件修改失败，原因：{msg}"
         except Exception as e:
-            logging.error(f"文件修改失败：{e}")
-            return f"文件修改失败，错误信息：{e}"
+            logging.error(f"文件修改失败 [{file_path}]: {e}")
+            return f"文件修改失败: {file_path}"
 
     return _tool
 

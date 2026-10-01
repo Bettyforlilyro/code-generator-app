@@ -32,7 +32,8 @@ def file_delete_tool(file_path: str) -> str:
         os.remove(abs_path)
         return f"文件 {file_path} 已成功删除"
     except Exception as e:
-        return f"删除失败，错误：{str(e)}"
+        logging.error(f"删除文件失败 [{file_path}]: {e}")
+        return f"删除失败: {file_path}"
 
 
 def _is_important_file(file_path: str) -> bool:
@@ -79,15 +80,16 @@ def file_delete_tool_with_context():
             abs_path = to_app_absolute(app_id, file_path)
         except ValueError as e:
             return f"删除失败，非法路径: {e}"
+        if not os.path.isfile(abs_path):
+            return f"警告：文件不存在: {file_path}，无需删除"
+        if _is_important_file(file_path):
+            return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
         try:
-            if not os.path.isfile(abs_path):
-                raise FileNotFoundError(f"文件不存在: {file_path}")
-            if _is_important_file(file_path):
-                return f"删除失败。文件 {file_path} 是重要文件，不允许删除"
             os.remove(abs_path)
             return f"文件 {file_path} 已成功删除"
         except Exception as e:
-            return f"删除失败，错误：{str(e)}"
+            logging.error(f"删除文件失败 [{file_path}]: {e}")
+            return f"删除失败: {file_path}"
 
     return _tool
 

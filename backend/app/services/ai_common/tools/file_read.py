@@ -23,16 +23,15 @@ def file_read_tool(file_path: str) -> str:
     """
     读取文件内容，用于读取指定路径文件的内容。
     """
-    # to_absolute 内部会自动清洗 Linux/Windows 分隔符和前导斜杠
     abs_path = to_absolute(file_path)
     if not os.path.isfile(abs_path):
-        raise FileNotFoundError(f"【{abs_path}】文件不存在")
+        return f"文件读取失败，文件不存在: {file_path}"
     try:
         with open(abs_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
-        logging.error(f"读取文件失败: {e}")
-        return f"文件读取失败，错误信息: {e}"
+        logging.error(f"读取文件失败 [{file_path}]: {e}")
+        return f"文件读取失败: {file_path}"
 
 
 def file_read_tool_with_context():
@@ -51,13 +50,18 @@ def file_read_tool_with_context():
         if not app_id:
             logging.error("app_id 未设置")
             return f"文件读取失败，app_id 未设置"
-        abs_path = to_app_absolute(app_id, file_path)
+        try:
+            abs_path = to_app_absolute(app_id, file_path)
+        except ValueError as e:
+            return f"文件读取失败，非法路径: {e}"
+        if not os.path.isfile(abs_path):
+            return f"文件读取失败，文件不存在: {file_path}"
         try:
             with open(abs_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            logging.error(f"读取文件失败: {e}")
-            return f"文件读取失败，错误信息: {e}"
+            logging.error(f"读取文件失败 [{file_path}]: {e}")
+            return f"文件读取失败: {file_path}"
 
     return _tool
 

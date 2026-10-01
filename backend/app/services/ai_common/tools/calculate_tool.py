@@ -41,10 +41,7 @@ def calculate_tool_with_context():
         args_schema=CalculateToolArgs
     )
     def _tool(expression: str) -> str:
-        context = get_runtime_context()
-        # 测试：打印一下 context 看是否正确透传
-        print(f"[{TOOL_NAME}] context = {context}")
-
+        context = get_runtime_context()  # 预留：后续可基于 context 做权限/配额等
         try:
             result = eval(expression)
             return f"计算结果: {result}"
