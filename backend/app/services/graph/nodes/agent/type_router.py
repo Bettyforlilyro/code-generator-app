@@ -8,6 +8,9 @@
 - VUE_PROJECT: 复杂需求（状态共享、组件复用、数据交互、多人协同等）
 """
 import logging
+import os
+
+from dotenv import load_dotenv
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
@@ -19,6 +22,7 @@ from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 
 def type_router_node(state: WorkflowState) -> dict:
@@ -36,6 +40,7 @@ def type_router_node(state: WorkflowState) -> dict:
     llm_client = create_spec_llm_in_graph(
         system_prompt=CODE_GENERATE_ROUTING_SYSTEM_PROMPT,
         app_id=state.get("app_id", ""),
+        model_name=os.getenv("ROUTER_MODEL_OPENAI_COMPATIBLE"),
         response_format=CodeFileType.get_response_format(),
     )
 

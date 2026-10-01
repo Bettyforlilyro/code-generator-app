@@ -8,8 +8,10 @@
 3. code_gen_type == VUE_PROJECT     → 带文件工具的 Agent，多轮迭代生成工程
 """
 import logging
+import os
 from typing import List
 
+from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.config import get_stream_writer
 
@@ -26,6 +28,7 @@ from backend.app.services.graph.prompt import (
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 
 def _format_material_info(image_list: List[ImageResource]) -> str:
@@ -177,12 +180,18 @@ def code_generator_node(state: WorkflowState):
         llm_client = create_spec_llm_in_graph(
             system_prompt="",
             app_id=state.get("app_id", ""),
+            model_name=os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"),
             tools=tools_factory_with_context(),
             timeout=1200,
         )
         tool_context = {"app_id": state.get("app_id")}
     else:       # modify 以及 HTML / MULTI_FILE 的 new_build
-        llm_client = create_spec_llm_in_graph(system_prompt="", app_id=state.get("app_id", ""), timeout=600)
+        llm_client = create_spec_llm_in_graph(
+            system_prompt="",
+            app_id=state.get("app_id", ""),
+            model_name=os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"),
+            timeout=600
+        )
     from backend.app.services.ai_common.advisor import StreamChunk
     try:
         ai_message_to_history = ""  # 需要保存到对话历史中去的 AI 回复消息（包含：AI 回复文本 + 工具调用结束信息 + 错误信息，工具开始调用信息不保存）

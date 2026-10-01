@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_type: str):
     """
-    校验应用存在性、用户权限、设置 code_gen_type
+    校验应用存在性、用户权限
 
     Args:
         app_id: 应用 ID
@@ -35,7 +35,7 @@ def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_typ
         code_gen_type: 代码生成类型
 
     Raises:
-        BusinessException: 应用不存在 / 无权限 / 代码生成类型无效
+        BusinessException: 应用不存在 / 无权限
 
     Returns:
     """

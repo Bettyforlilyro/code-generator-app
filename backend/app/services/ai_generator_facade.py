@@ -1,6 +1,9 @@
 import json
 import logging
+import os
 import re
+
+from dotenv import load_dotenv
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import (
@@ -16,6 +19,7 @@ from backend.app.services.ai_common.llm_client_pool import get_or_create
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
 
 logger = logging.getLogger(__name__)
+load_dotenv()
 
 
 def _compose_task_info(chunk: StreamChunk) -> dict:
@@ -76,6 +80,11 @@ class AICodeGeneratorFacade:
                    .set_system_prompt(system_prompt)
                    .set_timeout(600)
                    )
+        # 根据不同的代码生成类型，设置不同的模型，控制成本
+        if code_gen_type == CodeFileType.VUE_PROJECT:
+            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))
+        else:
+            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"))
         llm_client = get_or_create(builder, str(app_id))
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
@@ -108,16 +117,21 @@ class AICodeGeneratorFacade:
         )
         # 流式模式下不设置 response_format（结构化输出）
         # system_prompt 已经在 messages 中已经有了，这里手动添加一个空的 system_prompt 避免覆盖
-        llm_client_builder = ChatClientBuilder().set_system_prompt("")
+        builder = ChatClientBuilder().set_system_prompt("")
         if tools and len(tools) > 0:
             if isinstance(tools[0], str) and app_id:
                 # 默认使用带上下文的工具调用，app_id 作为上下文
-                llm_client_builder.add_tools_with_context_by_names(tools)
+                builder.add_tools_with_context_by_names(tools)
             elif isinstance(tools[0], str):
-                llm_client_builder.add_tools_by_names(tools)
+                builder.add_tools_by_names(tools)
             else:
-                llm_client_builder.add_tools(tools)
-        llm_client = get_or_create(llm_client_builder, str(app_id))
+                builder.add_tools(tools)
+        # 根据不同的代码生成类型，设置不同的模型，控制成本
+        if code_gen_type == CodeFileType.VUE_PROJECT:
+            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))
+        else:
+            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"))
+        llm_client = get_or_create(builder, str(app_id))
 
         full_response_text = ""
 
