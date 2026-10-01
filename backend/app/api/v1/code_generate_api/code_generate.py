@@ -8,6 +8,7 @@ from backend.app.common.exceptions.error_codes import ErrorCode, BusinessExcepti
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.responses.BaseResponse import stream_response
+from backend.app.services.app_service import update_app_code_gen_type_svc, update_app_system_prompt_svc
 from backend.app.services.code_generate_service import (
     validate_and_prepare_code_generation,
     build_code_generator,
@@ -110,7 +111,7 @@ def generate_code_stream():
     else:
         # ── 原有逻辑保持不变 code_gen_type 持久化 + 系统 Prompt 存数据库 ────────────────────────────
         update_app_code_gen_type_svc(int(app_id), code_gen_type)
-        create_app_system_prompt_svc(int(app_id), CodeFileType.get_system_prompt(code_gen_type))
+        update_app_system_prompt_svc(int(app_id), user_id, CodeFileType.get_system_prompt(code_gen_type))
         generator = build_code_generator(prompt, CodeFileType(code_gen_type), int(app_id))
 
         def on_done(chunks: list[tuple[str, dict]]):

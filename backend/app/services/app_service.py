@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
+from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
 from backend.app.common.emuns.user_role import UserRole
@@ -30,6 +31,7 @@ from backend.app.schemas.responses.app_management_response import (
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
 from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
+from backend.app.services.chat_history_service import get_system_prompt_by_app_id, create_chat_history
 from backend.app.services.common import validate_sort_params
 
 logger = logging.getLogger(__name__)
@@ -429,15 +431,19 @@ def update_app_coverage_svc(app_id: int, coverage_url: str):
     db.session.commit()
 
 
-def update_app_code_gen_type_svc(app_id: int, code_gen_type: CodeFileType):
+def update_app_code_gen_type_svc(app_id: int, code_gen_type: CodeFileType | str):
     """更新应用代码生成类型"""
     app = _get_app_or_raise(app_id)
     app.code_gen_type = code_gen_type
     db.session.commit()
 
 
-def create_app_system_prompt_svc(app_id: int, system_prompt: str):
-    """创建应用系统 Prompt"""
-    app = _get_app_or_raise(app_id)
-    app.system_prompt = system_prompt
-    db.session.commit()
+def update_app_system_prompt_svc(app_id: int, user_id: int, system_prompt: str):
+    """如果应用还没有系统 Prompt，先插入一条"""
+    if not get_system_prompt_by_app_id(app_id):
+        create_chat_history(
+            message=system_prompt,
+            message_type=ChatMessageType.SYSTEM.value,
+            app_id=app_id,
+            user_id=user_id,
+        )
