@@ -73,7 +73,7 @@ def code_reviewer_node(state: WorkflowState) -> dict:
     retry_count = state.get("retry_count", 0)
     if qa_feedback_history and retry_count > 0:
         review_user_prompt += (
-            f"\n\n【上一轮审查反馈】（第 {retry_count} 次重试，请针对性修复）\n{qa_feedback_history}"
+            f"\n\n【上一轮你给出的代码审查反馈意见】（第 {retry_count} 次重试）\n{qa_feedback_history}"
         )
 
     messages = [{"role": "user", "content": review_user_prompt}]

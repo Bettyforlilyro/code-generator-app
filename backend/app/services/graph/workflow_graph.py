@@ -210,8 +210,8 @@ def _build_initial_state(
 
 def run_workflow_streaming(
         original_prompt: str,
-        app_id: int | None = None,
         user_id: int | None = None,
+        app_id: int | None = None,
         messages: list | None = None,
 ):
     """
@@ -247,14 +247,9 @@ def run_workflow_streaming(
             initial_state, stream_mode=["updates", "custom"]
     ):
         if mode == "custom":
-            # ✅ 节点内部 writer() 吐出来的事件 —— 已经是前端约定格式
-            # payload = {"event_type": "message", "data": {"d": "..."}}
+            # ✅ 节点内部 writer() 吐出来的事件 —— 已经是前端约定的各种事件类型以及对应格式
             event_type = payload.get("event_type", "message")
             data = payload.get("data", {})
-            # 过滤掉空的 message chunk（chunk.content 为空时）
-            if event_type == "message" and not data.get("d"):
-                continue
-            logger.info(f"[custom stream] type={event_type}, content={str(data)[:60]}")
             yield "stream", event_type, data
 
         elif mode == "updates":
@@ -310,7 +305,7 @@ if __name__ == "__main__":
     print("-" * 50)
     for kind, *payload in run_workflow_streaming(
         original_prompt="创建一个基于Vue3的单页应用，包含登录、注册、个人中心、文章列表、详情页、分类标签、搜索功能、评论系统和个人简介页面。采用简洁的设计风格，支持响应式布局，文章支持Markdown格式，首页展示最新文章和热门推荐。总代码控制在500行以内，不要写太多示例数据和演示文本",
-        app_id=998,
+        app_id=999,
         user_id=1001,
     ):
         if kind == "stream":

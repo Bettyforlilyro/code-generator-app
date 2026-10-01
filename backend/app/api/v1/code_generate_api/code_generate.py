@@ -74,10 +74,6 @@ def generate_code_stream():
     user = g.current_user
     json_data = parse_json_body()
 
-    app_id = json_data.get('app_id')
-    if not app_id or int(app_id) <= 0:
-        raise BusinessException(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
-
     prompt = json_data.get('init_prompt')
     if not prompt:
         raise BusinessException(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
@@ -92,13 +88,11 @@ def generate_code_stream():
     if code_gen_type and not CodeFileType.is_valid_file_type(code_gen_type):
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "code_gen_type无效")
 
-    # ── 公共：应用校验 + 权限校验 ──
-    validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
-
     user_id = user.id
 
     if use_graph:
-        generator = _build_workflow_generator(prompt, int(app_id), user_id)
+        app_id = json_data.get('app_id')    # 首次创建时可能为空（在graph中插入数据库时才拿到，是正常的），因此这里就不加校验了
+        generator = _build_workflow_generator(prompt, user_id, app_id=app_id)
 
         # 工作流模式：chat_history_save 节点已自动持久化对话历史，路由节点已自动更新 code_gen_type 持久化 + 系统 Prompt 存数据库
         # 但 on_done / on_error 仍然需要，用于统一回调签名
@@ -109,6 +103,11 @@ def generate_code_stream():
             logging.error(f"[workflow] 工作流执行异常: {str(error)}, app_id={app_id}")
             return "AI 暂时不能回答这个问题"
     else:
+        app_id = json_data.get('app_id')
+        if not app_id or int(app_id) <= 0:
+            raise BusinessException(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
+        # ── 公共：应用校验 + 权限校验 ──
+        validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
         # ── 原有逻辑保持不变 code_gen_type 持久化 + 系统 Prompt 存数据库 ────────────────────────────
         update_app_code_gen_type_svc(int(app_id), code_gen_type)
         update_app_system_prompt_svc(int(app_id), user_id, CodeFileType.get_system_prompt(code_gen_type))
@@ -126,7 +125,7 @@ def generate_code_stream():
     return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)
 
 
-def _build_workflow_generator(original_prompt: str, app_id: int, user_id: int):
+def _build_workflow_generator(original_prompt: str, user_id: int, app_id: int | None = None):
     """
     构建 LangGraph 工作流流式生成器
 

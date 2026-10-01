@@ -1,4 +1,4 @@
-from flask import request, g
+from flask import request, g, redirect
 
 from backend.app.api.v1.app_management import app_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
@@ -77,10 +77,12 @@ def create_app():
     if 'init_prompt' not in data:
         return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
     use_graph = data.get('use_graph', False)
-
-    req = AppCreateRequest(**data)
-    result = create_app_svc(user.id, req, use_graph)
-    return success_response(result, 201)
+    if not use_graph:
+        req = AppCreateRequest(**data)
+        result = create_app_svc(user.id, req)
+        return success_response(result, 201)
+    else:       # 直接重定向到/api/v1/code/generator 路由，响应码307告诉前端保留请求方法和body
+        return redirect(f"/api/v1/code/generate", code=307)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['PUT'])

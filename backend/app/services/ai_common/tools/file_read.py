@@ -74,8 +74,6 @@ def _show_end(args: dict, result: str, success: bool) -> str:
     显示读取文件的提示。
     """
     file_path = args.get("file_path")
-    if not file_path:
-        return "\n\n❌ 文件路径不存在，读取失败\n\n"
     if not success:
         return "\n\n❌ 读取文件失败\n\n"
     return f"\n\n✅ 读取文件: `{file_path}` 完成\n\n"

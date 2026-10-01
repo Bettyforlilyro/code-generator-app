@@ -11,12 +11,13 @@ import logging
 import os
 
 from dotenv import load_dotenv
+from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
-from backend.app.services.app_service import update_app_code_gen_type_svc
+from backend.app.services.app_service import update_app_code_gen_type_svc, create_app_in_graph_svc
 from backend.app.services.chat_history_service import create_chat_history
 from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.state.workflow_state import WorkflowState
@@ -56,22 +57,32 @@ def type_router_node(state: WorkflowState) -> dict:
     finally:
         # 如果是 new_build 任务，需要保存系统提示词到对话历史和内存
         task_type = state.get("task_type", "")
-        app_id = state.get("app_id", "")
         if task_type == "new_build":
+            current_app = create_app_in_graph_svc(state.get("user_id", ""), enhanced_prompt, CodeFileType(code_gen_type))
             chat_memory_manager = get_chat_memory_manager()
             chat_memory_manager.add_message(
-                app_id=app_id,
+                app_id=current_app["id"],
                 role="system",
                 content=CodeFileType.get_system_prompt(code_gen_type),
             )
-            update_app_code_gen_type_svc(app_id, code_gen_type)
+            update_app_code_gen_type_svc(current_app["id"], code_gen_type)
             user_id = state.get("user_id", "")
             create_chat_history(
                 message=CodeFileType.get_system_prompt(code_gen_type),
                 message_type=ChatMessageType.SYSTEM.value,
-                app_id=app_id,
+                app_id=current_app["id"],
                 user_id=user_id,
             )
+            # 创建 app 并 yield app_created 事件
+            writer = get_stream_writer()
+            writer({"event_type": "app_created",
+                    "data": current_app})
+            return {
+                "messages": [{"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)}],
+                "code_gen_type": code_gen_type,
+                "current_node": "type_router",
+                "app_id": current_app["id"],   # 新创建的应用ID
+            }
     return {
         "messages": [{"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)}],
         "code_gen_type": code_gen_type,

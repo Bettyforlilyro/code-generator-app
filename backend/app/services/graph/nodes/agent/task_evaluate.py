@@ -6,6 +6,7 @@
 而不是 state.messages，因为 state.messages 是 LangGraph 的 MessagesState 中间态。
 """
 import logging
+import os
 from typing import List, Dict
 
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
@@ -81,6 +82,7 @@ def task_evaluate_node(state: WorkflowState) -> dict:
     llm_client = create_spec_llm_in_graph(
         system_prompt=TASK_CLASSIFIER_SYSTEM_PROMPT,
         app_id=state.get("app_id", ""),
+        model_name=os.getenv("ROUTER_MODEL_OPENAI_COMPATIBLE"),
         response_format=TaskEvaluateResult.get_response_format(),
     )
 

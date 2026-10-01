@@ -76,7 +76,7 @@ def file_modify_tool_with_context():
             full_path = Path(abs_path)
             success, msg = _do_modify_file(full_path, old_content, new_content)
             if success:
-                return msg
+                return f"{file_path} 已完成修改"
             else:
                 return f"文件修改失败，原因：{msg}"
         except Exception as e:
@@ -104,7 +104,7 @@ def _show_end(args, result, success) -> str:
     :return: 展示的字符串
     """
     file_path = args.get("file_path")
-    if success and "修改完成" in result:
+    if success:
         return f"\n\n✅ 已修改文件: `{file_path}` \n\n"
     return f"\n\n❌ 文件修改失败！ \n\n"
 
