@@ -297,6 +297,14 @@ class ChatClient:
 
         yield processed_final
 
+    def _list_registered_tool_names(self) -> str:
+        """列出当前已注册的所有工具名称，用于在工具不存在时反馈给 LLM 帮助纠正幻觉"""
+        try:
+            names = [t.name for t in self._available_tools]
+        except Exception:
+            names = []
+        return names if names else "（无）"
+
     # ---- 流式工具执行 ----
     def _execute_tool_calls_stream(self, tool_calls: list):
         """
@@ -315,18 +323,21 @@ class ChatClient:
             if not r.lookup_ok:
                 if r.lookup_error.startswith("未注册"):
                     # 前端已经 yield 了 tool_start（chunk 阶段），这里必须 yield tool_end 配对
+                    # tool_end 元组统一 6 个元素: (kind, name, id, success, content, args)
                     yield ("tool_end", r.tool_name, r.tool_call_id, False,
-                           f"❌ **工具不存在**: `{r.tool_name}`（未在系统注册）\n\n")
+                           f"❌ **调用失败，**正在努力重试...\n\n", r.tool_args)
                     yield ("tool_message", ToolMessage(
-                        content=f"工具 【{r.tool_name}】 不存在", tool_call_id=r.tool_call_id))
+                        content=f"工具 【{r.tool_name}】 不存在。可用的工具只有: {self._list_registered_tool_names()}",
+                        tool_call_id=r.tool_call_id))
                 else:
                     yield ("tool_end", r.tool_name, r.tool_call_id, False,
-                           f"❌ **工具查找异常**: `{r.tool_name}` — {r.lookup_error}\n\n")
+                           f"❌ **工具查找异常**: `{r.tool_name}` — {r.lookup_error}\n\n", r.tool_args)
                     yield ("tool_message", ToolMessage(
-                        content=f"工具 【{r.tool_name}】 执行失败: {r.lookup_error}", tool_call_id=r.tool_call_id))
+                        content=f"工具 【{r.tool_name}】 执行失败: {r.lookup_error}",
+                        tool_call_id=r.tool_call_id))
                 continue
 
-            # yield 工具结束标记
+            # 执行阶段：正常执行（成功或异常）
             content_end = build_tool_end_content(r.tool_name, r.tool_args, r.content, r.success)
             yield "tool_end", r.tool_name, r.tool_call_id, r.success, content_end, r.tool_args
 

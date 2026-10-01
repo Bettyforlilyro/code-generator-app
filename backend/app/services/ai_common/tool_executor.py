@@ -91,16 +91,32 @@ def execute_tool_calls_batch(
     查找失败时 ToolMessage content 格式与原实现一致："工具查找失败: {e}"
     执行异常时 ToolMessage content 格式与原实现一致：包含 traceback 堆栈
     """
+    # 预先提取可用工具名，用于给 LLM 提供更友好的错误反馈
+    try:
+        available_names = [t.name for t in available_tools] if available_tools else []
+    except Exception:
+        available_names = []
+
     tool_messages: List[ToolMessage] = []
     for tc in tool_calls:
         r = execute_single_tool(tc, available_tools)
         if not r.lookup_ok:
-            tool_messages.append(
-                ToolMessage(
-                    content=f"工具查找失败: {r.lookup_error}",
-                    tool_call_id=r.tool_call_id,
+            # 给 LLM 的错误信息要明确 + 提供可用工具列表，帮助纠正幻觉
+            if r.lookup_error.startswith("未注册"):
+                hint = f"。当前可用工具: {available_names}" if available_names else "。当前未注册任何工具"
+                tool_messages.append(
+                    ToolMessage(
+                        content=f"工具不存在: {r.tool_name}{hint}",
+                        tool_call_id=r.tool_call_id,
+                    )
                 )
-            )
+            else:
+                tool_messages.append(
+                    ToolMessage(
+                        content=f"工具查找异常: {r.lookup_error}",
+                        tool_call_id=r.tool_call_id,
+                    )
+                )
         else:
             tool_messages.append(
                 ToolMessage(content=r.content, tool_call_id=r.tool_call_id)
