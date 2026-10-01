@@ -327,7 +327,7 @@ class ChatClient:
                     yield ("tool_end", r.tool_name, r.tool_call_id, False,
                            f"❌ **调用失败，**正在努力重试...\n\n", r.tool_args)
                     yield ("tool_message", ToolMessage(
-                        content=f"工具 【{r.tool_name}】 不存在。可用的工具只有: {self._list_registered_tool_names()}",
+                        content=f"工具 【{r.tool_name}】 不存在。可用的工具只有: {self._list_registered_tool_names()}，请使用正确的工具名称",
                         tool_call_id=r.tool_call_id))
                 else:
                     yield ("tool_end", r.tool_name, r.tool_call_id, False,
