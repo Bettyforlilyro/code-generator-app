@@ -9,6 +9,7 @@ from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.schemas.ai_generate_results import BaseCodeResult
 from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.graph.model.image_resource import ImageResource, merge_image_list
+from backend.app.services.graph.model.merge_generate_output import merge_generated_code
 
 
 class WorkflowState(TypedDict, total=False):
@@ -42,7 +43,7 @@ class WorkflowState(TypedDict, total=False):
     # 代码生成类型
     code_gen_type: CodeFileType
     # 代码生成结果的结构化数据，或者修改回复/问题回复（文本），内部处理
-    generate_output: str | BaseCodeResult
+    generate_output: Annotated[str | BaseCodeResult, merge_generated_code]
 
     # ========== 流式透传通道 ==========
     # code_generator 节点流式执行时透传的原始 StreamChunk

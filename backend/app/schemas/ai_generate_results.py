@@ -119,6 +119,9 @@ class MultiFileCodeResult(BaseCodeResult):
 class VueProjectFileCodeResult(BaseCodeResult):
     """Vue项目文件代码生成结果"""
     vue_project_code_file_paths: Optional[List[str]] = Field(description="生成的完整Vue项目代码文件列表，包含多个文件路径", default=None)
+    modified_files: Optional[List[str]] = Field(description="修改的文件列表", default=None)
+    deleted_files: Optional[List[str]] = Field(description="删除的文件列表", default=None)
+    added_files: Optional[List[str]] = Field(description="新增的文件列表", default=None)
     app_name: Optional[str] = Field(description="应用名称", default=None)
 
     def get_files_dict(self) -> dict[str, str]:
@@ -129,26 +132,7 @@ class VueProjectFileCodeResult(BaseCodeResult):
         判断代码是否修改
         修改的三种情况：新增文件、修改文件、删除文件都算修改
         """
-        # 应用名称:<app_name>
-        # ✅ 已生成代码并存入文件: `src/main.js`
-        # ✅ 已修改文件: `src/main.js`
-        # ✅ 删除文件: `src/main.js`
-        write_success = re.compile(
-            r'✅ 已生成代码并存入文件: `'  # 固定锚点
-            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
-        )
-        write_files = [match.group(1) for match in write_success.finditer(response)]
-        mod_success = re.compile(
-            r'✅ 已修改文件: `'  # 固定锚点
-            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
-        )
-        mod_files = [match.group(1) for match in mod_success.finditer(response)]
-        delete_success = re.compile(
-            r'✅ 删除文件: `'  # 固定锚点
-            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'  # 分隔符为 / 的相对路径
-        )
-        delete_files = [match.group(1) for match in delete_success.finditer(response)]
-        return len(write_files) > 0 or len(mod_files) > 0 or len(delete_files) > 0
+        return len(self.added_files) > 0 or len(self.modified_files) > 0 or len(self.deleted_files) > 0
 
     def is_name_modified(self) -> bool:
         return self.app_name is not None and self.app_name.strip() != ""
@@ -173,11 +157,19 @@ class VueProjectFileCodeResult(BaseCodeResult):
             r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
         )
         write_files = [match.group(1) for match in write_success.finditer(response)]
+        result.added_files = write_files
+        mod_success = re.compile(
+            r'✅ 已修改文件: `'           # 固定锚点
+            r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
+        )
+        mod_files = [match.group(1) for match in mod_success.finditer(response)]
+        result.modified_files = mod_files
         delete_success = re.compile(
             r'✅ 删除文件: `'           # 固定锚点
             r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
         )
         delete_files = [match.group(1) for match in delete_success.finditer(response)]
+        result.deleted_files = delete_files
         result.vue_project_code_file_paths.extend(write_files)
         for delete_file in delete_files:
             if delete_file in result.vue_project_code_file_paths:
