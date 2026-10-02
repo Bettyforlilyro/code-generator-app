@@ -370,6 +370,10 @@ const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const TOKEN_KEY = 'token'
 
+// 是否使用 graph 图方式生成代码(从 HomePage 创建时通过 query 传入)
+// 默认 false,仅当 route.query.use_graph === 'true' 时为 true
+const useGraphMode = computed(() => route.query.use_graph === 'true')
+
 // 代码文件接口
 interface CodeFile {
   name: string
@@ -1196,6 +1200,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
         init_prompt: userMessage,
         code_gen_type: selectedCodeGenType.value,
         app_id: appId.value,
+        use_graph: useGraphMode.value,
       }),
     })
 

@@ -3,6 +3,8 @@ declare namespace API {
   type AppAddRequest = {
     init_prompt?: string
     code_gen_type?: string
+    /** 是否使用 graph 图方式决定生成代码类型(后端异步返回 app_created 事件后才能拿到 code_gen_type) */
+    use_graph?: boolean
   }
 
   type AppAdminUpdateRequest = {

@@ -5,6 +5,8 @@ import { message } from 'ant-design-vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
+import { API_BASE_URL } from '@/config/env'
+import request from '@/request'
 import AppCard from '@/components/AppCard.vue'
 
 const router = useRouter()
@@ -13,6 +15,11 @@ const loginUserStore = useLoginUserStore()
 // 用户提示词
 const userPrompt = ref('')
 const creating = ref(false)
+
+// 是否使用 graph 图方式创建应用('true'=后端异步决策 code_gen_type 后通过 SSE app_created 事件返回)
+// 用字符串而非 Boolean:Ant Design Vue 的 a-select value 不接受 Boolean 类型
+const useGraphMode = ref<'false' | 'true'>('false')
+const isGraphMode = () => useGraphMode.value === 'true'
 
 // 我的应用数据
 const myApps = ref<API.AppVO[]>([])
@@ -37,6 +44,78 @@ const setPrompt = (prompt: string) => {
 
 // 优化提示词功能已移除
 
+// 使用 graph 图方式创建应用(SSE 流:等 app_created 事件后再跳转)
+const createAppWithGraph = async (prompt: string) => {
+  const token = localStorage.getItem('token') || ''
+  const baseURL = request.defaults.baseURL || API_BASE_URL
+
+  const response = await fetch(`${baseURL}/app`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      init_prompt: prompt,
+      use_graph: true,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
+  }
+
+  // 解析 SSE 流,等待 app_created 事件
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() || ''
+
+    for (const eventBlock of events) {
+      const lines = eventBlock.split('\n')
+      let eventType = 'message'
+      const dataLines: string[] = []
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trim())
+        }
+      }
+      const dataStr = dataLines.join('\n')
+      if (!dataStr) continue
+
+      if (eventType === 'app_created') {
+        const data = JSON.parse(dataStr)
+        const appId = String(data.app_id ?? data.id)
+        const codeGenType = data.code_gen_type
+        message.success('应用创建成功')
+        // 携带 code_gen_type 到下一个页面(可选:AppChatPage 会自行 fetchAppInfo)
+        await router.push({
+          path: `/app/chat/${appId}`,
+          query: { use_graph: 'true' },
+        })
+        return
+      }
+
+      if (eventType === 'error') {
+        const err = JSON.parse(dataStr)
+        throw new Error(err.message || '创建失败')
+      }
+    }
+  }
+
+  // 流结束但没收到 app_created
+  throw new Error('创建超时,未收到应用创建确认')
+}
+
 // 创建应用
 const createApp = async () => {
   if (!userPrompt.value.trim()) {
@@ -52,23 +131,29 @@ const createApp = async () => {
 
   creating.value = true
   try {
-    const res = await addApp({
-      init_prompt: userPrompt.value.trim(),
-    })
-
-    if (res.data.code === 20000 && res.data.data) {
-      message.success('应用创建成功')
-      // 跳转到对话页面，确保ID是字符串类型
-      // TODO 调试待删除
-      console.log(res.data.data)
-      const appId = String(res.data.data.id)
-      await router.push(`/app/chat/${appId}`)
+    if (isGraphMode()) {
+      // 使用 graph 图方式:后端通过 SSE 异步决定 code_gen_type
+      await createAppWithGraph(userPrompt.value.trim())
     } else {
-      message.error('创建失败：' + res.data.message)
+      // 原方式:同步创建,直接拿 app_id
+      const res = await addApp({
+        init_prompt: userPrompt.value.trim(),
+      })
+
+      if (res.data.code === 20000 && res.data.data) {
+        message.success('应用创建成功')
+        const appId = String(res.data.data.id)
+        await router.push({
+          path: `/app/chat/${appId}`,
+          query: isGraphMode() ? { use_graph: 'true' } : undefined,
+        })
+      } else {
+        message.error('创建失败：' + res.data.message)
+      }
     }
   } catch (error) {
     console.error('创建应用失败：', error)
-    message.error('创建失败，请重试')
+    message.error(error instanceof Error ? error.message : '创建失败,请重试')
   } finally {
     creating.value = false
   }
@@ -118,7 +203,7 @@ const loadFeaturedApps = async () => {
 // 查看对话
 const viewChat = (appId: string | number | undefined) => {
   if (appId) {
-    router.push(`/app/chat/${appId}?view=1`)
+    router.push(`/app/chat/${appId}`)
   }
 }
 
@@ -168,6 +253,18 @@ onMounted(() => {
 
       <!-- 用户提示词输入框 -->
       <div class="input-section">
+        <!-- 创建方式选择 -->
+        <div class="create-mode-row">
+          <span class="create-mode-label">创建方式：</span>
+          <a-select
+            v-model:value="useGraphMode"
+            class="create-mode-select"
+            :disabled="creating"
+          >
+            <a-select-option value="false">原有方式（直接创建）</a-select-option>
+            <a-select-option value="true">图方式（AI 决策类型）</a-select-option>
+          </a-select>
+        </div>
         <a-textarea
           v-model:value="userPrompt"
           placeholder="帮我创建个人博客网站"
@@ -448,6 +545,24 @@ onMounted(() => {
   position: relative;
   margin: 0 auto 24px;
   max-width: 800px;
+}
+
+/* 创建方式选择 */
+.create-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.create-mode-label {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.create-mode-select {
+  width: 220px;
 }
 
 .prompt-input {
