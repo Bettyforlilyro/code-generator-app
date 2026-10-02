@@ -4,16 +4,6 @@
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.app_name || '网站生成器' }}</h1>
-        <a-select
-          v-model:value="selectedCodeGenType"
-          class="code-gen-type-selector"
-          size="small"
-          disabled
-        >
-          <a-select-option v-for="opt in codeGenTypeOptions" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </a-select-option>
-        </a-select>
       </div>
       <div class="header-right">
         <a-button type="default" @click="showAppDetail">
@@ -1277,6 +1267,28 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
         if (eventType === 'done') {
           finalizeGeneration()
+          continue
+        }
+
+        // ======== graph 工作流:后端确定 code_gen_type ========
+        // use_graph=true 时,后端先创建占位记录(code_gen_type 为空),
+        // graph workflow 决策好后推送 app_created {code_gen_type, app_name?}
+        if (eventType === 'app_created') {
+          try {
+            const data = JSON.parse(dataStr)
+            console.log('[app_created] graph 决策完成:', data)
+            if (data.code_gen_type) {
+              selectedCodeGenType.value = data.code_gen_type
+              if (appInfo.value) {
+                appInfo.value.code_gen_type = data.code_gen_type
+                if (data.app_name) {
+                  appInfo.value.app_name = data.app_name
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[app_created] parse failed:', e)
+          }
           continue
         }
 

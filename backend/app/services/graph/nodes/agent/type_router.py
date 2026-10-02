@@ -58,7 +58,12 @@ def type_router_node(state: WorkflowState) -> dict:
         # 如果是 new_build 任务，需要保存系统提示词到对话历史和内存
         task_type = state.get("task_type", "")
         if task_type == "new_build":
-            current_app = create_app_in_graph_svc(state.get("user_id", ""), enhanced_prompt, CodeFileType(code_gen_type))
+            current_app = create_app_in_graph_svc(
+                state.get("app_id", ""),
+                state.get("user_id", ""),
+                state.get("original_prompt", ""),
+                CodeFileType(code_gen_type)
+            )
             chat_memory_manager = get_chat_memory_manager()
             chat_memory_manager.add_message(
                 app_id=current_app["id"],

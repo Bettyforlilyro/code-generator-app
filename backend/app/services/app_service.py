@@ -438,13 +438,22 @@ def update_app_system_prompt_svc(app_id: int, user_id: int, system_prompt: str):
         )
 
 
-def create_app_in_graph_svc(user_id: int, init_prompt: str, code_gen_type: CodeFileType):
-    new_app = AppModel(
-        app_name=init_prompt[:20] or "",
-        code_gen_type=code_gen_type.value,
-        user_id=user_id,
-        app_coverage="",
-    )
-    db.session.add(new_app)
+def create_app_in_graph_svc(app_id: int | None, user_id: int, init_prompt: str, code_gen_type: CodeFileType):
+    """ 如果 app 已存在，直接更新，否则创建新记录 """
+    if app_id:
+        # 如果已传入 app_id 一定存在，直接更新，否则抛异常
+        app = _get_app_or_raise(app_id)
+        app.code_gen_type = code_gen_type.value
+        db.session.commit()
+        return app.to_dict()
+    else:
+        # 如果未传入 app_id，创建新记录
+        new_app = AppModel(
+            app_name=init_prompt[:20] or "",
+            init_prompt=init_prompt,
+            user_id=user_id,
+            app_coverage="",
+        )
+        db.session.add(new_app)
     db.session.commit()
     return new_app.to_dict()

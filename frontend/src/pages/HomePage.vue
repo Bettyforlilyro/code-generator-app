@@ -44,7 +44,9 @@ const setPrompt = (prompt: string) => {
 
 // 优化提示词功能已移除
 
-// 使用 graph 图方式创建应用(SSE 流:等 app_created 事件后再跳转)
+// 使用 graph 图方式创建应用
+// 后端同步创建占位记录(此时 code_gen_type 为空,等 graph workflow 决策后推送 app_created 事件)
+// 真正的 graph workflow 会在 AppChatPage 里通过 generateCode 启动
 const createAppWithGraph = async (prompt: string) => {
   const token = localStorage.getItem('token') || ''
   const baseURL = request.defaults.baseURL || API_BASE_URL
@@ -65,55 +67,19 @@ const createAppWithGraph = async (prompt: string) => {
     throw new Error(`HTTP ${response.status}`)
   }
 
-  // 解析 SSE 流,等待 app_created 事件
-  const reader = response.body!.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split('\n\n')
-    buffer = events.pop() || ''
-
-    for (const eventBlock of events) {
-      const lines = eventBlock.split('\n')
-      let eventType = 'message'
-      const dataLines: string[] = []
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventType = line.slice(6).trim()
-        } else if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trim())
-        }
-      }
-      const dataStr = dataLines.join('\n')
-      if (!dataStr) continue
-
-      if (eventType === 'app_created') {
-        const data = JSON.parse(dataStr)
-        const appId = String(data.app_id ?? data.id)
-        const codeGenType = data.code_gen_type
-        message.success('应用创建成功')
-        // 携带 code_gen_type 到下一个页面(可选:AppChatPage 会自行 fetchAppInfo)
-        await router.push({
-          path: `/app/chat/${appId}`,
-          query: { use_graph: 'true' },
-        })
-        return
-      }
-
-      if (eventType === 'error') {
-        const err = JSON.parse(dataStr)
-        throw new Error(err.message || '创建失败')
-      }
-    }
+  // 后端同步返回 JSON(占位记录),不再返回 307 重定向或 SSE 流
+  const json = await response.json()
+  if (json.data && json.data.id) {
+    const appId = String(json.data.id)
+    message.success('应用创建成功')
+    await router.push({
+      path: `/app/chat/${appId}`,
+      query: { use_graph: 'true' },
+    })
+    return
   }
 
-  // 流结束但没收到 app_created
-  throw new Error('创建超时,未收到应用创建确认')
+  throw new Error(json.message || '创建失败,未获取到应用ID')
 }
 
 // 创建应用

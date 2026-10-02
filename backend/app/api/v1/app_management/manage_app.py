@@ -9,7 +9,7 @@ from backend.app.schemas.requests.app_management_request import (
 )
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
 from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
-    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id
+    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id, create_app_in_graph_svc
 from backend.app.services.chat_history_service import delete_chat_history_by_app_id
 
 
@@ -77,12 +77,12 @@ def create_app():
     if 'init_prompt' not in data:
         return error_response(ErrorCode.MISSING_PARAMETER, "init_prompt不能为空")
     use_graph = data.get('use_graph', False)
+    req = AppCreateRequest(**data)
     if not use_graph:
-        req = AppCreateRequest(**data)
         result = create_app_svc(user.id, req)
-        return success_response(result, 201)
-    else:       # 直接重定向到/api/v1/code/generator 路由，响应码307告诉前端保留请求方法和body
-        return redirect(f"/api/v1/code/generate", code=307)
+    else:       # 创建占位 app 记录，但是 code_gen_type 必须留空，不能重定向，否则前端改动量太大
+        result = create_app_in_graph_svc(None, user.id, req.init_prompt, req.code_gen_type)
+    return success_response(result, 201)
 
 
 @app_management_bp.route('/<int:app_id>', methods=['PUT'])
