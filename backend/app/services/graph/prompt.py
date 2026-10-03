@@ -117,8 +117,8 @@ MATERIAL_PLANNER_SYSTEM_PROMPT = """
 - 关键词精准：选择最能体现需求的关键词
 - 描述清晰：为任务提供清晰的描述说明
 - 适量原则：每种类型的图片数量要合理，避免过多或过少
-- 如果某种图片不需要，对应数组可以为空
-- 不一定非要某种图片，请仔细考虑用户需求
+- 如果某种图片素材你认为不需要，不要乱规划，直接输出空结果即可，请仔细考虑用户需求
+- 四种类型都可以输出空列表
 - content 和 illustration 类型需要给出搜索关键词 query
 - architecture 需要给出 mermaid_code 和 description
 - logo 需要给出设计描述 description
