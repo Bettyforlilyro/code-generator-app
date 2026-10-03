@@ -12,9 +12,9 @@ class ChatClientBuilder:
     """LLM客户端构建器"""
 
     def __init__(self):
-        self._api_key = os.getenv('TONGYI_API_KEY')
-        self._base_url = os.getenv('TONGYI_OPENAI_COMPATIBLE_BASE_URL')
-        self._model = os.getenv('TONGYI_MODEL')
+        self._api_key = os.getenv('DEFAULT_AND_TEST_MODEL_API_KEY')
+        self._base_url = os.getenv('DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL')
+        self._model = os.getenv('DEFAULT_AND_TEST_MODEL')
         self._temperature = 0.7
         self._max_tokens = None
         self._top_p = 1.0

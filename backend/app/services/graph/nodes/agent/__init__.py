@@ -1,6 +1,7 @@
 """
 Agent节点 通用方法
 """
+import os
 from typing import Any, Optional
 
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
@@ -40,10 +41,16 @@ def create_spec_llm_in_graph(
     builder = ChatClientBuilder()
     if model_name:
         builder = builder.set_model(model_name)
+    else:
+        builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))
     if base_url:
         builder = builder.set_base_url(base_url)
+    else:
+        builder = builder.set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
     if api_key:
         builder = builder.set_api_key(api_key)
+    else:
+        builder = builder.set_api_key(os.getenv("MODEL_API_KEY"))
     if temperature:
         builder = builder.set_temperature(temperature)
     if response_format:

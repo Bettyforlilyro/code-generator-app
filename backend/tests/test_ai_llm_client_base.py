@@ -3,7 +3,7 @@ LLM客户端集成测试
 测试ChatClientBuilder构建的ChatClient能否成功调用大模型API并获得正确回复
 
 使用前请确保:
-1. .env 文件中已配置 TONGYI_API_KEY, TONGYI_OPENAI_COMPATIBLE_BASE_URL, TONGYI_MODEL
+1. .env 文件中已配置 DEFAULT_AND_TEST_MODEL_API_KEY, DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL, DEFAULT_AND_TEST_MODEL
 2. 或者通过代码显式设置相关参数
 """
 
@@ -361,9 +361,9 @@ def main():
     print("=" * 60)
 
     # 检查必要的环境变量
-    api_key = os.getenv('TONGYI_API_KEY')
-    base_url = os.getenv('TONGYI_OPENAI_COMPATIBLE_BASE_URL')
-    model = os.getenv('TONGYI_MODEL')
+    api_key = os.getenv('DEFAULT_AND_TEST_MODEL_API_KEY')
+    base_url = os.getenv('DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL')
+    model = os.getenv('DEFAULT_AND_TEST_MODEL')
 
     if not api_key:
         print("❌ 错误: 未设置 TONGYI_API_KEY 环境变量")

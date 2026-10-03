@@ -21,6 +21,8 @@ class AiCodeTypeRouting:
         # 路由模型不需要太智能，节省成本，使用 qwen-flash 模型
         builder = (ChatClientBuilder()
                    .set_response_format(CodeFileType.get_response_format())
+                   .set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
+                   .set_api_key(os.getenv("MODEL_API_KEY"))
                    .set_model(os.getenv("ROUTER_MODEL_OPENAI_COMPATIBLE"))
                    .set_system_prompt(CODE_GENERATE_ROUTING_SYSTEM_PROMPT))
         llm_client = get_or_create(builder, str(app_id))

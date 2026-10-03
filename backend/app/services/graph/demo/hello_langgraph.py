@@ -51,9 +51,9 @@ def subtract(a: int, b: int) -> int:
 tools = [multiply, add, subtract]
 tools_by_name = {tool.name: tool for tool in tools}
 llm_params = {
-    'api_key': os.getenv("TONGYI_API_KEY"),
-    'base_url': os.getenv("TONGYI_OPENAI_COMPATIBLE_BASE_URL"),
-    'model': os.getenv("TONGYI_MODEL")
+    'api_key': os.getenv("DEFAULT_AND_TEST_MODEL_KEY"),
+    'base_url': os.getenv("DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL"),
+    'model': os.getenv("DEFAULT_AND_TEST_MODEL")
 }
 model = ChatOpenAI(**llm_params)
 response = model.invoke("你好")

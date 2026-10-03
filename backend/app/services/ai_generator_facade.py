@@ -76,6 +76,8 @@ class AICodeGeneratorFacade:
                    .set_response_format(pydantic_model.get_response_format())
                    .set_system_prompt(system_prompt)
                    .set_timeout(600)
+                   .set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
+                   .set_api_key(os.getenv("MODEL_API_KEY"))
                    )
         # 根据不同的代码生成类型，设置不同的模型，控制成本
         if code_gen_type == CodeFileType.VUE_PROJECT:
@@ -123,6 +125,8 @@ class AICodeGeneratorFacade:
                 builder.add_tools_by_names(tools)
             else:
                 builder.add_tools(tools)
+        builder = builder.set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
+        builder = builder.set_api_key(os.getenv("MODEL_API_KEY"))
         # 根据不同的代码生成类型，设置不同的模型，控制成本
         if code_gen_type == CodeFileType.VUE_PROJECT:
             builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))

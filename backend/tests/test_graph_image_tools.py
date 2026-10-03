@@ -1,13 +1,6 @@
 """
 图片工具集成测试（真实调用外部 API，可 debug 进入内部）
 
-前置条件（必须在 .env 中配置好以下所有 key）：
-    PEXELS_API_KEY             — search_content_images 需要
-    IMAGE_BED_URL / IMAGE_BED_TOKEN — generate_architecture_image / generate_logo_image 需要
-    TONGYI_IMAGE_GEN_API_KEY   — generate_logo_image 需要
-    TONGYI_OPENAI_COMPATIBLE_BASE_URL
-    TONGYI_IMAGE_GEN_MODEL
-
 另外 generate_architecture_image 还需要本机已安装:
     npm install -g @mermaid-js/mermaid-cli
 """
