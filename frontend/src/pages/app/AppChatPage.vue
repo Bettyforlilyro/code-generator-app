@@ -76,6 +76,39 @@
                       @preview="(task) => fetchTaskPreview(task, f.task_id!)"
                       @close-preview="taskPreviewFile = null"
                     />
+                    <!-- 代码审查卡片(graph 工作流) -->
+                    <div v-else-if="f.kind === 'review'" class="code-review-card" :class="`review-${f.status}`">
+                      <!-- running:动态检视中 -->
+                      <template v-if="f.status === 'running'">
+                        <div class="review-icon">
+                          <a-spin size="small" />
+                        </div>
+                        <div class="review-body">
+                          <div class="review-title">正在检视代码...</div>
+                          <div class="review-sub">正在检查代码质量与规范</div>
+                        </div>
+                      </template>
+                      <!-- passed:审查通过 -->
+                      <template v-else-if="f.status === 'passed'">
+                        <div class="review-icon review-icon-passed">
+                          <CheckCircleOutlined />
+                        </div>
+                        <div class="review-body">
+                          <div class="review-title">检视完成</div>
+                        </div>
+                      </template>
+                      <!-- failed:审查未通过 -->
+                      <template v-else-if="f.status === 'failed'">
+                        <div class="review-icon review-icon-failed">
+                          <CloseCircleOutlined />
+                        </div>
+                        <div class="review-body">
+                          <div class="review-title">检视未通过</div>
+                          <div v-if="f.message" class="review-fail-msg">{{ f.message }}</div>
+                          <div class="review-sub">正在修改...</div>
+                        </div>
+                      </template>
+                    </div>
                   </template>
                 </template>
 
@@ -327,8 +360,8 @@ import {
   getAppVoById,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
-import { CODE_GEN_TYPE_OPTIONS, CodeGenTypeEnum } from '@/utils/codeGenTypes'
-import request from '@/request'
+import { CodeGenTypeEnum } from '@/utils/codeGenTypes'
+import request, { fetchWithAuth } from '@/request'
 
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
@@ -346,6 +379,8 @@ import 'highlight.js/styles/github-dark.css'
 import hljs from 'highlight.js/lib/common'
 
 import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
   CloudUploadOutlined,
   DownloadOutlined,
   EditOutlined,
@@ -631,7 +666,6 @@ const appInfo = ref<API.AppVO>()
 const appId = ref<string | number>()
 
 // 代码生成类型选择
-const codeGenTypeOptions = CODE_GEN_TYPE_OPTIONS
 const selectedCodeGenType = ref<string>(CodeGenTypeEnum.HTML)
 
 // 耗时任务条目(后端 SSE event 类型: task_start / task_end / web_search / web_search_done)
@@ -643,8 +677,11 @@ export interface TaskItem {
   extra?: Record<string, unknown>
 }
 
-// 消息片段:支持即时文本与耗时任务交织显示
-export type MessageFragment = { kind: 'text'; text: string } | { kind: 'task'; task_id: string }
+// 消息片段:支持即时文本与耗时任务、代码审查交织显示
+export type MessageFragment =
+  | { kind: 'text'; text: string }
+  | { kind: 'task'; task_id: string }
+  | { kind: 'review'; status: 'running' | 'passed' | 'failed'; message?: string }
 
 // 对话相关
 interface Message {
@@ -1178,14 +1215,9 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
   try {
     const baseURL = request.defaults.baseURL || API_BASE_URL
-    const token = localStorage.getItem(TOKEN_KEY) || ''
 
-    const response = await fetch(`${baseURL}/code/generate`, {
+    const response = await fetchWithAuth(`${baseURL}/code/generate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
       body: JSON.stringify({
         init_prompt: userMessage,
         code_gen_type: selectedCodeGenType.value,
@@ -1325,6 +1357,49 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           }
           streamCompleted = true
           isGenerating.value = false
+          continue
+        }
+
+        // ======== 代码审查事件(graph 工作流) ========
+        // code_review_start: 后端开始审查,无 data
+        // code_review_end: 审查结束,data 为空=通过,data.message 存在=未通过
+        if (eventType === 'code_review_start') {
+          if (!aiMessage.fragments) aiMessage.fragments = []
+          aiMessage.fragments.push({ kind: 'review', status: 'running' })
+          scrollToBottom()
+          continue
+        }
+
+        if (eventType === 'code_review_end') {
+          // 解析 data(可能为空对象或 null)
+          let reviewMessage: string | undefined
+          try {
+            const parsed = JSON.parse(dataStr)
+            // 后端约定:data 为空 dict 时表示通过,data.message 存在时表示未通过
+            if (parsed &&  parsed.message) {
+              reviewMessage = parsed.message
+            }
+          } catch {
+            // dataStr 不是 JSON → 视为通过(空 data)
+          }
+          const finalStatus: 'passed' | 'failed' = reviewMessage ? 'failed' : 'passed'
+
+          // 从后往前找到最后一个 running 的 review fragment,原地替换为终态
+          if (aiMessage.fragments) {
+            for (let i = aiMessage.fragments.length - 1; i >= 0; i--) {
+              const f = aiMessage.fragments[i]
+              if (f.kind === 'review' && f.status === 'running') {
+                // 完全替换对象,确保 Vue 深层响应式触发
+                aiMessage.fragments.splice(i, 1, {
+                  kind: 'review',
+                  status: finalStatus,
+                  message: reviewMessage,
+                })
+                break
+              }
+            }
+          }
+          scrollToBottom()
           continue
         }
 

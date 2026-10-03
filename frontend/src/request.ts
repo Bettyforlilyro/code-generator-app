@@ -146,3 +146,66 @@ myAxios.interceptors.response.use(
 )
 
 export default myAxios
+
+// ===== fetch 版本的鉴权请求(SSE 流式等需要原生 fetch 的场景使用) =====
+// 复用 myAxios 拦截器里的 token 刷新逻辑(同 isRefresh / isRedirecting / refreshAccessToken)
+export async function fetchWithAuth(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const token = localStorage.getItem(TOKEN_KEY) || ''
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
+    Authorization: `Bearer ${token}`,
+  }
+  // 如果调用方没显式设置 Content-Type,默认给 JSON
+  if (!headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const doFetch = () => fetch(url, { ...options, headers })
+  const response = await doFetch()
+
+  // 401:access token 过期,尝试刷新后重发
+  if (response.status === 401) {
+    // 先读取 body 确认错误码(40100=token 过期),读一次就好,不要影响流式
+    let isTokenExpired = false
+    try {
+      const bodyText = await response.text()
+      const data = JSON.parse(bodyText)
+      if (data.code === 40100) {
+        isTokenExpired = true
+      }
+    } catch {
+      // 非 JSON body,按 token 过期处理(保守策略)
+      isTokenExpired = true
+    }
+
+    if (isTokenExpired) {
+      if (!isRefresh) {
+        isRefresh = true
+        try {
+          const newToken = await refreshAccessToken()
+          isRefresh = false
+          headers.Authorization = `Bearer ${newToken}`
+          return doFetch()
+        } catch (err) {
+          isRefresh = false
+          localStorage.removeItem(TOKEN_KEY)
+          if (!isRedirecting) {
+            isRedirecting = true
+            message.warning('登录已过期，请重新登录！')
+            window.location.href = `/user/login?redirect=${window.location.href}`
+          }
+          throw err
+        }
+      } else {
+        // 正在刷新中,短暂等待后递归重试
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return fetchWithAuth(url, options)
+      }
+    }
+  }
+
+  return response
+}

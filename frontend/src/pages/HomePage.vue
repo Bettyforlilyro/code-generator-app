@@ -6,7 +6,7 @@ import { useLoginUserStore } from '@/stores/loginUser'
 import { addApp, listMyAppVoByPage, listGoodAppVoByPage } from '@/api/appController'
 import { getDeployUrl } from '@/config/env'
 import { API_BASE_URL } from '@/config/env'
-import request from '@/request'
+import request, { fetchWithAuth } from '@/request'
 import AppCard from '@/components/AppCard.vue'
 
 const router = useRouter()
@@ -48,15 +48,10 @@ const setPrompt = (prompt: string) => {
 // 后端同步创建占位记录(此时 code_gen_type 为空,等 graph workflow 决策后推送 app_created 事件)
 // 真正的 graph workflow 会在 AppChatPage 里通过 generateCode 启动
 const createAppWithGraph = async (prompt: string) => {
-  const token = localStorage.getItem('token') || ''
   const baseURL = request.defaults.baseURL || API_BASE_URL
 
-  const response = await fetch(`${baseURL}/app`, {
+  const response = await fetchWithAuth(`${baseURL}/app`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
     body: JSON.stringify({
       init_prompt: prompt,
       use_graph: true,

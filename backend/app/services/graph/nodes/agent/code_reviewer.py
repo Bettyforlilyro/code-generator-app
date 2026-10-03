@@ -10,13 +10,23 @@
 """
 import logging
 
+from langgraph.config import get_stream_writer
+
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.schemas.ai_generate_results import VueProjectFileCodeResult, HtmlCodeResult, MultiFileCodeResult
+from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.graph.model.qa_ai_response import QAResult
 from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.prompt import QA_CHECK_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+
+# 审查未通过时给前端的友好提示（不暴露 QA feedback 里的技术细节）
+_FRIENDLY_REVIEW_FAILED_MESSAGES = [
+    "首次审查发现问题，正在尝试修复...",
+    "第二次审查仍有问题，继续优化中...",
+    "审查未能通过，但已尽力修复，请查看生成结果。",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +37,15 @@ MAX_RETRY = 3
 def code_reviewer_node(state: WorkflowState) -> dict:
     """
     代码审查节点主函数
-    如果是 vue 项目，需要通过目录读取工具、文件读取工具等相关工具读取文件内容再审查代码，generate_output 已经是 结构化的 VueProjectFileCodeResult
-    如果是 html/multi_file 项目，直接从 generate_output 中提取 code_content 即可，generate_output 已经是 结构化的 HtmlCodeResult/MultiFileCodeResult
 
-    Args:
-        state: 当前工作流状态
-
-    Returns:
-        dict: 要更新到 state 中的字段
+    流式事件推送：
+      code_review_start  → 进入节点时立即推送，前端展示"正在检视当前代码"
+      code_review_end    → 审查完成时推送，不通过时附带友好提示
     """
+    writer = get_stream_writer()
+    # ✅ 审查开始 —— 前端展示 loading UI
+    writer({"event_type": StreamChunk.CODE_REVIEW_START, "data": {}})
+
     code_gen_type = state.get("code_gen_type", CodeFileType.HTML.value)
     is_vue_project = code_gen_type == CodeFileType.VUE_PROJECT.value
     generate_output = state.get("generate_output", "")
@@ -95,6 +105,13 @@ def code_reviewer_node(state: WorkflowState) -> dict:
         )
 
     new_retry_count = retry_count + 1 if not qa_result.qa_pass else retry_count
+
+    # ✅ 审查结束 —— 未通过时给友好提示（不暴露技术细节）
+    end_data = {}
+    if not qa_result.qa_pass:
+        idx = min(retry_count, len(_FRIENDLY_REVIEW_FAILED_MESSAGES) - 1)
+        end_data = {"message": _FRIENDLY_REVIEW_FAILED_MESSAGES[idx]}
+    writer({"event_type": StreamChunk.CODE_REVIEW_END, "data": end_data})
 
     return {
         "qa_pass": qa_result.qa_pass,

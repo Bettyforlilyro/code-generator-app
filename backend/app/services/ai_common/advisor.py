@@ -32,6 +32,8 @@ class StreamChunk:
         "error"       —— 错误信息，前端可以用红色/警告样式渲染
         "done"        —— 整轮结束（is_last=True 的时候 chunk_type=done）
         "code_updated" —— 代码已更新，前端可以刷新预览区域
+        "code_review_start" —— 代码审核开始，前端可以显示「正在检视代码」
+        "code_review_end" —— 代码审核结束，前端可以显示「代码检视完成」
 
     metadata 字段存放结构化数据，前端可以直接用：
         tool_start 时: {tool_name, args_str, tool_call_id}
@@ -46,6 +48,8 @@ class StreamChunk:
     TYPE_WEB_SEARCH_DONE = "web_search_done"
     TYPE_DONE = "done"
     CODE_UPDATED = "code_updated"
+    CODE_REVIEW_START = "code_review_start"
+    CODE_REVIEW_END = "code_review_end"
 
     def __init__(
         self,
