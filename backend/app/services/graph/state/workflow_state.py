@@ -24,6 +24,7 @@ class WorkflowState(TypedDict, total=False):
     # ========== 输入上下文 ==========
     # 会话历史和上下文记忆（带 reducer：自动追加）
     messages: Annotated[list[AnyMessage], add_messages]
+    history_ai_message_len: int
     # 用户原始输入
     original_prompt: str
     # 关联的应用 ID（用于文件保存、对话历史持久化等）

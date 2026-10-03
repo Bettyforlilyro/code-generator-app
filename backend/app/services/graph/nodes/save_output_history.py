@@ -45,13 +45,22 @@ def _extract_ai_message(state: WorkflowState) -> str:
     
     code_generator 节点在 return 时会写入 [HumanMessage, AIMessage]，
     add_messages reducer 会自动追加到 state.messages 里。
-    我们取最后一条 AIMessage 就是本轮 AI 完整回复。
+    我们取最后 history_ai_message_len 条 AIMessage 就是本轮 AI 完整回复。
     """
     messages = state.get("messages", [])
+    # history_ai_message_len 条 AIMessage 就是本轮 AI 完整回复
+    ai_message_len = state.get("history_ai_message_len", 0)
+    full_ai_message = ""
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.content:
-            return str(msg.content)
+            ai_message_len -= 1
+            # 由于是倒序，每次找到content都要插入 full_ai_message 开头
+            full_ai_message = msg.content + full_ai_message
+            # 找到目标 AIMessage 后，直接返回
+            if ai_message_len == 0:
+                return full_ai_message
     return ""
+
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +151,7 @@ def chat_history_save(state: WorkflowState) -> dict:
         # 写内存缓存（带上 db_id）
         try:
             memory_manager.add_message(
-                app_id=app_id,
+                app_id=int(app_id),
                 role="user",
                 content=original_prompt,
                 db_id=user_db_id,
@@ -168,12 +177,12 @@ def chat_history_save(state: WorkflowState) -> dict:
         # 写内存缓存
         try:
             memory_manager.add_message(
-                app_id=app_id,
+                app_id=int(app_id),
                 role="assistant",
                 content=ai_message,
                 db_id=ai_db_id,
             )
         except Exception as e:
             logger.error(f"[chat_history_save] ai 消息写入内存缓存失败: {e}")
-
-    return {"current_node": "chat_history_save"}
+    # 清空当前轮保存的 history_ai_message_len 长度，下一轮继续累加并保存
+    return {"current_node": "chat_history_save", "history_ai_message_len": 0}

@@ -112,14 +112,14 @@ def persist_chat_after_generation(
 
         memory_manager = get_chat_memory_manager()
         memory_manager.add_message(
-            app_id=app_id,
+            app_id=int(app_id),
             role=ChatMessageType.USER.value,
             content=user_record.message,
             db_id=user_record.id,
             token_count=user_record.token_count,
         )
         memory_manager.add_message(
-            app_id=app_id,
+            app_id=int(app_id),
             role=ChatMessageType.AI.value,
             content=ai_record.message,
             db_id=ai_record.id,

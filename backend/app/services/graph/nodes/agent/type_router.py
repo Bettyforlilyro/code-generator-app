@@ -66,7 +66,7 @@ def type_router_node(state: WorkflowState) -> dict:
             )
             chat_memory_manager = get_chat_memory_manager()
             chat_memory_manager.add_message(
-                app_id=current_app["id"],
+                app_id=int(current_app["id"]),
                 role="system",
                 content=CodeFileType.get_system_prompt(code_gen_type),
             )
@@ -87,6 +87,7 @@ def type_router_node(state: WorkflowState) -> dict:
                 "code_gen_type": code_gen_type,
                 "current_node": "type_router",
                 "app_id": current_app["id"],   # 新创建的应用ID
+                "history_ai_message_len": 0,
             }
     return {
         "messages": [{"role": "system", "content": CodeFileType.get_system_prompt(code_gen_type)}],

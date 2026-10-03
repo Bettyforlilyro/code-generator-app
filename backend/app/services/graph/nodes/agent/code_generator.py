@@ -137,7 +137,7 @@ def _build_chat_messages(state: WorkflowState) -> list:
     if app_id:
         try:
             chat_messages = get_chat_memory_manager().get_llm_messages(
-                app_id=app_id,
+                app_id=int(app_id),
                 extra_messages=extra_messages,
             )
             logger.info(
@@ -212,7 +212,7 @@ def code_generator_node(state: WorkflowState):
             logger.info(f"[code_generator] 生成完成...")
         else:
             result = full_response
-
+        ai_message_len = state.get("history_ai_message_len", 0)
         user_prompt = _build_user_prompt(state)
         return {
             "current_node": "code_generator",
@@ -221,6 +221,7 @@ def code_generator_node(state: WorkflowState):
                 HumanMessage(content=user_prompt),
                 AIMessage(content=ai_message_to_history),
             ],
+            "history_ai_message_len": ai_message_len + 1,
         }
     except Exception as e:
         logger.error(f"[code_generator] 流式生成失败: {e}")

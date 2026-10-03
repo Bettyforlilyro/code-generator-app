@@ -62,13 +62,6 @@ from backend.app.services.graph.state.workflow_state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# TODO 开发阶段，开启 INFO 日志打印，方便观察工作流执行流程
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-
-
 # ==================== 构建 Graph ====================
 
 def _build_graph() -> StateGraph:

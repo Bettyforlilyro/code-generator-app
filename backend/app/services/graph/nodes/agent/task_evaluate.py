@@ -38,28 +38,32 @@ def _build_chat_messages(state: WorkflowState) -> List[Dict[str, str]]:
 
     # extra_messages 是本次调用独有的（当前用户输入），ChatMemoryManager 不会写入 session
     # 这样历史对话保持完整，当前输入只用于本次 LLM 调用
-    extra_messages: List[Dict[str, str]] = [
-        {"role": "user", "content": original_prompt}
-    ]
 
     if app_id:
         # 有 app_id：从 ChatMemoryManager 加载历史 + token 裁剪
         try:
-            chat_messages = get_chat_memory_manager().get_llm_messages(
-                app_id=app_id,
-                extra_messages=extra_messages,
+            history_messages = get_chat_memory_manager().get_llm_messages(
+                app_id=int(app_id),
             )
+            full_prompt = "之前的对话历史：\n"
+            for message in history_messages:
+                full_prompt += f"{message['role']}: {message['content']}\n"
+            full_prompt += f"当前用户输入：{original_prompt}"
             logger.info(
                 f"[task_evaluate] 从 ChatMemoryManager 加载历史: "
-                f"app_id={app_id}, 最终消息数={len(chat_messages)}"
+                f"app_id={app_id}, 最终消息数={len(history_messages) + 1}"
             )
-            return chat_messages
+            return [
+                {"role": "user", "content": full_prompt}
+            ]
         except Exception as e:
             logger.error(f"[task_evaluate] ChatMemoryManager 加载失败，降级为仅当前输入: {e}")
 
     # 兜底：没有 app_id 或加载失败时，仅发送当前用户输入
     logger.info("[task_evaluate] 无 app_id，跳过历史加载，仅发送当前输入")
-    return extra_messages
+    return [
+        {"role": "user", "content": original_prompt}
+    ]
 
 
 def task_evaluate_node(state: WorkflowState) -> dict:
