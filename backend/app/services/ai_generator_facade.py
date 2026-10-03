@@ -3,8 +3,6 @@ import logging
 import os
 import re
 
-from dotenv import load_dotenv
-
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import (
     ErrorCode, AIServiceError, FileOperationError, BusinessException,
@@ -19,7 +17,6 @@ from backend.app.services.ai_common.llm_client_pool import get_or_create
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
 
 logger = logging.getLogger(__name__)
-load_dotenv()
 
 
 def _compose_task_info(chunk: StreamChunk) -> dict:

@@ -1,14 +1,11 @@
 import os
 from typing import Any, List
 
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
 from backend.app.services.ai_common.advisor import AdvisorChain
 from backend.app.services.ai_common.llm_client import ChatClient
 from backend.app.services.ai_common.tools import filter_tools_by_names, get_all_tools_in_module
-
-load_dotenv()
 
 
 class ChatClientBuilder:

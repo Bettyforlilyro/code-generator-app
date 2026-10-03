@@ -10,7 +10,6 @@
 import logging
 import os
 
-from dotenv import load_dotenv
 from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
@@ -23,7 +22,6 @@ from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
-load_dotenv()
 
 
 def type_router_node(state: WorkflowState) -> dict:

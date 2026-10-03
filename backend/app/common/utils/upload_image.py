@@ -3,11 +3,8 @@ import os
 from pathlib import Path
 
 import requests
-from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
-load_dotenv()
 
 IMAGE_BED_URL = os.getenv("IMAGE_BED_URL")
 IMAGE_BED_TOKEN = os.getenv("IMAGE_BED_TOKEN")

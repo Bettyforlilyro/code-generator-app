@@ -1,13 +1,9 @@
 import os
 
-from dotenv import load_dotenv
-
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.llm_client_pool import get_or_create
 from backend.app.services.ai_common.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
-
-load_dotenv()
 
 
 class AiCodeTypeRouting:

@@ -11,7 +11,6 @@ import logging
 import os
 from typing import List
 
-from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.config import get_stream_writer
 
@@ -28,7 +27,6 @@ from backend.app.services.graph.prompt import (
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
-load_dotenv()
 
 
 def _format_material_info(image_list: List[ImageResource]) -> str:

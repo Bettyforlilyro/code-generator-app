@@ -2,10 +2,7 @@ import logging
 import os
 import time
 
-from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
-
-load_dotenv()
 
 SCREENSHOT_DIR = os.getenv("SCREENSHOT_DIR")
 

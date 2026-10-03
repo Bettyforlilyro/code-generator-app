@@ -20,7 +20,6 @@ from urllib.parse import quote
 import dashscope
 import requests
 from dashscope import MultiModalConversation
-from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
@@ -29,8 +28,6 @@ from backend.app.services.graph.model.image_resource import ImageResource
 from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 # ============ Pexels API 配置 ============
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")

@@ -6,11 +6,8 @@ from urllib.error import URLError, HTTPError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from dotenv import load_dotenv
-
 logger = logging.getLogger(__name__)
 
-load_dotenv()
 API_BOX_DEV_ID = os.getenv("HZI_DEV_ID")
 API_BOX_KEY = os.getenv("HZI_KEY")
 
