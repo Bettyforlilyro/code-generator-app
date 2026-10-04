@@ -24,13 +24,14 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend.app.common.utils.upload_image import upload_image_to_bed
+from backend.app.config import get_config
 from backend.app.services.graph.model.image_resource import ImageResource
 from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
 
 logger = logging.getLogger(__name__)
 
 # ============ Pexels API 配置 ============
-PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
+PEXELS_API_KEY = get_config().PEXELS_API_KEY
 PEXELS_SEARCH_URL = "https://api.pexels.com/v1/search"
 PEXELS_DEFAULT_TIMEOUT = 10
 
@@ -391,7 +392,7 @@ def generate_logo_image(description: str) -> list[ImageResource]:
     ]
 
     logo_prompt = f"生成一张 Logo 图片，Logo中禁止包含任何文字！Logo 介绍：{description}"
-    dashscope.base_http_api_url = os.getenv("TONGYI_DASHSCOPE_BASE_URL")
+    dashscope.base_http_api_url = get_config().TONGYI_DASHSCOPE_BASE_URL
     temp_dir = tempfile.mkdtemp(prefix="logo_")
     messages = [{
         "role": "user",
@@ -401,8 +402,8 @@ def generate_logo_image(description: str) -> list[ImageResource]:
     }]
     try:
         rsp = MultiModalConversation.call(
-            api_key=os.getenv("TONGYI_IMAGE_GEN_API_KEY"),
-            model=os.getenv("TONGYI_IMAGE_GEN_MODEL"),
+            api_key=get_config().TONGYI_IMAGE_GEN_API_KEY,
+            model=get_config().TONGYI_IMAGE_GEN_MODEL,
             messages=messages,
             result_format='message',
             stream=False,

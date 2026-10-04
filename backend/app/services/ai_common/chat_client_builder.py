@@ -1,8 +1,8 @@
-import os
 from typing import Any, List
 
 from langchain_openai import ChatOpenAI
 
+from backend.app.config import get_config
 from backend.app.services.ai_common.advisor import AdvisorChain
 from backend.app.services.ai_common.llm_client import ChatClient
 from backend.app.services.ai_common.tools import filter_tools_by_names, get_all_tools_in_module
@@ -12,9 +12,9 @@ class ChatClientBuilder:
     """LLM客户端构建器"""
 
     def __init__(self):
-        self._api_key = os.getenv('DEFAULT_AND_TEST_MODEL_API_KEY')
-        self._base_url = os.getenv('DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL')
-        self._model = os.getenv('DEFAULT_AND_TEST_MODEL')
+        self._api_key = get_config().DEFAULT_AND_TEST_MODEL_API_KEY
+        self._base_url = get_config().DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL
+        self._model = get_config().DEFAULT_AND_TEST_MODEL
         self._temperature = 0.7
         self._max_tokens = None
         self._top_p = 1.0

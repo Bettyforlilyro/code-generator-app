@@ -1,15 +1,13 @@
 import operator
-import os
 from typing import Literal
 
-from dotenv import load_dotenv
 from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage, HumanMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from typing_extensions import TypedDict, Annotated
 
-load_dotenv()
+from backend.app.config import get_config
 
 
 def mock_llm(state: MessagesState):
@@ -51,9 +49,9 @@ def subtract(a: int, b: int) -> int:
 tools = [multiply, add, subtract]
 tools_by_name = {tool.name: tool for tool in tools}
 llm_params = {
-    'api_key': os.getenv("DEFAULT_AND_TEST_MODEL_KEY"),
-    'base_url': os.getenv("DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL"),
-    'model': os.getenv("DEFAULT_AND_TEST_MODEL")
+    'api_key': get_config().DEFAULT_AND_TEST_MODEL_API_KEY,
+    'base_url': get_config().DEFAULT_AND_TEST_MODEL_OPENAI_COMPATIBLE_BASE_URL,
+    'model': get_config().DEFAULT_AND_TEST_MODEL
 }
 model = ChatOpenAI(**llm_params)
 response = model.invoke("你好")

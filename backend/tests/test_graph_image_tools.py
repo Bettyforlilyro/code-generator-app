@@ -4,10 +4,10 @@
 另外 generate_architecture_image 还需要本机已安装:
     npm install -g @mermaid-js/mermaid-cli
 """
-import os
 
 import pytest
 
+from backend.app.config import get_config
 from backend.app.services.graph.model.image_resource import ImageResource
 from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
 from backend.app.services.graph.nodes.tools.image_tools import (
@@ -149,7 +149,7 @@ class TestGenerateLogoImage:
     """Logo 生成集成测试（耗时较长，约 10~60s）"""
 
     @pytest.mark.skipif(
-        not os.getenv("TONGYI_IMAGE_GEN_API_KEY"),
+        not get_config().TONGYI_IMAGE_GEN_API_KEY,
         reason="未配置 TONGYI_IMAGE_GEN_API_KEY，跳过 AI 生成测试",
     )
     def test_basic_logo(self):

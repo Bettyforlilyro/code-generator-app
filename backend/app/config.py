@@ -135,9 +135,10 @@ class Config:
 
     # 本地文件系统路径
     NGINX_PATH: str = os.getenv('NGINX_PATH', r'D:\Nginx\nginx.exe')
-    GENERATE_ROOT: str = os.getenv('GENERATE_ROOT', '')
-    DEFAULT_ROOT: str = os.getenv('DEFAULT_ROOT', '')
-    SCREENSHOT_DIR: str = os.getenv('SCREENSHOT_DIR', '')
+    GENERATE_ROOT: str = os.getenv('GENERATE_ROOT',
+                                   os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "generated_apps"))
+    DEFAULT_ROOT: str = os.getenv('DEFAULT_ROOT', os.path.join(GENERATE_ROOT, "deployed"))
+    SCREENSHOT_DIR: str = os.getenv('SCREENSHOT_DIR', os.path.join(GENERATE_ROOT, "screenshots"))
 
     @classmethod
     def as_flask_config(cls) -> dict:

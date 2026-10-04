@@ -4,7 +4,9 @@ import time
 
 from playwright.sync_api import sync_playwright
 
-SCREENSHOT_DIR = os.getenv("SCREENSHOT_DIR")
+from backend.app.config import get_config
+
+SCREENSHOT_DIR = get_config().SCREENSHOT_DIR
 
 
 def take_screenshot_and_save(

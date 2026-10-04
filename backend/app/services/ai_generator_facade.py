@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import re
 
 from backend.app.common.emuns.code_file_type import CodeFileType
@@ -8,6 +7,7 @@ from backend.app.common.exceptions.error_codes import (
     ErrorCode, AIServiceError, FileOperationError, BusinessException,
 )
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
+from backend.app.config import get_config
 from backend.app.schemas.ai_generate_results import BaseCodeResult
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.advisor import StreamChunk
@@ -76,14 +76,14 @@ class AICodeGeneratorFacade:
                    .set_response_format(pydantic_model.get_response_format())
                    .set_system_prompt(system_prompt)
                    .set_timeout(600)
-                   .set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
-                   .set_api_key(os.getenv("MODEL_API_KEY"))
+                   .set_base_url(get_config().MODEL_OPENAI_COMPATIBLE_BASE_URL)
+                   .set_api_key(get_config().MODEL_API_KEY)
                    )
         # 根据不同的代码生成类型，设置不同的模型，控制成本
         if code_gen_type == CodeFileType.VUE_PROJECT:
-            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))
+            builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE)
         else:
-            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"))
+            builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE)
         llm_client = get_or_create(builder, str(app_id))
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
@@ -125,13 +125,13 @@ class AICodeGeneratorFacade:
                 builder.add_tools_by_names(tools)
             else:
                 builder.add_tools(tools)
-        builder = builder.set_base_url(os.getenv("MODEL_OPENAI_COMPATIBLE_BASE_URL"))
-        builder = builder.set_api_key(os.getenv("MODEL_API_KEY"))
+        builder = builder.set_base_url(get_config().MODEL_OPENAI_COMPATIBLE_BASE_URL)
+        builder = builder.set_api_key(get_config().MODEL_API_KEY)
         # 根据不同的代码生成类型，设置不同的模型，控制成本
         if code_gen_type == CodeFileType.VUE_PROJECT:
-            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"))
+            builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE)
         else:
-            builder = builder.set_model(os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"))
+            builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE)
         llm_client = get_or_create(builder, str(app_id))
 
         full_response_text = ""

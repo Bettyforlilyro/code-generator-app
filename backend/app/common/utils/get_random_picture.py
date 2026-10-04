@@ -1,15 +1,16 @@
 import json
 import logging
-import os
 import time
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+from backend.app.config import get_config
+
 logger = logging.getLogger(__name__)
 
-API_BOX_DEV_ID = os.getenv("HZI_DEV_ID")
-API_BOX_KEY = os.getenv("HZI_KEY")
+API_BOX_DEV_ID = get_config().HZI_DEV_ID
+API_BOX_KEY = get_config().HZI_KEY
 
 API_BOX_AVATAR_URL = "https://cn.apihz.cn/api/img/apihzimgtx.php"
 API_BOX_BZ_URL = "https://cn.apihz.cn/api/img/apihzimgbz.php"

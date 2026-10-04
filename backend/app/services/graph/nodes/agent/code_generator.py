@@ -8,13 +8,13 @@
 3. code_gen_type == VUE_PROJECT     → 带文件工具的 Agent，多轮迭代生成工程
 """
 import logging
-import os
 from typing import List
 
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.config import get_config
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.ai_generator_facade import processed_chunk
@@ -178,7 +178,7 @@ def code_generator_node(state: WorkflowState):
         llm_client = create_spec_llm_in_graph(
             system_prompt="",
             app_id=state.get("app_id", ""),
-            model_name=os.getenv("CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE"),
+            model_name=get_config().CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE,
             tools=tools_factory_with_context(),
             timeout=1200,
         )
@@ -187,7 +187,7 @@ def code_generator_node(state: WorkflowState):
         llm_client = create_spec_llm_in_graph(
             system_prompt="",
             app_id=state.get("app_id", ""),
-            model_name=os.getenv("CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE"),
+            model_name=get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE,
             timeout=600
         )
     from backend.app.services.ai_common.advisor import StreamChunk

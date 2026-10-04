@@ -8,12 +8,12 @@
 - VUE_PROJECT: 复杂需求（状态共享、组件复用、数据交互、多人协同等）
 """
 import logging
-import os
 
 from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.config import get_config
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
 from backend.app.services.app_service import update_app_code_gen_type_svc, create_app_in_graph_svc
@@ -39,7 +39,7 @@ def type_router_node(state: WorkflowState) -> dict:
     llm_client = create_spec_llm_in_graph(
         system_prompt=CODE_GENERATE_ROUTING_SYSTEM_PROMPT,
         app_id=state.get("app_id", ""),
-        model_name=os.getenv("ROUTER_MODEL_OPENAI_COMPATIBLE"),
+        model_name=get_config().ROUTER_MODEL_OPENAI_COMPATIBLE,
         response_format=CodeFileType.get_response_format(),
     )
 

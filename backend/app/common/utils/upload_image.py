@@ -1,13 +1,14 @@
 import mimetypes
-import os
 from pathlib import Path
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-IMAGE_BED_URL = os.getenv("IMAGE_BED_URL")
-IMAGE_BED_TOKEN = os.getenv("IMAGE_BED_TOKEN")
+from backend.app.config import get_config
+
+IMAGE_BED_URL = get_config().IMAGE_BED_URL
+IMAGE_BED_TOKEN = get_config().IMAGE_BED_TOKEN
 
 # 图床支持的扩展名白名单
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'}
