@@ -1,13 +1,19 @@
 import asyncio
 import json
+import json as json_module
+import logging
 import mimetypes
 import os
 import queue
+import time as _time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Any, Generic, TypeVar, Union, Generator, AsyncGenerator, Callable
 
+from flask import g, request
 from flask import jsonify, Response, stream_with_context, after_this_request
 from pydantic import BaseModel, Field
+
+_logger = logging.getLogger(__name__)
 
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 
@@ -150,12 +156,10 @@ def stream_response(
     Returns:
         Flask Response 对象（流式）
     """
-    import json as json_module
 
     def _wrap_chunk(event: str, data: Any) -> str:
         """将数据块包装为 SSE 格式"""
         if use_wrapper:
-            # 使用统一响应体包装
             response = ApiResponse(
                 code=20000,
                 message="操作成功",
@@ -163,12 +167,10 @@ def stream_response(
             )
             data_str = json_module.dumps(response.model_dump(mode='json'), ensure_ascii=False)
         else:
-            # 直接序列化数据
             if isinstance(data, (dict, list)):
                 data_str = json_module.dumps(data, ensure_ascii=False)
             else:
                 data_str = str(data)
-
         return f'event: {event}\ndata: {data_str}\n\n'
 
     # 判断生成器类型，将异步生成器转换为同步生成器
@@ -176,21 +178,64 @@ def stream_response(
     if is_async:
         generator = async_generator_to_sync(generator)
 
+    def _get_user_name_for_log() -> str:
+        """获取用户 name 用于日志"""
+        try:
+            cur = getattr(g, 'current_user_name', None)
+            if cur:
+                return f"user:{cur}"
+        except Exception as e:
+            _logger.error(f"获取当前 user_name 失败: {e}")
+        return "anonymous"
+
     def generate_sync():
-        """同步生成器包装（统一处理所有生成器）"""
+        """同步生成器包装（统一处理所有生成器 + SSE 生命周期日志）
+
+        日志级别：
+            SSE_START  → INFO（请求进入，流即将开始）
+            SSE_DONE   → INFO（流正常结束）
+            SSE_ERROR  → ERROR（生成器抛异常，流中途失败）
+            SSE_ABORT  → WARNING（客户端主动断开连接）
+        """
+        # ── 流开始时记录元信息 ──
+        _stream_start = _time.perf_counter()
+        _chunk_count = 0
+        _user_tag = _get_user_name_for_log()
+        _path_tag = request.path.rstrip('/') or '/'
+
+        _logger.info(
+            f"[SSE_START] {_user_tag} path={_path_tag} method={request.method}"
+        )
+
         # 收集生成器产出的所有原始数据块，用于回调
         all_chunks = []
+        _aborted = False     # GeneratorExit → 客户端断开
+        _errored = False     # Exception → 业务异常
+
         try:
             for event, data in generator:
+                _chunk_count += 1
                 all_chunks.append((event, data))
                 yield _wrap_chunk(event, data)
+        except GeneratorExit:
+            # Flask 在客户端主动断开连接时会关闭底层迭代器，抛 GeneratorExit
+            # 这不是错误，是正常的中止信号（类似 HTTP 499 Client Closed Request）
+            _aborted = True
         except Exception as e:
+            _errored = True
+            # ── 流异常：先记日志，再生成 error chunk 推给前端 ──
+            _elapsed = (_time.perf_counter() - _stream_start) * 1000
+            _logger.error(
+                f"[SSE_ERROR] {_user_tag} path={_path_tag} "
+                f"chunks={_chunk_count} elapsed={_elapsed/1000:.1f}s "
+                f"error={type(e).__name__}: {str(e)}",
+                exc_info=True   # 带完整堆栈，方便排查
+            )
             if on_error:
                 error_result = on_error(e, all_chunks)
                 if error_result:
                     yield _wrap_chunk('error', error_result)
             else:
-                # 默认错误处理
                 if isinstance(e, BusinessException):
                     error_response_data = ApiResponse(
                         code=e.code, message=e.message, data=e.data
@@ -203,12 +248,36 @@ def stream_response(
                     )
                 yield _wrap_chunk('error', error_response_data)
         finally:
-            # 如果有回调，返回回调的结果
+            _elapsed = (_time.perf_counter() - _stream_start) * 1000
+
+            if _aborted:
+                # ── 客户端主动断开（WARNING 级别，因为不是后端的问题，但需要关注频率）──
+                _logger.warning(
+                    f"[SSE_ABORT] {_user_tag} path={_path_tag} "
+                    f"chunks={_chunk_count} elapsed={_elapsed/1000:.1f}s"
+                )
+            elif not _errored:
+                # ── 流正常结束 ──
+                _logger.info(
+                    f"[SSE_DONE] {_user_tag} path={_path_tag} "
+                    f"chunks={_chunk_count} elapsed={_elapsed/1000:.1f}s"
+                )
+
+            # ── 回调 & done 事件 ──（不管成功/异常都要发 done 信号给前端）──
             if on_done:
                 done_event = on_done(all_chunks) or json.dumps({})
-            else:   # 如果没有回调，发送默认事件
+            else:
                 done_event = ApiResponse(code=20000, message="流结束", data=None)
-            yield _wrap_chunk('done', done_event)
+
+            # 客户端断开时 Flask 可能已经关闭连接，yield 会抛 BrokenPipeError
+            # 这里 try-except 保护一下，避免 finally 里的二次异常覆盖主异常
+            try:
+                yield _wrap_chunk('done', done_event)
+            except (BrokenPipeError, ConnectionResetError):
+                _logger.debug(
+                    f"[SSE_DONE_SKIP] {_user_tag} path={_path_tag} "
+                    f"客户端已断开，跳过 done 事件发送"
+                )
 
     # 统一使用 stream_with_context 包装同步生成器
     # 保持请求上下文在整个流生命周期内有效
@@ -223,7 +292,7 @@ def stream_response(
     )
 
 
-def _validate_file_path(file_path: str, not_found_code: ErrorCode) -> tuple[bool, dict | None]:
+def _validate_file_path(file_path: str, not_found_code: ErrorCode) -> tuple[bool, tuple | None]:
     """验证文件路径是否为合法的已存在文件，返回 (是否有效, 错误响应对象)"""
     if not os.path.exists(file_path):
         return False, error_response(not_found_code, f"文件不存在: {file_path}")

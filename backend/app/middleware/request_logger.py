@@ -45,6 +45,10 @@ def register_request_logger(app):
     @app.after_request
     def _log_response(response):
         """在响应发送前记录访问日志"""
+        # SSE 流式响应跳过，因为 after_request 触发时流还没开始，
+        if response.mimetype == 'text/event-stream':
+            return response
+
         # 1. 过滤噪音路径（以 _SKIP_PATHS 或 _SKIP_PATHS 开头的路径）
         path = request.path.rstrip("/") or "/"
         if any(path.startswith(skip_path) or path == skip_path for skip_path in _SKIP_PATHS):
@@ -63,10 +67,9 @@ def register_request_logger(app):
         status = response.status_code
         method = request.method
         level = logging.WARNING if (status >= 400 or elapsed_ms > 600 * 1000) else logging.INFO
-        level_str = logging.getLevelName(level)
         logger.log(
             level,
-            f'[{level_str}] {client_ip} {method} {path} -> {status} ({elapsed_ms:.1f}ms)',
+            f'{client_ip} {method} {path} -> {status} ({elapsed_ms:.1f}ms)',
         )
 
         return response

@@ -88,6 +88,8 @@ def login_required(f):
             raise AuthenticationError(message="用户不存在")
 
         g.current_user = user
+        # 保存用户名用于记录日志
+        g.current_user_name = user.user_name
         return f(*args, **kwargs)
 
     return decorated_function

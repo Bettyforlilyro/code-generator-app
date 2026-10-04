@@ -10,10 +10,11 @@
 """
 import logging
 import logging.handlers
+from pathlib import Path
 
 from backend.app.config import get_config
 
-LOG_DIR = get_config().LOG_DIR
+LOG_DIR = Path(get_config().LOG_DIR)
 
 
 def configure_logging(app):
@@ -42,12 +43,12 @@ def configure_logging(app):
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # 4. 控制台 handler（INFO 及以上全打）
+    # 4. 控制台 handler（INFO 及以上全打，DEBUG 模式下打 DEBUG）
     console_handler = logging.StreamHandler()
     console_handler.setLevel(log_level)
     console_handler.setFormatter(console_fmt)
 
-    # 5. 文件 handler（WARNING 及以上才写文件，避免日志膨胀）
+    # 5. 文件 handler（INFO 及以上才写文件，避免日志膨胀）
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         file_handler = logging.handlers.TimedRotatingFileHandler(
@@ -56,7 +57,7 @@ def configure_logging(app):
             backupCount=14,       # 保留最近 14 天
             encoding="utf-8",
         )
-        file_handler.setLevel(logging.WARNING)
+        file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(file_fmt)
         has_file_handler = True
     except (OSError, PermissionError):
@@ -70,10 +71,21 @@ def configure_logging(app):
     if has_file_handler:
         root_logger.addHandler(file_handler)
 
-    # 7. 降低第三方库的噪音（SQLAlchemy、LangChain、Langgraph 等默认 DEBUG 非常啰嗦）
+    # 7. 降低第三方库的噪音（这些组件默认 DEBUG 非常啰嗦，这里屏蔽掉 WARNING 以下的日志）
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("langchain").setLevel(logging.WARNING)
     logging.getLogger("langgraph").setLevel(logging.WARNING)
+    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("httpcore2").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+
+    # 8. 压掉 Python warnings 体系的噪音，避免日志中出现 UserWarning
+    import warnings
+    warnings.filterwarnings(
+        "ignore",
+        category=UserWarning,
+    )
 
     app.logger.info(f"日志配置完成，级别={logging.getLevelName(log_level)}，日志目录={LOG_DIR}")
