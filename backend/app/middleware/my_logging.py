@@ -10,10 +10,10 @@
 """
 import logging
 import logging.handlers
-from pathlib import Path
 
-# 日志路径：项目根目录下的 logs/
-LOG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "logs"
+from backend.app.config import get_config
+
+LOG_DIR = get_config().LOG_DIR
 
 
 def configure_logging(app):
@@ -70,9 +70,10 @@ def configure_logging(app):
     if has_file_handler:
         root_logger.addHandler(file_handler)
 
-    # 7. 降低第三方库的噪音（SQLAlchemy、LangChain 等默认 DEBUG 非常啰嗦）
+    # 7. 降低第三方库的噪音（SQLAlchemy、LangChain、Langgraph 等默认 DEBUG 非常啰嗦）
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("langchain").setLevel(logging.WARNING)
+    logging.getLogger("langgraph").setLevel(logging.WARNING)
 
     app.logger.info(f"日志配置完成，级别={logging.getLevelName(log_level)}，日志目录={LOG_DIR}")

@@ -139,6 +139,7 @@ class Config:
                                    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "generated_apps"))
     DEFAULT_ROOT: str = os.getenv('DEFAULT_ROOT', os.path.join(GENERATE_ROOT, "deployed"))
     SCREENSHOT_DIR: str = os.getenv('SCREENSHOT_DIR', os.path.join(GENERATE_ROOT, "screenshots"))
+    LOG_DIR: str = os.getenv('LOG_DIR', os.path.join(GENERATE_ROOT, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "logs"))
 
     @classmethod
     def as_flask_config(cls) -> dict:
