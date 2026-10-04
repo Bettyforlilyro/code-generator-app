@@ -4,6 +4,8 @@ from functools import wraps
 import jwt
 from flask import request, current_app, g
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.app.common.exceptions.error_codes import AuthenticationError, PermissionDeniedError
 from backend.app.models.user import User
 
@@ -77,7 +79,10 @@ def login_required(f):
             token = token[7:]
 
         payload = verify_access_token(token)
-        user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
+        try:
+            user = User.query.filter_by(id=payload['user_id'], is_delete=0).first()
+        except SQLAlchemyError:
+            raise AuthenticationError(message="认证服务暂时不可用，请稍后重试")
 
         if not user:
             raise AuthenticationError(message="用户不存在")

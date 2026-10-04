@@ -3,7 +3,7 @@ import json
 import mimetypes
 import os
 import queue
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Any, Generic, TypeVar, Union, Generator, AsyncGenerator, Callable
 
 from flask import jsonify, Response, stream_with_context, after_this_request
@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 
 T = TypeVar('T')
+
+# 模块级共享线程池，跨请求复用（SSE 长连接场景）
+# max_workers=32 对于开发环境和一般生产已足够；可按需调大
+_executor = ThreadPoolExecutor(max_workers=32, thread_name_prefix='async-gen')
 
 
 class ApiResponse(BaseModel, Generic[T]):
@@ -106,21 +110,22 @@ def async_generator_to_sync(async_gen: AsyncGenerator) -> Generator:
         loop.run_until_complete(run_async())
         loop.close()
 
-    # 创建新的事件循环和线程
+    # 创建事件循环并提交到共享线程池
     loop = asyncio.new_event_loop()
-    thread = threading.Thread(target=run_thread, args=(loop,), daemon=True)
-    thread.start()
+    future = _executor.submit(run_thread, loop)
 
     # 主线程从队列中读取数据
-    while True:
-        item = q.get()
-        if item is sentinel:
-            break
-        if isinstance(item, tuple) and item[0] == 'error':
-            raise item[1]
-        yield item
-
-    thread.join()
+    try:
+        while True:
+            item = q.get()
+            if item is sentinel:
+                break
+            if isinstance(item, tuple) and item[0] == 'error':
+                raise item[1]
+            yield item
+    finally:
+        # 确保线程池任务完成，异常能被正确传播
+        future.result()
 
 
 def stream_response(
@@ -218,6 +223,15 @@ def stream_response(
     )
 
 
+def _validate_file_path(file_path: str, not_found_code: ErrorCode) -> tuple[bool, dict | None]:
+    """验证文件路径是否为合法的已存在文件，返回 (是否有效, 错误响应对象)"""
+    if not os.path.exists(file_path):
+        return False, error_response(not_found_code, f"文件不存在: {file_path}")
+    if not os.path.isfile(file_path):
+        return False, error_response(ErrorCode.INVALID_PARAMETER, f"不是文件: {file_path}")
+    return True, None
+
+
 def file_response(
         file_path: str,
         as_attachment: bool = False,
@@ -242,11 +256,10 @@ def file_response(
     Returns:
         Flask文件响应或错误响应
     """
-    # 1. 验证文件是否存在
-    if not os.path.exists(file_path):
-        return error_response(ErrorCode.APP_NOT_FOUND, f"文件不存在: {file_path}")
-    if not os.path.isfile(file_path):
-        return error_response(ErrorCode.INVALID_PARAMETER, f"不是文件: {file_path}")
+    # 1. 验证文件合法性
+    is_valid, err = _validate_file_path(file_path, ErrorCode.APP_NOT_FOUND)
+    if not is_valid:
+        return err
 
     # 2. 自动检测MIME类型
     if not mimetype:
@@ -302,11 +315,10 @@ def directory_response(
     Returns:
         Flask文件响应或错误响应
     """
-    # 1. 验证文件存在且为文件
-    if not os.path.exists(base_dir):
-        return error_response(ErrorCode.FILE_NOT_FOUND, f"文件不存在: {base_dir}")
-    if not os.path.isfile(base_dir):
-        return error_response(ErrorCode.INVALID_PARAMETER, f"不是文件: {base_dir}")
+    # 1. 验证文件合法性
+    is_valid, err = _validate_file_path(base_dir, ErrorCode.FILE_NOT_FOUND)
+    if not is_valid:
+        return err
 
     # 2. 默认下载文件名
     if not download_name:
