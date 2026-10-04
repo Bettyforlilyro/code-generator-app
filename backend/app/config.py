@@ -166,8 +166,8 @@ class DevConfig(Config):
 
 
 class ProdConfig(Config):
-    """生产环境配置（预留扩展）"""
-    pass
+    """生产环境配置（预留扩展，当前仅关闭 DEBUG 模式以作区分）"""
+    DEBUG: bool = False
 
 
 class TestConfig(Config):
