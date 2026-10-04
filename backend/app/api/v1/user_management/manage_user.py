@@ -8,11 +8,11 @@ from backend.app.common.utils.request_helpers import parse_json_body, parse_pagi
 from backend.app.schemas.requests.user_management_request import UserUpdateRequest, UserRegisterRequest
 from backend.app.schemas.responses.BaseResponse import success_response
 from backend.app.services.user_service import (
-    update_current_user_info,
-    admin_get_user_list,
-    admin_create_user,
-    admin_update_user,
-    admin_delete_user,
+    update_current_user_info_svc,
+    admin_get_user_list_svc,
+    admin_create_user_svc,
+    admin_update_user_svc,
+    admin_delete_user_svc,
 )
 
 
@@ -123,7 +123,7 @@ def update_user_self_info():
     data = parse_json_body()
 
     req = UserUpdateRequest(**data)
-    update_current_user_info(user, req)
+    update_current_user_info_svc(user, req)
     return success_response({'message': '更新成功'})
 
 
@@ -302,7 +302,7 @@ def get_user_list_page():
     """
     page, per_page = parse_pagination_args()
 
-    result = admin_get_user_list(
+    result = admin_get_user_list_svc(
         page=page, per_page=per_page,
         user_name=request.args.get('user_name'),
         user_account=request.args.get('user_account'),
@@ -334,7 +334,7 @@ def create_user_by_admin():
         raise BusinessException(ErrorCode.INVALID_PARAMETER, str(e))
 
     role = json_data.get('user_role', UserRole.USER.value)
-    result = admin_create_user(req, role)
+    result = admin_create_user_svc(req, role)
     return success_response(result, 201)
 
 
@@ -358,12 +358,12 @@ def update_user_by_admin(user_id):
     """
     json_data = parse_json_body()
     req = UserUpdateRequest(**json_data)
-    admin_update_user(user_id, req, json_data.get('user_role'))
+    admin_update_user_svc(user_id, req, json_data.get('user_role'))
     return success_response({'message': '用户信息更新成功'})
 
 
 @user_management_bp.route('/<int:user_id>', methods=['DELETE'])
 @role_required('admin')
 def delete_user_by_admin(user_id):
-    admin_delete_user(user_id)
+    admin_delete_user_svc(user_id)
     return success_response({'message': '用户删除成功'})

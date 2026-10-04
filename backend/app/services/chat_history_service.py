@@ -15,7 +15,7 @@ from backend.app.services.common import db_transaction
 
 # ==================== Create ====================
 
-def create_chat_history(
+def create_chat_history_svc(
     message: str,
     message_type: str,
     app_id: int,
@@ -70,7 +70,7 @@ def _do_create_chat_history(message, message_type, app_id, user_id):
     return record
 
 
-def batch_create_chat_history(messages: list) -> list:
+def batch_create_chat_history_svc(messages: list) -> list:
     """
     批量创建对话历史记录（这里未采用事务提交，请调用者确保批量插入的完整性）
 
@@ -90,7 +90,7 @@ def batch_create_chat_history(messages: list) -> list:
     # 因为批量语义为：已成功的保留，失败的抛出异常让调用方处理
     records = []
     for item in messages:
-        record = create_chat_history(
+        record = create_chat_history_svc(
             message=item.get('message'),
             message_type=item.get('message_type'),
             app_id=item.get('app_id'),
@@ -102,7 +102,7 @@ def batch_create_chat_history(messages: list) -> list:
 
 # ==================== Read ====================
 
-def get_chat_history_by_id(chat_id: int) -> ChatHistory:
+def get_chat_history_by_id_svc(chat_id: int) -> ChatHistory:
     """
     根据 ID 查询单条对话记录
 
@@ -121,7 +121,7 @@ def get_chat_history_by_id(chat_id: int) -> ChatHistory:
     return record
 
 
-def delete_chat_history_by_app_id(app_id: int) -> bool:
+def delete_chat_history_by_app_id_svc(app_id: int) -> bool:
     """
     根据应用 ID 删除所有对话历史记录
 
@@ -145,7 +145,7 @@ def _do_delete_by_app_id(app_id):
     ChatHistory.query.filter_by(app_id=app_id, is_delete=0).update({'is_delete': 1})
 
 
-def delete_chat_history_by_user_id(user_id: int) -> bool:
+def delete_chat_history_by_user_id_svc(user_id: int) -> bool:
     """
     根据用户 ID 删除所有对话历史记录
 
@@ -169,7 +169,7 @@ def _do_delete_by_user_id(user_id):
     ChatHistory.query.filter_by(user_id=user_id, is_delete=0).update({'is_delete': 1})
 
 
-def list_chat_history(
+def list_chat_history_svc(
     page: int = 1,
     per_page: int = 10,
     app_id: Optional[int] = None,
@@ -228,7 +228,7 @@ def list_chat_history(
 
 # ==================== Update ====================
 
-def update_chat_history(
+def update_chat_history_svc(
     chat_id: int,
     message: Optional[str] = None,
     message_type: Optional[str] = None,
@@ -247,7 +247,7 @@ def update_chat_history(
     Raises:
         BusinessException: 记录不存在或参数校验失败时抛出
     """
-    record = get_chat_history_by_id(chat_id)
+    record = get_chat_history_by_id_svc(chat_id)
     is_updated = False
 
     if message is not None:
@@ -280,7 +280,7 @@ def _commit_update():
 
 # ==================== Delete ====================
 
-def delete_chat_history(chat_id: int) -> None:
+def delete_chat_history_svc(chat_id: int) -> None:
     """
     软删除一条对话记录
 
@@ -290,13 +290,13 @@ def delete_chat_history(chat_id: int) -> None:
     Raises:
         BusinessException: 记录不存在时抛出
     """
-    record = get_chat_history_by_id(chat_id)
+    record = get_chat_history_by_id_svc(chat_id)
     record.is_delete = 1
     record.update_time = datetime.utcnow()
     _commit_update()
 
 
-def batch_delete_chat_history(
+def batch_delete_chat_history_svc(
     app_id: Optional[int] = None,
     user_id: Optional[int] = None,
 ) -> int:
@@ -334,7 +334,7 @@ def batch_delete_chat_history(
     return len(records)
 
 
-def list_all_chat_history_by_app_id(app_id: int) -> list:
+def list_all_chat_history_by_app_id_svc(app_id: int) -> list:
     """
     获取某个应用的全部对话历史（不分页，包含 system 消息，按 create_time 升序）
 
@@ -356,7 +356,7 @@ def list_all_chat_history_by_app_id(app_id: int) -> list:
     return [r.to_dict() for r in records]
 
 
-def get_system_prompt_by_app_id(app_id: int) -> str:
+def get_system_prompt_by_app_id_svc(app_id: int) -> str:
     """
     获取某个应用的系统提示词
 

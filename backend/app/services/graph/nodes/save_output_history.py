@@ -35,7 +35,7 @@ from langchain_core.messages import AIMessage
 
 from backend.app.common.emuns.chat_message_type import ChatMessageType
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.chat_history_service import create_chat_history
+from backend.app.services.chat_history_service import create_chat_history_svc
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 
@@ -137,7 +137,7 @@ def chat_history_save(state: WorkflowState) -> dict:
     user_db_id = None
     if original_prompt:
         try:
-            user_record = create_chat_history(
+            user_record = create_chat_history_svc(
                 message=original_prompt,
                 message_type=ChatMessageType.USER.value,  # "user"
                 app_id=app_id,
@@ -163,7 +163,7 @@ def chat_history_save(state: WorkflowState) -> dict:
     ai_db_id = None
     if ai_message:
         try:
-            ai_record = create_chat_history(
+            ai_record = create_chat_history_svc(
                 message=ai_message,
                 message_type=ChatMessageType.AI.value,  # "assistant"
                 app_id=app_id,

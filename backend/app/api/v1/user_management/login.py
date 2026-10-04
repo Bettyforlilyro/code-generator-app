@@ -5,7 +5,7 @@ from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
-from backend.app.services.auth_service import login_user, get_login_user_info_svc, refresh_access_token_svc, \
+from backend.app.services.auth_service import login_user_svc, get_login_user_info_svc, refresh_access_token_svc, \
     clear_refresh_token_cookie
 from backend.app.services.user_service import get_user_by_id_svc
 
@@ -132,7 +132,7 @@ def login():
     if not user_name or not pass_word:
         return error_response(ErrorCode.MISSING_PARAMETER, "用户名和密码不能为空")
 
-    result = login_user(user_name, pass_word)
+    result = login_user_svc(user_name, pass_word)
     return success_response(result.model_dump())
 
 

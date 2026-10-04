@@ -9,8 +9,8 @@ from backend.app.schemas.requests.app_management_request import (
 )
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
 from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
-    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id, create_app_in_graph_svc
-from backend.app.services.chat_history_service import delete_chat_history_by_app_id
+    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id_svc, create_app_in_graph_svc
+from backend.app.services.chat_history_service import delete_chat_history_by_app_id_svc
 
 
 # ==================== 用户接口部分 ====================
@@ -178,7 +178,7 @@ def delete_app(app_id):
     """
     user = g.current_user
 
-    delete_app_svc(app_id, user, delete_chat_history_by_app_id)
+    delete_app_svc(app_id, user, delete_chat_history_by_app_id_svc)
     return success_response({'message': '应用删除成功'})
 
 
@@ -205,7 +205,7 @@ def get_app_detail(app_id):
     """
     if not app_id or app_id <= 0:
         raise BusinessException(ErrorCode.BAD_REQUEST, message="应用ID必须为大于0的整数")
-    app = get_app_by_id(app_id)
+    app = get_app_by_id_svc(app_id)
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND)
     return success_response(get_app_detail_svc(app_id))

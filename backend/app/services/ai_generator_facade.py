@@ -14,7 +14,7 @@ from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.llm_client_pool import get_or_create
-from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id
+from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id_svc
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class AICodeGeneratorFacade:
                     ))
                 if result.is_name_modified():
                     update_app_svc(
-                        app_id, get_app_creator_by_app_id(app_id),
+                        app_id, get_app_creator_by_app_id_svc(app_id),
                         AppUpdateRequest(app_name=result.app_name)
                     )
         except BusinessException:

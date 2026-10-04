@@ -29,7 +29,7 @@ def get_user_by_id_svc(user_id: int, raise_if_not_found: bool = True) -> User | 
     return user
 
 
-def update_current_user_info(user: User, req) -> None:
+def update_current_user_info_svc(user: User, req) -> None:
     """更新当前登录用户的昵称、头像、简介"""
     is_updated = False
     if req.user_name is not None and req.user_name != user.user_name:
@@ -45,7 +45,7 @@ def update_current_user_info(user: User, req) -> None:
         db.session.commit()
 
 
-def admin_get_user_list(
+def admin_get_user_list_svc(
     page: int,
     per_page: int,
     user_name: str | None,
@@ -110,7 +110,7 @@ def admin_get_user_list(
     }
 
 
-def admin_create_user(req: UserRegisterRequest, role: UserRole = UserRole.USER.value) -> dict:
+def admin_create_user_svc(req: UserRegisterRequest, role: UserRole = UserRole.USER.value) -> dict:
     """
     管理员创建用户
 
@@ -147,7 +147,7 @@ def admin_create_user(req: UserRegisterRequest, role: UserRole = UserRole.USER.v
     }
 
 
-def admin_update_user(user_id: int, req, user_role: UserRole | None = None) -> None:
+def admin_update_user_svc(user_id: int, req, user_role: UserRole | None = None) -> None:
     """
     管理员修改任意用户信息
 
@@ -180,7 +180,7 @@ def admin_update_user(user_id: int, req, user_role: UserRole | None = None) -> N
         db.session.commit()
 
 
-def admin_delete_user(user_id: int) -> None:
+def admin_delete_user_svc(user_id: int) -> None:
     """管理员软删除用户"""
     user = get_user_by_id_svc(user_id)
     user.is_delete = 1

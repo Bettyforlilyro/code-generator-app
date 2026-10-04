@@ -19,13 +19,13 @@ from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.tools import get_all_tools_name
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 from backend.app.services.chat_history_service import (
-    create_chat_history,
+    create_chat_history_svc,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_type: str):
+def validate_and_prepare_code_generation_svc(app_id: int, user_id: int, code_gen_type: str):
     """
     校验应用存在性、用户权限
 
@@ -46,7 +46,7 @@ def validate_and_prepare_code_generation(app_id: int, user_id: int, code_gen_typ
         raise BusinessException(ErrorCode.PERMISSION_DENIED, "您没有权限操作该应用")
 
 
-def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id: int):
+def build_code_generator_svc(user_message: str, code_gen_type: CodeFileType, app_id: int):
     """
     构建流式代码生成器
 
@@ -66,7 +66,7 @@ def build_code_generator(user_message: str, code_gen_type: CodeFileType, app_id:
     )
 
 
-def persist_chat_after_generation(
+def persist_chat_after_generation_svc(
     app_id: int,
     user_id: int,
     init_prompt: str,
@@ -97,13 +97,13 @@ def persist_chat_after_generation(
         return
 
     try:
-        user_record = create_chat_history(
+        user_record = create_chat_history_svc(
             message=init_prompt,
             message_type=ChatMessageType.USER.value,
             app_id=app_id,
             user_id=user_id,
         )
-        ai_record = create_chat_history(
+        ai_record = create_chat_history_svc(
             message=full_ai_response,
             message_type=ChatMessageType.AI.value,
             app_id=app_id,

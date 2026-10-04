@@ -8,8 +8,8 @@ from backend.app.common.exceptions.error_codes import ErrorCode, BusinessExcepti
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_pagination_args
 from backend.app.schemas.responses.BaseResponse import success_response
-from backend.app.services.app_service import get_app_by_id
-from backend.app.services.chat_history_service import list_chat_history
+from backend.app.services.app_service import get_app_by_id_svc
+from backend.app.services.chat_history_service import list_chat_history_svc
 
 
 @app_management_bp.route('/<string:app_id>/chat_history', methods=['GET'])
@@ -70,7 +70,7 @@ def get_chat_history(app_id: str):
     if sort_order not in ('asc', 'desc'):
         raise BusinessException(ErrorCode.INVALID_PARAMETER, "排序方向无效，仅支持 asc 或 desc")
 
-    app = get_app_by_id(int(app_id))
+    app = get_app_by_id_svc(int(app_id))
     is_admin_or_creator = (
         user.user_role == UserRole.ADMIN
         or user.id == app.user_id
@@ -82,7 +82,7 @@ def get_chat_history(app_id: str):
     if last_create_time:
         last_create_time = datetime.strptime(last_create_time, '%Y&%m&%d&%H&%M&%S')
 
-    chat_records = list_chat_history(
+    chat_records = list_chat_history_svc(
         page, per_page, app.id,
         message_type="ALL", sort_order=sort_order,
         last_create_time=last_create_time,

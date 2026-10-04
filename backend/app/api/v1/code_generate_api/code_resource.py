@@ -7,7 +7,7 @@ from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEP
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
 from backend.app.schemas.responses.BaseResponse import error_response, success_response
-from backend.app.services.app_service import get_app_by_deploy_key, get_app_by_id
+from backend.app.services.app_service import get_app_by_deploy_key_svc, get_app_by_id_svc
 from backend.app.services.static_file_service import build_static_response, build_app_code_zip_response
 
 
@@ -122,7 +122,7 @@ def get_static_deployed_app_files():
         return error_response(ErrorCode.MISSING_PARAMETER, "deploy_key不能为空")
 
     # 校验应用存在
-    app = get_app_by_deploy_key(deploy_key)
+    app = get_app_by_deploy_key_svc(deploy_key)
     if not app:
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在，请确认是否已生成")
 
@@ -172,7 +172,7 @@ def get_static_generated_app_files_by_path(generated_path: str):
         description: 应用不存在或文件不存在
     """
     app_id = generated_path.split('_')[-1]
-    app = get_app_by_id(int(app_id))
+    app = get_app_by_id_svc(int(app_id))
     if not app:
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在，请确认是否已生成")
 
@@ -218,7 +218,7 @@ def get_textfile_content_by_path(app_id: int, file_path):
     """
     获取文本文件内容，用于预览，file_path需要能匹配带/的路径，如：/src/app.vue？
     """
-    app = get_app_by_id(app_id)
+    app = get_app_by_id_svc(app_id)
     if not app:
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
     generated_path = f"{app.code_gen_type}_{app_id}"
@@ -271,7 +271,7 @@ def download_app_code(app_id: int):
       404:
         description: 应用不存在或目录不存在
     """
-    app = get_app_by_id(app_id)
+    app = get_app_by_id_svc(app_id)
     if not app:
         return error_response(ErrorCode.APP_NOT_FOUND, "应用不存在")
 

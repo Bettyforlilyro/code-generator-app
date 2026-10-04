@@ -87,7 +87,7 @@ def register_user_svc(req: UserRegisterRequest) -> UserRegisterResponse:
     )
 
 
-def login_user(user_name: str, user_password: str) -> UserLoginResponse:
+def login_user_svc(user_name: str, user_password: str) -> UserLoginResponse:
     """
     用户登录：验证账号密码 → 返回 Token
 

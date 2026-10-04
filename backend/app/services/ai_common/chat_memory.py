@@ -196,10 +196,10 @@ class ChatMemoryManager:
 
         try:
             from backend.app.services.chat_history_service import (
-                list_all_chat_history_by_app_id,
+                list_all_chat_history_by_app_id_svc,
             )
 
-            records = list_all_chat_history_by_app_id(app_id)
+            records = list_all_chat_history_by_app_id_svc(app_id)
             records = sorted(records, key=lambda r: r.get("create_time") or 0)
 
             type_to_role = {

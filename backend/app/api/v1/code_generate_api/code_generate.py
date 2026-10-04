@@ -10,9 +10,9 @@ from backend.app.common.utils.request_helpers import parse_json_body
 from backend.app.schemas.responses.BaseResponse import stream_response
 from backend.app.services.app_service import update_app_code_gen_type_svc, update_app_system_prompt_svc
 from backend.app.services.code_generate_service import (
-    validate_and_prepare_code_generation,
-    build_code_generator,
-    persist_chat_after_generation,
+    validate_and_prepare_code_generation_svc,
+    build_code_generator_svc,
+    persist_chat_after_generation_svc,
 )
 
 
@@ -107,17 +107,17 @@ def generate_code_stream():
         if not app_id or int(app_id) <= 0:
             raise BusinessException(ErrorCode.BAD_REQUEST, "app_id必须填写且应该为大于0的整数")
         # ── 公共：应用校验 + 权限校验 ──
-        validate_and_prepare_code_generation(int(app_id), user.id, code_gen_type)
+        validate_and_prepare_code_generation_svc(int(app_id), user.id, code_gen_type)
         # ── 原有逻辑保持不变 code_gen_type 持久化 + 系统 Prompt 存数据库 ────────────────────────────
         update_app_code_gen_type_svc(int(app_id), code_gen_type)
         update_app_system_prompt_svc(int(app_id), user_id, CodeFileType.get_system_prompt(code_gen_type))
-        generator = build_code_generator(prompt, CodeFileType(code_gen_type), int(app_id))
+        generator = build_code_generator_svc(prompt, CodeFileType(code_gen_type), int(app_id))
 
         def on_done(chunks: list[tuple[str, dict]]):
-            persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
+            persist_chat_after_generation_svc(int(app_id), user_id, prompt, chunks)
 
         def on_error(error: Exception, chunks: list[tuple[str, dict]]):
-            persist_chat_after_generation(int(app_id), user_id, prompt, chunks)
+            persist_chat_after_generation_svc(int(app_id), user_id, prompt, chunks)
             full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
             logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
             return "AI 暂时不能回答这个问题"

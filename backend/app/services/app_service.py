@@ -31,7 +31,7 @@ from backend.app.schemas.responses.app_management_response import (
 )
 from backend.app.schemas.responses.user_management_response import UserSummaryResponse
 from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
-from backend.app.services.chat_history_service import get_system_prompt_by_app_id, create_chat_history
+from backend.app.services.chat_history_service import get_system_prompt_by_app_id_svc, create_chat_history_svc
 from backend.app.services.common import validate_sort_params
 
 logger = logging.getLogger(__name__)
@@ -387,27 +387,27 @@ def _start_nginx() -> bool:
 
 # ==================== 查询辅助（供其他 Service / 路由层复用）====================
 
-def get_app_by_deploy_key(deploy_key: str) -> AppModel | None:
+def get_app_by_deploy_key_svc(deploy_key: str) -> AppModel | None:
     """根据 deploy_key 查询应用（含软删除过滤），不存在返回 None"""
     return AppModel.query.filter_by(deploy_key=deploy_key, is_delete=0).first()
 
 
-def get_app_by_id(app_id: int) -> AppModel | None:
+def get_app_by_id_svc(app_id: int) -> AppModel | None:
     """根据 ID 查询应用（含软删除过滤），不存在返回 None"""
     return AppModel.query.filter_by(id=app_id, is_delete=0).first()
 
 
 def _get_app_or_raise(app_id: int) -> AppModel:
     """查询应用，不存在则抛出 BusinessException"""
-    app = get_app_by_id(app_id)
+    app = get_app_by_id_svc(app_id)
     if not app:
         raise BusinessException(ErrorCode.APP_NOT_FOUND, message="应用不存在")
     return app
 
 
-def get_app_creator_by_app_id(app_id: int) -> User | None:
+def get_app_creator_by_app_id_svc(app_id: int) -> User | None:
     """根据应用 ID 查询创建者（含软删除过滤），不存在返回 None"""
-    app = get_app_by_id(app_id)
+    app = get_app_by_id_svc(app_id)
     if not app:
         return None
     return User.query.filter_by(id=app.user_id, is_delete=0).first()
@@ -429,8 +429,8 @@ def update_app_code_gen_type_svc(app_id: int, code_gen_type: CodeFileType | str)
 
 def update_app_system_prompt_svc(app_id: int, user_id: int, system_prompt: str):
     """如果应用还没有系统 Prompt，先插入一条"""
-    if not get_system_prompt_by_app_id(app_id):
-        create_chat_history(
+    if not get_system_prompt_by_app_id_svc(app_id):
+        create_chat_history_svc(
             message=system_prompt,
             message_type=ChatMessageType.SYSTEM.value,
             app_id=app_id,
