@@ -1,37 +1,20 @@
-import os
-
-from dotenv import load_dotenv
-
 from backend.app import create_app
+from backend.app.config import get_config
 from backend.app.extensions.db_instance import db
 
-# 加载 .env 文件中的环境变量
-load_dotenv()
+# 切换环境（命令行参数）：
+#   python run.py           → prod（默认）
+#   python run.py -dev      → dev
+#   python run.py -test     → test
+Config = get_config()
 
-db_user = os.getenv('DB_USER')
-db_password = os.getenv('DB_PASSWORD')
-db_host = os.getenv('DB_HOST')
-db_port = os.getenv('DB_PORT')
-db_name = os.getenv('DB_NAME')
-
-# 从环境变量获取配置
-config = {
-    'DEBUG': os.getenv('FLASK_DEBUG', 'True').lower() == 'true',
-    'HOST': os.getenv('FLASK_HOST', '0.0.0.0'),
-    'PORT': int(os.getenv('FLASK_PORT', '5000')),
-    'SECRET_KEY': os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production'),
-    'REFRESH_SECRET_KEY': os.getenv('REFRESH_SECRET_KEY', 'dev-refresh-secret-key-change-in-production'),
-    'SQLALCHEMY_DATABASE_URI': f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}',
-    'SQLALCHEMY_TRACK_MODIFICATIONS': False
-}
-
-app = create_app(config)
+app = create_app(Config.as_flask_config())
 db.init_app(app)
 
 if __name__ == '__main__':
     app.run(
-        debug=config['DEBUG'],
+        debug=Config.DEBUG,
         use_reloader=False,     # 关闭热更新重载，利于边开发边调试
-        host=config['HOST'],
-        port=config['PORT']
+        host=Config.HOST,
+        port=Config.PORT
     )
