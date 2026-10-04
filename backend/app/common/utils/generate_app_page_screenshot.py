@@ -16,7 +16,7 @@ def generate_app_page_screenshot_and_save_async(app_id: int, app_deploy_url: str
     """
     异步非阻塞版本：在 daemon 子线程中依次执行截图、上传、更新数据库、清理临时文件。
     主线程调用后立即返回，不会阻塞主流程。
-    内部异常通过 logging 记录，不会影响主业务。
+    内部异常通过 logger 记录，不会影响主业务。
 
     注意：必须在 Flask 请求上下文中调用（内部需要复制 request context 到子线程）。
 
@@ -94,7 +94,7 @@ def generate_app_page_screenshot_and_save(app_id: int, app_deploy_url: str):
         # 清理本地文件
         os.remove(coverage_path)
     except Exception as e:
-        logging.error(f"截图流水线异常: app_id={app_id}, 错误: {e}")
+        logger.error(f"截图流水线异常: app_id={app_id}, 错误: {e}")
         # 使用随机图片作为封面
         coverage_url = get_random_bz()
         update_app_coverage_svc(app_id, coverage_url)

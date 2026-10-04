@@ -9,6 +9,8 @@ from backend.app.services.ai_common.tools import (
 )
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
+_logger = logging.getLogger(__name__)
+
 
 class FileReadToolArgs(BaseModel):
     file_path: str = Field(description="需要读取的文件的路径")
@@ -30,7 +32,7 @@ def file_read_tool(file_path: str) -> str:
         with open(abs_path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:
-        logging.error(f"读取文件失败 [{file_path}]: {e}")
+        _logger.error(f"读取文件失败 [{file_path}]: {e}")
         return f"文件读取失败: {file_path}"
 
 
@@ -48,7 +50,7 @@ def file_read_tool_with_context():
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
-            logging.error("app_id 未设置")
+            _logger.error("app_id 未设置")
             return f"文件读取失败，app_id 未设置"
         try:
             abs_path = to_app_absolute(app_id, file_path)
@@ -60,7 +62,7 @@ def file_read_tool_with_context():
             with open(abs_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            logging.error(f"读取文件失败 [{file_path}]: {e}")
+            _logger.error(f"读取文件失败 [{file_path}]: {e}")
             return f"文件读取失败: {file_path}"
 
     return _tool

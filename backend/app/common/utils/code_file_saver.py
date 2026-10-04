@@ -25,6 +25,8 @@ from backend.app.common.utils.build_vue_project import build_vue_project_async
 from backend.app.schemas.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult, \
     VueProjectFileCodeResult
 
+_logger = logging.getLogger(__name__)
+
 
 class CodeFileSaver(ABC):
     """
@@ -214,7 +216,7 @@ class VueProjectCodeFileSaver(CodeFileSaver):
             # 返回 dist 目录所在目录的相对路径（预估，构建此时尚未完成）
             return os.path.join(f"vue_project_{app_id}", "dist")
         except Exception as e:
-            logging.error(f"Vue项目保存失败: {vue_project_path}, 错误: {e}")
+            _logger.error(f"Vue项目保存失败: {vue_project_path}, 错误: {e}")
             return ""
 
 

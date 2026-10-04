@@ -3,6 +3,8 @@ import os
 import subprocess
 import threading
 
+_logger = logging.getLogger(__name__)
+
 
 def _do_build_vue_project(project_path: str, timeout: int) -> bool:
     """
@@ -16,7 +18,7 @@ def _do_build_vue_project(project_path: str, timeout: int) -> bool:
         构建成功返回 True，超时或失败返回 False
     """
     if not os.path.isdir(project_path):
-        logging.error(f"Vue项目目录不存在: {project_path}")
+        _logger.error(f"Vue项目目录不存在: {project_path}")
         return False
 
     # Windows 专用标志：防止弹出命令行黑窗
@@ -26,7 +28,7 @@ def _do_build_vue_project(project_path: str, timeout: int) -> bool:
     subproc_kwargs = dict(capture_output=True, text=True, encoding='utf-8', errors='replace')
 
     try:
-        logging.info(f"开始执行 npm install, 目录: {project_path}")
+        _logger.info(f"开始执行 npm install, 目录: {project_path}")
         install_proc = subprocess.run(
             [f'npm{npm_ext}', 'install'],
             cwd=project_path,
@@ -35,10 +37,10 @@ def _do_build_vue_project(project_path: str, timeout: int) -> bool:
             **subproc_kwargs,
         )
         if install_proc.returncode != 0:
-            logging.error(f"npm install 失败: {install_proc.stderr}")
+            _logger.error(f"npm install 失败: {install_proc.stderr}")
             return False
 
-        logging.info(f"开始执行 npm run build, 目录: {project_path}")
+        _logger.info(f"开始执行 npm run build, 目录: {project_path}")
         build_proc = subprocess.run(
             [f'npm{npm_ext}', 'run', 'build'],
             cwd=project_path,
@@ -47,16 +49,16 @@ def _do_build_vue_project(project_path: str, timeout: int) -> bool:
             **subproc_kwargs,
         )
         if build_proc.returncode != 0:
-            logging.error(f"npm run build 失败: {build_proc.stderr}")
+            _logger.error(f"npm run build 失败: {build_proc.stderr}")
             return False
 
-        logging.info(f"Vue项目构建成功: {project_path}")
+        _logger.info(f"Vue项目构建成功: {project_path}")
         return True
     except subprocess.TimeoutExpired:
-        logging.error(f"npm 命令执行超时（{timeout}s）: {project_path}")
+        _logger.error(f"npm 命令执行超时（{timeout}s）: {project_path}")
         return False
     except Exception as e:
-        logging.error(f"Vue项目构建异常: {e}")
+        _logger.error(f"Vue项目构建异常: {e}")
         return False
 
 
@@ -79,7 +81,7 @@ def build_vue_project_async(project_path: str, timeout: int = 500) -> threading.
         name=f"vue-build-{os.path.basename(project_path)}",
     )
     thread.start()
-    logging.info(f"Vue项目异步构建已启动: {project_path}")
+    _logger.info(f"Vue项目异步构建已启动: {project_path}")
     return thread
 
 

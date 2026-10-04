@@ -9,6 +9,8 @@ from backend.app.services.ai_common.tools import (
 )
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
+_logger = logging.getLogger(__name__)
+
 
 class FileDeleteToolArgs(BaseModel):
     file_path: str = Field(description="需要删除的文件的路径")
@@ -32,7 +34,7 @@ def file_delete_tool(file_path: str) -> str:
         os.remove(abs_path)
         return f"文件 {file_path} 已成功删除"
     except Exception as e:
-        logging.error(f"删除文件失败 [{file_path}]: {e}")
+        _logger.error(f"删除文件失败 [{file_path}]: {e}")
         return f"删除失败: {file_path}"
 
 
@@ -74,7 +76,7 @@ def file_delete_tool_with_context():
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
-            logging.error("app_id 未设置")
+            _logger.error("app_id 未设置")
             return "app_id 未设置，删除失败"
         try:
             abs_path = to_app_absolute(app_id, file_path)
@@ -88,7 +90,7 @@ def file_delete_tool_with_context():
             os.remove(abs_path)
             return f"文件 {file_path} 已成功删除"
         except Exception as e:
-            logging.error(f"删除文件失败 [{file_path}]: {e}")
+            _logger.error(f"删除文件失败 [{file_path}]: {e}")
             return f"删除失败: {file_path}"
 
     return _tool

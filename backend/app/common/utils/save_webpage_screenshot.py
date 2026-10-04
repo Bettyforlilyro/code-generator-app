@@ -6,6 +6,8 @@ from playwright.sync_api import sync_playwright
 
 from backend.app.config import get_config
 
+_logger = logging.getLogger(__name__)
+
 SCREENSHOT_DIR = get_config().SCREENSHOT_DIR
 
 
@@ -90,11 +92,11 @@ def take_screenshot_and_save(
                 omit_background=omit_background if img_type == "png" else False,
             )
 
-            logging.info(f"✅ 截图成功: {os.path.abspath(output_path)}")
+            _logger.info(f"✅ 截图成功: {os.path.abspath(output_path)}")
             return os.path.abspath(output_path)
 
         except Exception as e:
-            logging.error(f"❌ 截图失败: {e}")
+            _logger.error(f"❌ 截图失败: {e}")
             raise
         finally:
             browser.close()

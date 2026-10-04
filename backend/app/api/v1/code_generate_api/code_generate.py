@@ -15,6 +15,8 @@ from backend.app.services.code_generate_service import (
     persist_chat_after_generation_svc,
 )
 
+_logger = logging.getLogger(__name__)
+
 
 @code_bp.route('/generate', methods=['POST'])
 @login_required
@@ -100,7 +102,7 @@ def generate_code_stream():
             pass  # 已由工作流内部 chat_history_save 节点处理
 
         def on_error(error, chunks):
-            logging.error(f"[workflow] 工作流执行异常: {str(error)}, app_id={app_id}")
+            _logger.error(f"[workflow] 工作流执行异常: {str(error)}, app_id={app_id}")
             return "AI 暂时不能回答这个问题"
     else:
         app_id = json_data.get('app_id')
@@ -119,7 +121,7 @@ def generate_code_stream():
         def on_error(error: Exception, chunks: list[tuple[str, dict]]):
             persist_chat_after_generation_svc(int(app_id), user_id, prompt, chunks)
             full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
-            logging.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
+            _logger.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
             return "AI 暂时不能回答这个问题"
 
     return stream_response(generator, use_wrapper=False, on_done=on_done, on_error=on_error)

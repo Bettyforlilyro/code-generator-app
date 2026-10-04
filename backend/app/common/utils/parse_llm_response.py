@@ -8,6 +8,8 @@ import re
 
 from json_repair import json_repair
 
+_logger = logging.getLogger(__name__)
+
 
 def _extract_balanced_json_objects(text: str) -> list[str]:
     """
@@ -115,7 +117,7 @@ def parse_llm_json_response(response: str, pydantic_model):
     try:
         return pydantic_model.model_validate_json(response)
     except Exception as e:
-        logging.debug(f"[parse_llm_json_response][{model_name}] Layer1 标准JSON解析失败，错误信息: {e}")
+        _logger.debug(f"[parse_llm_json_response][{model_name}] Layer1 标准JSON解析失败，错误信息: {e}")
 
     # ---- Layer2: json_repair 整体解析 + 所有嵌套层验证 ----
     try:
@@ -126,7 +128,7 @@ def parse_llm_json_response(response: str, pydantic_model):
                 except Exception:
                     continue
     except Exception as e:
-        logging.debug(f"[parse_llm_json_response][{model_name}] Layer2 json_repair解析失败，错误信息: {e}")
+        _logger.debug(f"[parse_llm_json_response][{model_name}] Layer2 json_repair解析失败，错误信息: {e}")
 
     # ---- Layer3: 括号平衡精准切分 + json_repair + 所有嵌套层验证 ----
     candidates = _extract_balanced_json_objects(response)
@@ -139,7 +141,7 @@ def parse_llm_json_response(response: str, pydantic_model):
                     except Exception:
                         continue
         except Exception as e:
-            logging.debug(f"[parse_llm_json_response][{model_name}] Layer3 候选#{idx+1}\n{candidate} 解析失败，错误信息: {e}")
+            _logger.debug(f"[parse_llm_json_response][{model_name}] Layer3 候选#{idx+1}\n{candidate} 解析失败，错误信息: {e}")
 
     # ---- Layer4: 正则非贪婪兜底 ----
     try:
@@ -156,10 +158,10 @@ def parse_llm_json_response(response: str, pydantic_model):
             except Exception:
                 continue
     except Exception as e:
-        logging.debug(f"[parse_llm_json_response][{model_name}] Layer4 正则匹配解析失败，错误信息: {e}")
+        _logger.debug(f"[parse_llm_json_response][{model_name}] Layer4 正则匹配解析失败，错误信息: {e}")
 
     # ---- 全层失败 ----
-    logging.error(
+    _logger.error(
         f"[parse_llm_json_response][{model_name}] 四层解析全部失败！"
         f"response长度={len(response)}, 前100字={response[:100]}"
     )

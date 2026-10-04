@@ -12,6 +12,9 @@ from backend.app.services.ai_common.tools import (
 )
 from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
 
+_logger = logging.getLogger(__name__)
+
+
 # 应该忽略的文件名（精确匹配，不含路径）
 IGNORE_FILES = [
     # 环境 / 配置
@@ -279,7 +282,7 @@ def dir_read_tool_with_context():
         context = get_runtime_context()
         app_id = context.get("app_id")
         if not app_id:
-            logging.error("app_id 未设置")
+            _logger.error("app_id 未设置")
             return "目录读取失败，app_id 未设置"
 
         app_rel_prefix = f"vue_project_{app_id}"
