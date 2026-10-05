@@ -16,16 +16,16 @@ from flask import request, g
 
 logger = logging.getLogger(__name__)
 
-# 这些路径不记录（Swagger 文档、健康检查、静态文件等）
+# 这些路径不记录（Swagger 文档、健康检查、favicon 等）
+# 路径格式对齐 flasgger 默认 + 自定义配置（swagger_ui_prefix = /docs）
 _SKIP_PATHS = {
-    "/health",
-    "/swagger",
-    "/swagger/",
-    "/swagger/index.html",
-    "/swagger-json",
-    "/swagger-config",
-    "/favicon.ico",
-    "/static",
+    "/health",           # 健康检查
+    "/apidocs",          # flasgger 默认 Swagger UI
+    "/docs",             # 自定义 Swagger UI（swagger_ui_prefix）
+    "/apispec.json",     # OpenAPI spec JSON
+    "/apispec_1.json",   # flasgger 可能生成的多版本 spec
+    "/flasgger_static",  # flasgger 静态资源
+    "/favicon.ico",      # 浏览器自动请求
 }
 
 
