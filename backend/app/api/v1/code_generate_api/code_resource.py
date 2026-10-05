@@ -6,12 +6,16 @@ from backend.app.api.v1.code_generate_api import code_bp
 from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
+from backend.app.middleware.rate_limiter import my_limiter
 from backend.app.schemas.responses.BaseResponse import error_response, success_response
 from backend.app.services.app_service import get_app_by_deploy_key_svc, get_app_by_id_svc
 from backend.app.services.static_file_service import build_static_response, build_app_code_zip_response
 
 
 @code_bp.route('/static', methods=['GET'])
+@my_limiter({
+    "ip": "60 per minute",
+})
 def get_static_deployed_app_files():
     """
     获取已部署应用的静态资源文件
@@ -141,6 +145,9 @@ def get_static_deployed_app_files():
 
 
 @code_bp.route('/static/<string:generated_path>', methods=['GET'])
+@my_limiter({
+    "ip": "60 per minute",
+})
 def get_static_generated_app_files_by_path(generated_path: str):
     """
     获取已生成应用的所有静态资源文件，用于预览/下载
@@ -194,6 +201,9 @@ def get_static_generated_app_files_by_path(generated_path: str):
 
 # 新增：路径参数路由（为了支持相对路径自动解析）
 @code_bp.route('/static/<string:identifier>/<path:file_name>', methods=['GET'])
+@my_limiter({
+    "ip": "60 per minute",
+})
 def get_static_file_by_path(identifier, file_name):
     """
     路径参数形式的静态资源接口
@@ -214,6 +224,9 @@ def get_static_file_by_path(identifier, file_name):
 
 
 @code_bp.route('/preview/<int:app_id>/<path:file_path>', methods=['GET'])
+@my_limiter({
+    "ip": "60 per minute",
+})
 def get_textfile_content_by_path(app_id: int, file_path):
     """
     获取文本文件内容，用于预览，file_path需要能匹配带/的路径，如：/src/app.vue？

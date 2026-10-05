@@ -7,6 +7,7 @@ from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_json_body
+from backend.app.middleware.rate_limiter import my_limiter
 from backend.app.schemas.responses.BaseResponse import stream_response
 from backend.app.services.app_service import update_app_code_gen_type_svc, update_app_system_prompt_svc
 from backend.app.services.code_generate_service import (
@@ -20,6 +21,10 @@ _logger = logging.getLogger(__name__)
 
 @code_bp.route('/generate', methods=['POST'])
 @login_required
+@my_limiter({
+    "user": "10 per minute",
+    "ip": "20 per minute",
+})
 def generate_code_stream():
     """
     流式生成代码并保存到服务器本地文件

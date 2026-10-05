@@ -4,6 +4,7 @@ from backend.app.api.v1.user_management import user_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_json_body
+from backend.app.middleware.rate_limiter import my_limiter
 from backend.app.schemas.responses.BaseResponse import success_response, error_response
 from backend.app.services.auth_service import login_user_svc, get_login_user_info_svc, refresh_access_token_svc, \
     clear_refresh_token_cookie
@@ -11,6 +12,9 @@ from backend.app.services.user_service import get_user_by_id_svc
 
 
 @user_management_bp.route('/login', methods=['POST'])
+@my_limiter({
+    "ip": "10 per minute",
+})
 def login():
     """
     用户登录接口
@@ -160,6 +164,9 @@ def get_login_user_info():
 
 
 @user_management_bp.route('/refresh', methods=['POST'])
+@my_limiter({
+    "ip": "20 per minute",
+})
 def refresh_token():
     """
     刷新 Access Token 接口

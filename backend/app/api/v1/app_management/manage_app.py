@@ -4,6 +4,7 @@ from backend.app.api.v1.app_management import app_management_bp
 from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
 from backend.app.common.utils.auth import login_required
 from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
+from backend.app.middleware.rate_limiter import my_limiter
 from backend.app.schemas.requests.app_management_request import (
     AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
 )
@@ -17,6 +18,9 @@ from backend.app.services.chat_history_service import delete_chat_history_by_app
 
 @app_management_bp.route('/', methods=['POST'])
 @login_required
+@my_limiter({
+    "ip": "10 per minute",
+})
 def create_app():
     """
     用户创建应用（需填写init_prompt）
@@ -349,6 +353,9 @@ def get_featured_app_list():
 
 @app_management_bp.route('/deploy', methods=['POST'])
 @login_required
+@my_limiter({
+    "ip": "30 per minute",
+})
 def deploy_app():
     """
     部署应用，需要登录
