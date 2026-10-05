@@ -1,8 +1,8 @@
-from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.common.emuns import CodeFileType
 from backend.app.config import get_config
-from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
-from backend.app.services.ai_common.llm_client_pool import get_or_create
-from backend.app.services.ai_common.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
+from .chat_client_builder import ChatClientBuilder
+from .llm_client_pool import get_or_create
+from .prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
 
 
 class AiCodeTypeRouting:

@@ -1,3 +1,8 @@
+from backend.app.common.emuns import CodeFileType
+from backend.app.schemas.responses import (
+    HtmlCodeResult, MultiFileCodeResult, VueProjectFileCodeResult
+)
+
 CODE_GENERATE_HTML_SYSTEM_PROMPT = """
 你是一位资深的 Web 前端开发专家，精通 HTML、CSS 和原生 JavaScript。你擅长构建响应式、美观且代码整洁的单页面网站。
 
@@ -391,3 +396,25 @@ IMAGE_COLLECTION_SYSTEM_PROMPT = """
 
 你必须按照 JSON 格式输出！
 """
+
+SYSTEM_PROMPT_MAP = {
+    CodeFileType.HTML.value: CODE_GENERATE_HTML_SYSTEM_PROMPT,
+    CodeFileType.MULTI_FILE.value: CODE_GENERATE_MULTI_FILE_SYSTEM_PROMPT,
+    CodeFileType.VUE_PROJECT.value: CODE_GENERATE_VUE_PROJECT_SYSTEM_PROMPT,
+}
+
+RESPONSE_CLASS_MAP = {
+    CodeFileType.HTML.value: HtmlCodeResult,
+    CodeFileType.MULTI_FILE.value: MultiFileCodeResult,
+    CodeFileType.VUE_PROJECT.value: VueProjectFileCodeResult,
+}
+
+
+def get_system_prompt(file_type: str) -> str | None:
+    """根据代码文件类型获取对应的系统提示词"""
+    return SYSTEM_PROMPT_MAP.get(file_type)
+
+
+def get_response_cls(file_type: str):
+    """根据代码文件类型获取对应的 Pydantic 响应模型类"""
+    return RESPONSE_CLASS_MAP.get(file_type)

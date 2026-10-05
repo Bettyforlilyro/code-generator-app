@@ -14,6 +14,7 @@ from backend.app.services.ai_common import process_sse_chunk, StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.llm_client_pool import get_or_create
+from backend.app.services.ai_common.prompts import get_system_prompt, get_response_cls
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id_svc
 
 logger = logging.getLogger(__name__)
@@ -25,13 +26,13 @@ class AICodeGeneratorFacade:
     @staticmethod
     def generate_code_and_save_file(user_message: str, code_gen_type: CodeFileType, app_id: int):
         """生成代码并保存文件，返回保存路径，已弃用，"""
-        pydantic_model = CodeFileType.get_cls_type(code_gen_type)
+        pydantic_model = get_response_cls(code_gen_type)
         memory_manager = get_chat_memory_manager()
         messages = memory_manager.get_llm_messages(
             app_id=app_id,
             extra_messages=[{"role": "user", "content": user_message}]
         )
-        system_prompt = CodeFileType.get_system_prompt(code_gen_type)
+        system_prompt = get_system_prompt(code_gen_type)
         # 1. 调用AI模型生成代码
         builder = (ChatClientBuilder()
                    .set_response_format(pydantic_model.get_response_format())
@@ -69,7 +70,7 @@ class AICodeGeneratorFacade:
             dict: 数据块，格式为:
                   - {"d": "..."}          （token 流式输出）
         """
-        pydantic_model = CodeFileType.get_cls_type(code_gen_type)
+        pydantic_model = get_response_cls(code_gen_type)
         memory_manager = get_chat_memory_manager()
         messages = memory_manager.get_llm_messages(
             app_id=app_id,
