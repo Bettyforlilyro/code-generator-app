@@ -157,6 +157,6 @@ def register_rate_limiter(app: Flask):
         )
         return error_response(
             ErrorCode.TOO_MANY_REQUESTS,
-            message=f"{ErrorCode.TOO_MANY_REQUESTS.message}（{e.description}）",
+            message=f"{ErrorCode.TOO_MANY_REQUESTS.message}",
             http_status=429,
         )
