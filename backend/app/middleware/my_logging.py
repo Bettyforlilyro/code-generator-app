@@ -71,7 +71,7 @@ def configure_logging(app):
     if has_file_handler:
         root_logger.addHandler(file_handler)
 
-    # 7. 降低第三方库的噪音（这些组件默认 DEBUG 非常啰嗦，这里屏蔽掉 WARNING 以下的日志）
+    # 7. 降低第三方库的噪音（这些组件默认 DEBUG/INFO 非常啰嗦，这里屏蔽掉 WARNING 以下的日志）
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("langchain").setLevel(logging.WARNING)
@@ -80,6 +80,8 @@ def configure_logging(app):
     logging.getLogger("httpcore2").setLevel(logging.WARNING)
     logging.getLogger("httpx2").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
+    # Flask-Limiter 限流默认有一些INFO级打印，这里过滤掉换成自定义限流日志格式，直接压到 WARNING
+    logging.getLogger("flask-limiter").setLevel(logging.WARNING)
 
     # 8. 压掉 Python warnings 体系的噪音，避免日志中出现 UserWarning
     import warnings

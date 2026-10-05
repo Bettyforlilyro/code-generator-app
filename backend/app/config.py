@@ -133,6 +133,11 @@ class Config:
     IMAGE_BED_URL: str = os.getenv('IMAGE_BED_URL', '')
     IMAGE_BED_TOKEN: str = os.getenv('IMAGE_BED_TOKEN', '')
 
+    # 限流存储后端，默认内存存储，仅适用于单进程运行（Flask-Limiter）
+    RATE_LIMIT_STORAGE_URL: str = os.getenv(
+        'RATE_LIMIT_STORAGE_URL', 'memory://'
+    )
+
     # 本地文件系统路径
     NGINX_PATH: str = os.getenv('NGINX_PATH', r'D:\Nginx\nginx.exe')
     GENERATE_ROOT: str = os.getenv('GENERATE_ROOT',

@@ -13,6 +13,7 @@
 """
 from backend.app.middleware.cors import register_cors
 from backend.app.middleware.my_logging import configure_logging
+from backend.app.middleware.rate_limiter import register_rate_limiter
 from backend.app.middleware.request_logger import register_request_logger
 
 
@@ -20,9 +21,16 @@ def register_all(app):
     """
     注册所有中间件到 Flask 应用
 
+    注册顺序：
+        ① configure_logging       —— 最先，确保所有 logger 有 handler
+        ② register_rate_limiter   —— 在 cors 之前，最大程度挡住无效请求
+        ③ register_cors           —— OPTIONS 预检也需要通过限流
+        ④ register_request_logger —— 最后，记录经过限流处理后的真实请求
+
     Args:
         app: Flask 应用实例
     """
     configure_logging(app)
+    register_rate_limiter(app)
     register_cors(app)
     register_request_logger(app)
