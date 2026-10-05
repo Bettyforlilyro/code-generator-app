@@ -64,7 +64,7 @@ class HtmlCodeResult(BaseCodeResult):
     def parse_response_from_llm(cls, response: str) -> "HtmlCodeResult":
         """从LLM响应中解析代码生成结果"""
         result = cls()
-        result.app_name = parse_app_name_from_response(response)
+        result.app_name = _parse_app_name_from_response(response)
         # 解析HTML代码
         result.html_code = _extract_code_block(response, 'html')
         return result
@@ -108,7 +108,7 @@ class MultiFileCodeResult(BaseCodeResult):
     def parse_response_from_llm(cls, response: str) -> "MultiFileCodeResult":
         """从LLM响应中解析代码生成结果"""
         result = cls()
-        result.app_name = parse_app_name_from_response(response)
+        result.app_name = _parse_app_name_from_response(response)
         # 从AI回复中提取可能存在的HTML/CSS/JavaScript代码
         result.html_code = _extract_code_block(response, 'html')
         result.css_code = _extract_code_block(response, 'css')
@@ -151,7 +151,7 @@ class VueProjectFileCodeResult(BaseCodeResult):
         # ✅ 已生成代码并存入文件: `src/main.js`
         # ✅ 已修改文件: `src/main.js`
         # ✅ 删除文件: `src/main.js`
-        result.app_name = parse_app_name_from_response(response)
+        result.app_name = _parse_app_name_from_response(response)
         write_success = re.compile(
             r'✅ 已生成代码并存入文件: `'           # 固定锚点
             r'([^\\\r\n/:*?"<>|]+(?:/[^\\\r\n/:*?"<>|]+)*)`'    # 分隔符为 / 的相对路径
@@ -177,7 +177,7 @@ class VueProjectFileCodeResult(BaseCodeResult):
         return result
 
 
-def parse_app_name_from_response(response: str) -> Optional[str]:
+def _parse_app_name_from_response(response: str) -> Optional[str]:
     """从LLM响应中提取应用名称"""
     pattern = re.compile(r'app_name:(.*)\n')
     if pattern.search(response):
