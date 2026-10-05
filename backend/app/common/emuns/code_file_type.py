@@ -1,6 +1,6 @@
 from enum import Enum
 
-from backend.app.schemas.ai_generate_results import HtmlCodeResult, MultiFileCodeResult, VueProjectFileCodeResult
+from backend.app.schemas.responses.ai_generate_results import HtmlCodeResult, MultiFileCodeResult, VueProjectFileCodeResult
 from backend.app.services.ai_common.prompts import *
 
 

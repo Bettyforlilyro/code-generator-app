@@ -8,7 +8,7 @@ from backend.app.common.exceptions.error_codes import (
 )
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.config import get_config
-from backend.app.schemas.ai_generate_results import BaseCodeResult
+from backend.app.schemas.responses.ai_generate_results import BaseCodeResult
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
 from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder

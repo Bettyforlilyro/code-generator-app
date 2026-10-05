@@ -1,4 +1,4 @@
-from backend.app.schemas.ai_generate_results import BaseCodeResult, VueProjectFileCodeResult
+from backend.app.schemas.responses.ai_generate_results import BaseCodeResult, VueProjectFileCodeResult
 
 
 def merge_generated_code(old_code: str | BaseCodeResult, new_code: str | BaseCodeResult) -> str | BaseCodeResult:

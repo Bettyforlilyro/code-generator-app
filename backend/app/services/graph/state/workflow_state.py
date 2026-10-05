@@ -6,7 +6,7 @@ from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
 from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.schemas.ai_generate_results import BaseCodeResult
+from backend.app.schemas.responses.ai_generate_results import BaseCodeResult
 from backend.app.services.ai_common.advisor import StreamChunk
 from backend.app.services.graph.model.image_resource import ImageResource, merge_image_list
 from backend.app.services.graph.model.merge_generate_output import merge_generated_code

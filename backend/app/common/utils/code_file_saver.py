@@ -23,7 +23,7 @@ from ..emuns.constant import DEFAULT_GENERATE_ROOT
 from ..exceptions.error_codes import FileOperationError
 from .build_vue_project import build_vue_project_async
 # TODO 导入待优化
-from backend.app.schemas.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult, \
+from backend.app.schemas.responses.ai_generate_results import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult, \
     VueProjectFileCodeResult
 
 _logger = logging.getLogger(__name__)
