@@ -3,8 +3,8 @@ import logging
 import sys
 from datetime import datetime
 
-from backend.app.services.ai_common.advisor import PreAdvisor, AdvisorContext, PostAdvisor, StreamPostAdvisor, \
-    StreamChunk
+from backend.app.services.ai_common import StreamChunk
+from backend.app.services.ai_common.advisor import PreAdvisor, AdvisorContext, PostAdvisor, StreamPostAdvisor
 
 # 强制设置标准输出为UTF-8编码
 if sys.stdout.encoding != 'utf-8':

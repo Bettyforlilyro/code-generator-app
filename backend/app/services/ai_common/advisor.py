@@ -7,6 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 
+from .common import StreamChunk
 
 logger = logging.getLogger(__name__)
 
@@ -19,49 +20,6 @@ class AdvisorContext:
         self.conversation_id = conversation_id
         self.response: Optional[str] = None
         self.metadata: Dict[str, Any] = {}
-
-
-class StreamChunk:
-    """
-    流式响应数据块
-
-    chunk_type 字段说明前端应该怎么渲染：
-        "text"        —— 普通对话文本，用 Markdown/纯文本渲染（默认值）
-        "tool_start"  —— 工具开始调用，前端可以渲染「工具调用卡片」的标题部分
-        "tool_end"    —— 工具执行完毕，前端可以更新「工具调用卡片」为完成状态
-        "error"       —— 错误信息，前端可以用红色/警告样式渲染
-        "done"        —— 整轮结束（is_last=True 的时候 chunk_type=done）
-        "code_updated" —— 代码已更新，前端可以刷新预览区域
-        "code_review_start" —— 代码审核开始，前端可以显示「正在检视代码」
-        "code_review_end" —— 代码审核结束，前端可以显示「代码检视完成」
-
-    metadata 字段存放结构化数据，前端可以直接用：
-        tool_start 时: {tool_name, args_str, tool_call_id}
-        tool_end 时:   {tool_name, result_str, tool_call_id, success: bool}
-    """
-
-    TYPE_TEXT = "text"
-    TYPE_TOOL_START = "tool_start"
-    TYPE_TOOL_END = "tool_end"
-    TYPE_ERROR = "error"
-    TYPE_WEB_SEARCH = "web_search"
-    TYPE_WEB_SEARCH_DONE = "web_search_done"
-    TYPE_DONE = "done"
-    CODE_UPDATED = "code_updated"
-    CODE_REVIEW_START = "code_review_start"
-    CODE_REVIEW_END = "code_review_end"
-
-    def __init__(
-        self,
-        content: str,
-        is_last: bool = False,
-        chunk_type: str = "text",
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        self.content = content
-        self.is_last = is_last
-        self.chunk_type = chunk_type
-        self.metadata = metadata or {}
 
 
 class PreAdvisor(ABC):

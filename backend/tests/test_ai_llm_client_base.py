@@ -16,11 +16,12 @@ from dotenv import load_dotenv
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.responses.ai_generate_results import HtmlCodeResult
+from backend.app.services.ai_common import StreamChunk
 from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder, create_default_chat_client
 from backend.app.services.ai_common.advisor import (
     PreAdvisor, PostAdvisor, StreamPostAdvisor,
-    AdvisorContext, StreamChunk
+    AdvisorContext
 )
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 

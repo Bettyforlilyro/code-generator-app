@@ -10,52 +10,13 @@ from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.config import get_config
 from backend.app.schemas.responses.ai_generate_results import BaseCodeResult
 from backend.app.schemas.requests.app_management_request import AppUpdateRequest
-from backend.app.services.ai_common.advisor import StreamChunk
+from backend.app.services.ai_common import process_sse_chunk, StreamChunk
 from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.llm_client_pool import get_or_create
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id_svc
 
 logger = logging.getLogger(__name__)
-
-
-def _compose_task_info(chunk: StreamChunk) -> dict:
-    """
-    组合任务信息，包含 task_id, info, extra
-    """
-    return {'task_id': chunk.metadata.get("tool_call_id"),
-            'info': chunk.content,
-            "extra": chunk.metadata}
-
-
-def processed_chunk(chunk: StreamChunk):
-    """
-    处理流式响应，根据需要进行转换或过滤，简化 Chunk 内容
-    将 AI 的回复分为即时立刻回复和耗时任务的回复
-    即时立刻回复：直接返回给前端，例如普通文本
-    耗时任务回复：包含 start 和 end 两个阶段，例如文件写入，网络搜索等
-
-    :param chunk: 流式响应块
-    :return: SSE 相应数据中 event 字段的类型，以及 data 字段的内容（由调用者封装正确格式）
-    """
-    msg_type = chunk.chunk_type
-    if msg_type == StreamChunk.TYPE_TEXT:
-        return 'message', {"d": chunk.content}
-    # 不同的耗时任务返回提示信息
-    # 返回 task_id 是唯一任务标识，用于区分多个不同耗时任务并行调用
-    # chunk.content是前端需要展示的信息，extra是其他元数据，可以内部进行一定处理（界面上不呈现）
-    elif msg_type == StreamChunk.TYPE_TOOL_START:  # 请求工具调用
-        return 'task_start', _compose_task_info(chunk)
-    elif msg_type == StreamChunk.TYPE_TOOL_END:  # 工具调用结束
-        return 'task_end', _compose_task_info(chunk)
-    elif msg_type == StreamChunk.TYPE_WEB_SEARCH:  # 网络搜索
-        return 'web_search', _compose_task_info(chunk)
-    elif msg_type == StreamChunk.TYPE_WEB_SEARCH_DONE:  # 网络搜索完成
-        return 'web_search_done', _compose_task_info(chunk)
-    elif msg_type == StreamChunk.CODE_UPDATED:  # 代码已更新
-        return 'code_updated', {}
-    else:
-        return 'error', {"d": chunk.content or "AI 无任何响应，请检查 API_KEY 或者网络连接"}
 
 
 class AICodeGeneratorFacade:
@@ -141,7 +102,7 @@ class AICodeGeneratorFacade:
             for chunk in llm_client.chat_stream(messages, tool_context={"app_id": app_id} if app_id else None):
                 full_response_text += chunk.content
                 # 返回 tuple: (event, data)
-                yield processed_chunk(chunk)
+                yield process_sse_chunk(chunk)
         except BusinessException:
             # 如果下游已经抛出了明确的业务异常，直接上抛
             raise
@@ -177,7 +138,7 @@ class AICodeGeneratorFacade:
                     saver = CodeFileSaverFactory.get_saver(code_gen_type)
                     saver.save_code_file(result, app_id)
                     # 通知前端代码已修改，请刷新预览界面
-                    yield processed_chunk(StreamChunk(
+                    yield process_sse_chunk(StreamChunk(
                         content="",
                         chunk_type=StreamChunk.CODE_UPDATED
                     ))

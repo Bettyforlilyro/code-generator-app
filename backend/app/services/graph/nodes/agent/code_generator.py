@@ -15,9 +15,9 @@ from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.config import get_config
+from backend.app.services.ai_common import process_sse_chunk, StreamChunk
 from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
 from backend.app.services.ai_common.tools import tools_factory_with_context
-from backend.app.services.ai_generator_facade import processed_chunk
 from backend.app.services.graph.model.image_resource import ImageResource
 from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
 from backend.app.services.graph.prompt import (
@@ -190,7 +190,6 @@ def code_generator_node(state: WorkflowState):
             model_name=get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE,
             timeout=600
         )
-    from backend.app.services.ai_common.advisor import StreamChunk
     try:
         ai_message_to_history = ""  # 需要保存到对话历史中去的 AI 回复消息（包含：AI 回复文本 + 工具调用结束信息 + 错误信息，工具开始调用信息不保存）
         for chunk in llm_client.chat_stream(messages, tool_context=tool_context):
@@ -202,7 +201,7 @@ def code_generator_node(state: WorkflowState):
             if chunk.chunk_type == StreamChunk.TYPE_TOOL_END:
                 ai_message_to_history += chunk.content or ""
             # ✅ 直接用 processed_chunk 转前端约定格式，writer 立刻推出去
-            event_type, data = processed_chunk(chunk)
+            event_type, data = process_sse_chunk(chunk)
             writer({"event_type": event_type, "data": data})
 
         if task_type != "chat":
@@ -224,7 +223,7 @@ def code_generator_node(state: WorkflowState):
     except Exception as e:
         logger.error(f"[code_generator] 流式生成失败: {e}")
         # 给前端也发一条 error 事件（让用户知道失败了）
-        err_event_type, err_data = processed_chunk(StreamChunk(
+        err_event_type, err_data = process_sse_chunk(StreamChunk(
             content=f"生成失败：{e}",
             chunk_type=StreamChunk.TYPE_ERROR,
         ))

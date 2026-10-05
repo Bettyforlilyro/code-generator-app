@@ -5,7 +5,8 @@ from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
 from backend.app.common.utils.parse_llm_response import parse_llm_json_response
-from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext, StreamChunk
+from backend.app.services.ai_common import StreamChunk
+from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext
 from backend.app.services.ai_common.tool_executor import (
     ToolExecResult,
     execute_single_tool,

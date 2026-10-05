@@ -14,7 +14,7 @@ from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.schemas.responses.ai_generate_results import VueProjectFileCodeResult, HtmlCodeResult, MultiFileCodeResult
-from backend.app.services.ai_common.advisor import StreamChunk
+from backend.app.services.ai_common import StreamChunk
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.graph.model.qa_ai_response import QAResult
 from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
