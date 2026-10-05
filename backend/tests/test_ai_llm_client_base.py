@@ -17,12 +17,12 @@ from backend.app.common.emuns.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.responses.ai_generate_results import HtmlCodeResult
 from backend.app.services.ai_common import StreamChunk
-from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
-from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder, create_default_chat_client
-from backend.app.services.ai_common.advisor import (
+from backend.app.services.ai_common import (
     PreAdvisor, PostAdvisor, StreamPostAdvisor,
     AdvisorContext
 )
+from backend.app.services.ai_common import AiCodeTypeRouting
+from backend.app.services.ai_common import ChatClientBuilder
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 
 # 加载环境变量
@@ -83,27 +83,6 @@ class LogStreamPostAdvisor(StreamPostAdvisor):
 # ============================================================
 # 测试用例
 # ============================================================
-
-
-def test_default_build():
-    """测试1: 使用默认配置构建客户端并发送简单消息"""
-    print("=" * 60)
-    print("测试1: 默认配置构建 + 简单对话")
-    print("=" * 60)
-
-    client = create_default_chat_client()
-
-    messages = [
-        {"role": "user", "content": "你好，请用一句话介绍你自己。"}
-    ]
-
-    response = client.chat(messages)
-    print(f"AI回复: {response}")
-    assert response is not None, "响应不应为None"
-    assert len(response) > 0, "响应不应为空"
-    print("✅ 测试1通过\n")
-    return True
-
 
 def test_custom_build():
     """测试2: 自定义参数构建客户端 + 结构化输出"""

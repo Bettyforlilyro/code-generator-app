@@ -22,16 +22,16 @@ logger = logging.getLogger(__name__)
 # ==================== 配置 ====================
 
 # 默认的上下文窗口 token 上限（根据具体模型调整，通义 qwen 系列通常 8k/32k/128k，这里是qwen-max最大128k）
-DEFAULT_MAX_TOKENS = 128000
+_DEFAULT_MAX_TOKENS = 128000
 
 # 每条 AI 回复的预留 token 数（避免对话历史占满窗口导致 AI 无输出空间）
-DEFAULT_RESERVED_TOKENS_FOR_REPLY = 1000
+_DEFAULT_RESERVED_TOKENS_FOR_REPLY = 1000
 
 # 内存缓存过期时间（秒），超过此时间未访问的会话将被淘汰
-DEFAULT_MEMORY_TTL_SECONDS = 30 * 60  # 30 分钟
+_DEFAULT_MEMORY_TTL_SECONDS = 30 * 60  # 30 分钟
 
 # 内存缓存最大会话数上限（防止内存泄漏）
-DEFAULT_MAX_CACHED_SESSIONS = 100
+_DEFAULT_MAX_CACHED_SESSIONS = 100
 
 
 # ==================== 数据结构 ====================
@@ -79,8 +79,8 @@ class SessionMemory:
 
 def trim_messages(
     messages: List[MemoryMessage],
-    max_context_tokens: int = DEFAULT_MAX_TOKENS,
-    reserved_for_reply: int = DEFAULT_RESERVED_TOKENS_FOR_REPLY,
+    max_context_tokens: int = _DEFAULT_MAX_TOKENS,
+    reserved_for_reply: int = _DEFAULT_RESERVED_TOKENS_FOR_REPLY,
 ) -> List[MemoryMessage]:
     """
     裁剪消息列表，确保总 token 不超过 (max_context_tokens - reserved_for_reply)
@@ -167,10 +167,10 @@ class ChatMemoryManager:
 
     def __init__(
         self,
-        max_context_tokens: int = DEFAULT_MAX_TOKENS,
-        reserved_for_reply: int = DEFAULT_RESERVED_TOKENS_FOR_REPLY,
-        memory_ttl_seconds: int = DEFAULT_MEMORY_TTL_SECONDS,
-        max_cached_sessions: int = DEFAULT_MAX_CACHED_SESSIONS,
+        max_context_tokens: int = _DEFAULT_MAX_TOKENS,
+        reserved_for_reply: int = _DEFAULT_RESERVED_TOKENS_FOR_REPLY,
+        memory_ttl_seconds: int = _DEFAULT_MEMORY_TTL_SECONDS,
+        max_cached_sessions: int = _DEFAULT_MAX_CACHED_SESSIONS,
     ):
         if getattr(self, "_initialized", False):
             return
@@ -181,6 +181,8 @@ class ChatMemoryManager:
 
         # 消息缓存，key 为 app_id，value 为 SessionMemory
         self._cache: MemoryCache[int, SessionMemory] = MemoryCache(
+            max_size=max_cached_sessions,
+            ttl_seconds=memory_ttl_seconds
         )
         self._cache.start_auto_evict()  # 启用自动清理过期缓存的守护线程
 

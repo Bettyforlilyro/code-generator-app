@@ -4,10 +4,10 @@ from typing import List
 from langchain_core.messages import ToolMessage, AIMessage
 from langchain_openai import ChatOpenAI
 
-from backend.app.common.utils.parse_llm_response import parse_llm_json_response
-from backend.app.services.ai_common import StreamChunk
-from backend.app.services.ai_common.advisor import AdvisorChain, AdvisorContext
-from backend.app.services.ai_common.tool_executor import (
+from backend.app.common.utils import parse_llm_json_response
+from .common import StreamChunk
+from .advisor import AdvisorChain, AdvisorContext
+from .tool_executor import (
     ToolExecResult,
     execute_single_tool,
     execute_tool_calls_batch,
@@ -15,10 +15,10 @@ from backend.app.services.ai_common.tool_executor import (
     build_tool_end_content,
     tool_result_preview,
 )
-from backend.app.services.ai_common.tools.tool_context_store import set_runtime_context
+from .tools.tool_context_store import set_runtime_context
 
 # 工具调用循环的最大迭代次数（防止 LLM 陷入无限调用）
-MAX_TOOL_ITERATIONS = 10
+_MAX_TOOL_ITERATIONS = 10
 
 
 class ChatClient:
@@ -89,7 +89,7 @@ class ChatClient:
 
         # ---- 工具调用循环 ----
         iteration = 0
-        while response.tool_calls and iteration < MAX_TOOL_ITERATIONS:
+        while response.tool_calls and iteration < _MAX_TOOL_ITERATIONS:
             iteration += 1
 
             accumulated.append(response)
@@ -99,9 +99,9 @@ class ChatClient:
             response = self._chat_llm.invoke(accumulated)
 
         # 超出最大迭代次数的防护：强制截断 + 警告
-        if iteration >= MAX_TOOL_ITERATIONS and response.tool_calls:
+        if iteration >= _MAX_TOOL_ITERATIONS and response.tool_calls:
             warnings.warn(
-                f"[ChatClient] 工具调用达到最大迭代次数 ({MAX_TOOL_ITERATIONS})，"
+                f"[ChatClient] 工具调用达到最大迭代次数 ({_MAX_TOOL_ITERATIONS})，"
                 f"强制截断。最后一条 tool_calls: {response.tool_calls}"
             )
             accumulated.append(response)
@@ -207,7 +207,7 @@ class ChatClient:
         full_response_text = ""
         iteration = 0
 
-        while iteration < MAX_TOOL_ITERATIONS:
+        while iteration < _MAX_TOOL_ITERATIONS:
             iteration += 1
 
             # ===== 阶段 1：流式收集本轮 LLM 响应 =====

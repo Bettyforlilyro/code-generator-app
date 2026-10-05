@@ -227,8 +227,3 @@ class ChatClientBuilder:
             advisor_chain=self._advisor_chain,
             available_tools=self._available_tools,
         )
-
-
-def create_default_chat_client() -> ChatClient:
-    """创建默认配置的聊天客户端"""
-    return ChatClientBuilder().build()
