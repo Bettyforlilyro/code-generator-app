@@ -1,10 +1,15 @@
 from flask import Blueprint
 
+from backend.app.middleware.rate_limiter import my_limiter
+
 # 创建v1版本主蓝图
 api_v1_bp = Blueprint('api_v1', __name__, url_prefix='/api/v1')
 
 
 @api_v1_bp.route("/health")
+@my_limiter({
+    "ip": "10 per minute",
+})
 def health_check():
     from flask import jsonify
     try:
