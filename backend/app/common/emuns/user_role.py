@@ -10,7 +10,7 @@ class UserRole(str, Enum):
     @classmethod
     def get_all_roles(cls):
         """获取所有角色列表"""
-        return [role.value for role in cls]
+        return [cls.ADMIN.value, cls.USER.value]
 
     @classmethod
     def is_valid_role(cls, role: str) -> bool:

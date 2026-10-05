@@ -6,8 +6,8 @@ from flask import request, current_app, g
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.app.common.exceptions.error_codes import AuthenticationError, PermissionDeniedError
-from backend.app.models.user import User
+from ..exceptions.error_codes import AuthenticationError, PermissionDeniedError
+from backend.app.models import User
 
 
 def generate_access_token(user_id, user_role):

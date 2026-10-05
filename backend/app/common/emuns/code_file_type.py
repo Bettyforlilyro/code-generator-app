@@ -29,7 +29,7 @@ class CodeFileType(str, Enum):
     @classmethod
     def get_all_file_types(cls):
         """获取所有文件类型列表"""
-        return [file_type.value for file_type in cls]
+        return [cls.HTML.value, cls.MULTI_FILE.value, cls.VUE_PROJECT.value]
 
     @classmethod
     def is_valid_file_type(cls, file_type: str) -> bool:

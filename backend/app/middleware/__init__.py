@@ -13,7 +13,7 @@
 """
 from backend.app.middleware.cors import register_cors
 from backend.app.middleware.my_logging import configure_logging
-from backend.app.middleware.rate_limiter import register_rate_limiter
+from backend.app.middleware.rate_limiter import register_rate_limiter, my_limiter
 from backend.app.middleware.request_logger import register_request_logger
 
 

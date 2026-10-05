@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from backend.app.extensions.db_instance import db
+from backend.app.extensions import db
 
 
 class AppModel(db.Model):
