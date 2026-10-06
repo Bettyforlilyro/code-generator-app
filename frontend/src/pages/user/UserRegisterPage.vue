@@ -1,6 +1,6 @@
 <template>
   <div id="userRegisterPage">
-    <h2 class="title">鱼皮 AI 应用生成 - 用户注册</h2>
+    <h2 class="title">AI 网页应用生成平台 - 用户注册</h2>
     <div class="desc">不写一行代码，生成完整应用</div>
     <a-form :model="formState" name="basic" autocomplete="off" @finish="handleSubmit">
       <a-form-item name="user_name" :rules="[{ required: true, message: '请输入用户名' }]">
