@@ -33,8 +33,8 @@ import logging
 
 from langchain_core.messages import AIMessage
 
-from backend.app.common.emuns.chat_message_type import ChatMessageType
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.common.emuns import ChatMessageType
+from backend.app.services.ai_common import get_chat_memory_manager
 from backend.app.services.chat_history_service import create_chat_history_svc
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
@@ -97,7 +97,7 @@ def _should_save(state: WorkflowState) -> bool:
     return False
 
 
-def chat_history_save(state: WorkflowState) -> dict:
+def chat_history_save_node(state: WorkflowState) -> dict:
     """
     对话历史保存节点主函数
 

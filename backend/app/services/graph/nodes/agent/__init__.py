@@ -7,11 +7,6 @@ from backend.app.config import get_config
 from backend.app.services.ai_common import ChatClient
 from backend.app.services.ai_common import ChatClientBuilder
 from backend.app.services.ai_common import get_or_create
-from .assets_collector import assets_collector_node
-from .code_generator import code_generator_node, route_after_code_generator
-from .code_reviewer import code_reviewer_node, route_after_code_reviewer
-from .task_evaluate import task_evaluate_node, route_after_task_evaluate
-from .type_router import type_router_node
 
 
 def create_spec_llm_in_graph(
@@ -67,3 +62,22 @@ def create_spec_llm_in_graph(
     if timeout:
         builder = builder.set_timeout(timeout)
     return get_or_create(builder, str(app_id))
+
+
+from .assets_collector import assets_collector_node
+from .code_generator import code_generator_node, route_after_code_generator
+from .code_reviewer import code_reviewer_node, route_after_code_reviewer
+from .task_evaluate import task_evaluate_node, route_after_task_evaluate
+from .type_router import type_router_node
+
+__all__ = [
+    "assets_collector_node",
+    "code_generator_node",
+    "code_reviewer_node",
+    "task_evaluate_node",
+    "type_router_node",
+    "route_after_code_generator",
+    "route_after_code_reviewer",
+    "route_after_task_evaluate",
+    "create_spec_llm_in_graph",
+]

@@ -41,22 +41,18 @@ import logging
 
 from langgraph.graph import StateGraph, START, END
 
-from backend.app.services.graph.nodes.agent.assets_collector import assets_collector_node
-from backend.app.services.graph.nodes.agent.code_generator import (
+from backend.app.services.graph.nodes import (
+    assets_collector_node,
     code_generator_node,
     route_after_code_generator,
-)
-from backend.app.services.graph.nodes.agent.code_reviewer import (
     code_reviewer_node,
     route_after_code_reviewer,
-)
-from backend.app.services.graph.nodes.agent.task_evaluate import (
     task_evaluate_node,
     route_after_task_evaluate,
+    type_router_node,
+    save_or_build_project_node,
+    chat_history_save_node,
 )
-from backend.app.services.graph.nodes.agent.type_router import type_router_node
-from backend.app.services.graph.nodes.save_or_build_project import save_or_build_project_node
-from backend.app.services.graph.nodes.save_output_history import chat_history_save
 from backend.app.services.graph.state.workflow_state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -77,7 +73,7 @@ def _build_graph() -> StateGraph:
     graph.add_node("code_generator", code_generator_node)
     graph.add_node("code_reviewer", code_reviewer_node)
     graph.add_node("save_or_build", save_or_build_project_node)
-    graph.add_node("chat_history_save", chat_history_save)
+    graph.add_node("chat_history_save", chat_history_save_node)
 
     # -------------------- 边连接 --------------------
 
