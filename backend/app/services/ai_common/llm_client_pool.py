@@ -48,16 +48,21 @@ def _make_cache_key(builder: 'ChatClientBuilder', app_id: str) -> str:
         name = getattr(t, 'name', None) or getattr(t, 'tool_name', None) or str(t)
         tool_names.append(name)
     tool_names.sort()
+    fmt = builder.get_response_format()
+    if fmt is None:
+        response_fmt_key = None
+    elif hasattr(fmt, '__qualname__'):
+        response_fmt_key = f"{fmt.__module__}.{fmt.__qualname__}"
+    elif isinstance(fmt, dict):
+        response_fmt_key = json.dumps(fmt, sort_keys=True)
+    else:
+        response_fmt_key = str(fmt)
 
     key_parts = {
         'model': builder.get_model(),
         'system_prompt': builder.get_system_prompt() or '',
-        'response_format': (
-            repr(builder.get_response_format())
-            if builder.get_response_format() else None
-        ),
+        'response_format': response_fmt_key,
         'tool_names': tool_names,
-        # 以下字段理论上所有请求都相同，但为了严谨也纳入
         'temperature': builder.get_temperature(),
         'top_p': builder.get_top_p(),
         'max_tokens': builder.get_max_tokens(),
