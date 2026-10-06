@@ -126,7 +126,7 @@ def generate_code_stream():
 
         def on_error(error: Exception, chunks: list[tuple[str, dict]]):
             persist_chat_after_generation_svc(int(app_id), user_id, prompt, chunks)
-            full = ''.join(c['d'] for c in chunks if isinstance(c, dict) and 'd' in c)
+            full = ''.join(data['d'] for (event, data) in chunks if isinstance(data, dict) and 'd' in data)
             _logger.error(f"AI回复异常，错误信息: {str(error)}, 已回复内容: {full}")
             return "AI 暂时不能回答这个问题"
 
