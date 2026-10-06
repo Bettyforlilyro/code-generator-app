@@ -167,7 +167,8 @@ class Config:
 # 环境专属 Config 子类（预留扩展点，目前继承基类全部属性）
 class DevConfig(Config):
     """开发环境配置（预留扩展）"""
-    pass
+    LOG_DETAIL = True
+    DEBUG: bool = True
 
 
 class ProdConfig(Config):
