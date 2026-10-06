@@ -13,24 +13,23 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from backend.app.common.emuns.chat_message_type import ChatMessageType
-from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH
-from backend.app.common.emuns.user_role import UserRole
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.build_vue_project import build_vue_project_sync
-from backend.app.common.utils.generate_app_page_screenshot import generate_app_page_screenshot_and_save_async
-from backend.app.extensions.db_instance import db
-from backend.app.models.app_model import AppModel
-from backend.app.models.user import User
-from backend.app.schemas.requests.app_management_request import (
+from backend.app.common.emuns import (
+    ChatMessageType, CodeFileType, UserRole,
+    DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH,
+)
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import (
+    build_vue_project_sync, generate_app_page_screenshot_and_save_async,
+)
+from backend.app.extensions import db
+from backend.app.models import AppModel, User
+from backend.app.schemas.requests import (
     AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
 )
-from backend.app.schemas.responses.app_management_response import (
-    AppDetailResponse, AppListResponse, AppCreateResponse
+from backend.app.schemas.responses import (
+    AppDetailResponse, AppListResponse, AppCreateResponse, UserSummaryResponse
 )
-from backend.app.schemas.responses.user_management_response import UserSummaryResponse
-from backend.app.services.ai_common.ai_code_type_routing import AiCodeTypeRouting
+from backend.app.services.ai_common import AiCodeTypeRouting
 from backend.app.services.chat_history_service import get_system_prompt_by_app_id_svc, create_chat_history_svc
 from backend.app.services.common import validate_sort_params
 
@@ -158,15 +157,15 @@ def get_app_detail_svc(app_id: int) -> AppDetailResponse:
 
 
 def list_apps_svc(
-    user: User,
-    page: int,
-    per_page: int,
-    app_name: Optional[str],
-    code_gen_type: Optional[str],
-    user_name: Optional[str],
-    is_mine: bool,
-    sort_field: str,
-    sort_order: str,
+        user: User,
+        page: int,
+        per_page: int,
+        app_name: Optional[str],
+        code_gen_type: Optional[str],
+        user_name: Optional[str],
+        is_mine: bool,
+        sort_field: str,
+        sort_order: str,
 ) -> AppListResponse:
     """
     分页查询应用列表

@@ -1,7 +1,7 @@
 from backend.app.common.emuns import CodeFileType
 from backend.app.config import get_config
 from .chat_client_builder import ChatClientBuilder
-from .llm_client_pool import get_or_create
+from .llm_client_pool import get_or_create_chat_client
 from .prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
 
 
@@ -24,7 +24,7 @@ class AiCodeTypeRouting:
                    .set_api_key(get_config().MODEL_API_KEY)
                    .set_model(get_config().ROUTER_MODEL_OPENAI_COMPATIBLE)
                    .set_system_prompt(CODE_GENERATE_ROUTING_SYSTEM_PROMPT))
-        llm_client = get_or_create(builder, str(app_id))
+        llm_client = get_or_create_chat_client(builder, str(app_id))
         messages = [{"role": "user", "content": init_prompt}]
         response = llm_client.chat_structured(messages, CodeFileType)   # CodeFileType 必须覆盖实现 model_validate_json
         return response.value if response else CodeFileType.HTML

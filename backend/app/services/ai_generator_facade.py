@@ -2,19 +2,21 @@ import json
 import logging
 import re
 
-from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.common.exceptions.error_codes import (
+from backend.app.common.emuns import CodeFileType
+from backend.app.common.exceptions import (
     ErrorCode, AIServiceError, FileOperationError, BusinessException,
 )
-from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
+from backend.app.common.utils import CodeFileSaverFactory
 from backend.app.config import get_config
-from backend.app.schemas.responses.ai_generate_results import BaseCodeResult
-from backend.app.schemas.requests.app_management_request import AppUpdateRequest
-from backend.app.services.ai_common import process_sse_chunk, StreamChunk
-from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.ai_common.llm_client_pool import get_or_create
-from backend.app.services.ai_common.prompts import get_system_prompt, get_response_cls
+from backend.app.schemas.requests import AppUpdateRequest
+from backend.app.schemas.responses import BaseCodeResult
+from backend.app.services.ai_common import (
+    ChatClientBuilder,
+    get_chat_memory_manager,
+    get_or_create_chat_client,
+    get_system_prompt, get_response_cls,
+    process_sse_chunk, StreamChunk
+)
 from backend.app.services.app_service import update_app_svc, get_app_creator_by_app_id_svc
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,7 @@ class AICodeGeneratorFacade:
             builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE)
         else:
             builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE)
-        llm_client = get_or_create(builder, str(app_id))
+        llm_client = get_or_create_chat_client(builder, str(app_id))
         response = llm_client.chat_structured(messages, pydantic_model)
         # 2. 保存代码到文件
         saver = CodeFileSaverFactory.get_saver(code_gen_type)
@@ -94,7 +96,7 @@ class AICodeGeneratorFacade:
             builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_EASY_OPENAI_COMPATIBLE)
         else:
             builder = builder.set_model(get_config().CODE_GENERATOR_MODEL_COMPLEX_OPENAI_COMPATIBLE)
-        llm_client = get_or_create(builder, str(app_id))
+        llm_client = get_or_create_chat_client(builder, str(app_id))
 
         full_response_text = ""
 

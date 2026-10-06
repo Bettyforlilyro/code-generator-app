@@ -6,7 +6,7 @@ from typing import Any, Optional
 from backend.app.config import get_config
 from backend.app.services.ai_common import ChatClient
 from backend.app.services.ai_common import ChatClientBuilder
-from backend.app.services.ai_common import get_or_create
+from backend.app.services.ai_common import get_or_create_chat_client
 
 
 def create_spec_llm_in_graph(
@@ -61,7 +61,7 @@ def create_spec_llm_in_graph(
         builder.add_tools(tools)
     if timeout:
         builder = builder.set_timeout(timeout)
-    return get_or_create(builder, str(app_id))
+    return get_or_create_chat_client(builder, str(app_id))
 
 
 from .assets_collector import assets_collector_node

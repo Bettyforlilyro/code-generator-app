@@ -68,7 +68,7 @@ def _make_cache_key(builder: 'ChatClientBuilder', app_id: str) -> str:
     return hashlib.md5(raw.encode('utf-8')).hexdigest()
 
 
-def get_or_create(builder: 'ChatClientBuilder', app_id: str):
+def get_or_create_chat_client(builder: 'ChatClientBuilder', app_id: str):
     """
     从缓存池获取 ChatClient，未命中则构建并缓存，app_id 也用于缓存 key，避免跨应用共享
     不同的 app_id 之间不会共享 ChatClient 实例。
