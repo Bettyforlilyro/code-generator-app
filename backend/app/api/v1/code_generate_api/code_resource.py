@@ -3,7 +3,7 @@ import os
 from flask import request
 
 from backend.app.api.v1.code_generate_api import code_bp
-from backend.app.common.emuns import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
+from backend.app.common.enums import DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.common.utils import login_required
 from backend.app.middleware import my_limiter

@@ -8,7 +8,7 @@ from typing import List, Dict, Callable, Optional
 
 from langchain_core.tools import BaseTool
 
-from backend.app.common.emuns.constant import DEFAULT_GENERATE_ROOT
+from backend.app.common.enums.constant import DEFAULT_GENERATE_ROOT
 from backend.app.common.utils.cache import MemoryCache
 from .tool_context_store import set_runtime_context, get_runtime_context, reset_runtime_context
 

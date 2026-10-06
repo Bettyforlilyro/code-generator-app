@@ -3,7 +3,7 @@ import logging
 from flask import g
 
 from backend.app.api.v1.code_generate_api import code_bp
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.common.utils import login_required
 from backend.app.common.utils import parse_json_body

@@ -1,4 +1,4 @@
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.schemas.responses import (
     HtmlCodeResult, MultiFileCodeResult, VueProjectFileCodeResult
 )

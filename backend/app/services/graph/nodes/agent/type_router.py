@@ -11,7 +11,7 @@ import logging
 
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns import CodeFileType, ChatMessageType
+from backend.app.common.enums import CodeFileType, ChatMessageType
 from backend.app.config import get_config
 from backend.app.services.ai_common import (
     CODE_GENERATE_ROUTING_SYSTEM_PROMPT,

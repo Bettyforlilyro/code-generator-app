@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 
 
 class AppCreateRequest(BaseModel):

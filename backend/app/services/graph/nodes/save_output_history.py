@@ -33,7 +33,7 @@ import logging
 
 from langchain_core.messages import AIMessage
 
-from backend.app.common.emuns import ChatMessageType
+from backend.app.common.enums import ChatMessageType
 from backend.app.services.ai_common import get_chat_memory_manager
 from backend.app.services.chat_history_service import create_chat_history_svc
 from backend.app.services.graph.state.workflow_state import WorkflowState

@@ -2,7 +2,7 @@ import json
 import logging
 import re
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.common.exceptions import (
     ErrorCode, AIServiceError, FileOperationError, BusinessException,
 )

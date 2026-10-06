@@ -1,4 +1,4 @@
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.config import get_config
 from .chat_client_builder import ChatClientBuilder
 from .llm_client_pool import get_or_create_chat_client

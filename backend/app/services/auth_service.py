@@ -4,7 +4,7 @@ import uuid
 from flask import current_app
 from flask.ctx import after_this_request
 
-from backend.app.common.emuns import UserRole
+from backend.app.common.enums import UserRole
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.common.utils import (
     generate_access_token,

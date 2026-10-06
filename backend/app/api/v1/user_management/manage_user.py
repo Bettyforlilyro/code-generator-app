@@ -1,7 +1,7 @@
 from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.emuns import UserRole
+from backend.app.common.enums import UserRole
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.common.utils import login_required, role_required
 from backend.app.common.utils import parse_json_body, parse_pagination_args

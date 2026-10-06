@@ -11,7 +11,7 @@
 """
 import logging
 
-from backend.app.common.emuns import ChatMessageType, CodeFileType
+from backend.app.common.enums import ChatMessageType, CodeFileType
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.models import AppModel
 from .ai_common import get_chat_memory_manager

@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
-from backend.app.common.emuns import UserRole
+from backend.app.common.enums import UserRole
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.common.utils import login_required
 from backend.app.common.utils import parse_pagination_args

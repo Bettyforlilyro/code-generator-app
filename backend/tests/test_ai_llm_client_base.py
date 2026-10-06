@@ -13,7 +13,7 @@ import time
 
 from dotenv import load_dotenv
 
-from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.common.enums.code_file_type import CodeFileType
 from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
 from backend.app.schemas.responses.ai_generate_results import HtmlCodeResult
 from backend.app.services.ai_common import StreamChunk

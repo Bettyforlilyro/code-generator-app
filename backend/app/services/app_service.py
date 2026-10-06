@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from backend.app.common.emuns import (
+from backend.app.common.enums import (
     ChatMessageType, CodeFileType, UserRole,
     DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH,
 )

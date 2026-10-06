@@ -11,7 +11,7 @@ import logging
 from langchain_core.messages import AIMessage
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.common.utils import CodeFileSaverFactory
 from backend.app.schemas.responses import BaseCodeResult
 from backend.app.services.ai_common import StreamChunk

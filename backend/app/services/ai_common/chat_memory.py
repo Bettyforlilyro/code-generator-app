@@ -13,7 +13,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
-from backend.app.common.emuns import ChatMessageType
+from backend.app.common.enums import ChatMessageType
 from backend.app.common.utils import MemoryCache
 from backend.app.common.utils import estimate_tokens
 

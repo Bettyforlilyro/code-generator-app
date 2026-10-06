@@ -3,7 +3,7 @@
 
 集中封装 User 模型的所有业务逻辑和数据库操作。
 """
-from backend.app.common.emuns import UserRole
+from backend.app.common.enums import UserRole
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.extensions import db
 from backend.app.models import User

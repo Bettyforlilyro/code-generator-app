@@ -6,7 +6,7 @@
 from datetime import datetime
 from typing import Optional
 
-from backend.app.common.emuns import ChatMessageType
+from backend.app.common.enums import ChatMessageType
 from backend.app.common.exceptions import ErrorCode, BusinessException
 from backend.app.extensions import db
 from backend.app.models import ChatHistory

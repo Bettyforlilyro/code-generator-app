@@ -5,7 +5,7 @@ from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.schemas.responses import BaseCodeResult
 from backend.app.services.ai_common import StreamChunk
 from backend.app.services.graph.model import (

@@ -18,7 +18,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 
-from backend.app.common.emuns import DEFAULT_GENERATE_ROOT, CodeFileType
+from backend.app.common.enums import DEFAULT_GENERATE_ROOT, CodeFileType
 from backend.app.common.exceptions import FileOperationError
 from backend.app.schemas.responses import BaseCodeResult, HtmlCodeResult, MultiFileCodeResult, VueProjectFileCodeResult
 from .build_vue_project import build_vue_project_async

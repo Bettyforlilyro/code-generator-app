@@ -13,7 +13,7 @@ from typing import List
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.config import get_config
 from backend.app.services.ai_common import (
     process_sse_chunk,

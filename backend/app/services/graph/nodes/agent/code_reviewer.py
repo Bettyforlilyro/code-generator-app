@@ -12,7 +12,7 @@ import logging
 
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.enums import CodeFileType
 from backend.app.schemas.responses import VueProjectFileCodeResult, HtmlCodeResult, MultiFileCodeResult
 from backend.app.services.ai_common import StreamChunk
 from backend.app.services.ai_common.tools import tools_factory_with_context
