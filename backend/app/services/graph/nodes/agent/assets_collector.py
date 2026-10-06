@@ -18,8 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 from backend.app.services.ai_common import ChatClient
-from backend.app.services.graph.model import ImageAIResponse
-from backend.app.services.graph.model import ImageResource
+from backend.app.services.graph.model import ImageResource, ImageAIResponse
 from backend.app.services.graph.nodes.tools import (
     search_content_images,
     search_illustration_images,

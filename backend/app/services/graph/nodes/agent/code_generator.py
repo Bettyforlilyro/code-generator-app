@@ -15,8 +15,12 @@ from langgraph.config import get_stream_writer
 
 from backend.app.common.emuns import CodeFileType
 from backend.app.config import get_config
-from backend.app.services.ai_common import get_chat_memory_manager
-from backend.app.services.ai_common import process_sse_chunk, StreamChunk, get_response_cls
+from backend.app.services.ai_common import (
+    process_sse_chunk,
+    StreamChunk,
+    get_response_cls,
+    get_chat_memory_manager
+)
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.graph.model import ImageResource
 from backend.app.services.graph.prompt import (

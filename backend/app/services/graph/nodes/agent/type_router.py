@@ -11,12 +11,12 @@ import logging
 
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns import ChatMessageType
-from backend.app.common.emuns import CodeFileType
+from backend.app.common.emuns import CodeFileType, ChatMessageType
 from backend.app.config import get_config
-from backend.app.services.ai_common import get_chat_memory_manager
-from backend.app.services.ai_common.prompts import (
-    CODE_GENERATE_ROUTING_SYSTEM_PROMPT, get_system_prompt
+from backend.app.services.ai_common import (
+    CODE_GENERATE_ROUTING_SYSTEM_PROMPT,
+    get_system_prompt,
+    get_chat_memory_manager
 )
 from backend.app.services.app_service import update_app_code_gen_type_svc, create_app_in_graph_svc
 from backend.app.services.chat_history_service import create_chat_history_svc

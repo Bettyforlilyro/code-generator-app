@@ -23,10 +23,9 @@ from dashscope import MultiModalConversation
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.app.common.utils.upload_image import upload_image_to_bed
+from backend.app.common.utils import upload_image_to_bed
 from backend.app.config import get_config
-from backend.app.services.graph.model.image_resource import ImageResource
-from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
+from backend.app.services.graph.model import ImageResource, ImageTypeEnum
 
 logger = logging.getLogger(__name__)
 
