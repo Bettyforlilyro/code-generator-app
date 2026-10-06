@@ -1,9 +1,9 @@
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.request_helpers import parse_json_body
-from backend.app.middleware.rate_limiter import my_limiter
-from backend.app.schemas.requests.user_management_request import UserRegisterRequest
-from backend.app.schemas.responses.BaseResponse import success_response
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import parse_json_body
+from backend.app.middleware import my_limiter
+from backend.app.schemas.requests import UserRegisterRequest
+from backend.app.schemas.responses import success_response
 from backend.app.services.auth_service import register_user_svc
 
 

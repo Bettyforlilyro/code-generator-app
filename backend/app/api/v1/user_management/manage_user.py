@@ -1,12 +1,12 @@
 from flask import request, g
 
 from backend.app.api.v1.user_management import user_management_bp
-from backend.app.common.emuns.user_role import UserRole
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.auth import login_required, role_required
-from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
-from backend.app.schemas.requests.user_management_request import UserUpdateRequest, UserRegisterRequest
-from backend.app.schemas.responses.BaseResponse import success_response
+from backend.app.common.emuns import UserRole
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import login_required, role_required
+from backend.app.common.utils import parse_json_body, parse_pagination_args
+from backend.app.schemas.requests import UserUpdateRequest, UserRegisterRequest
+from backend.app.schemas.responses import success_response
 from backend.app.services.user_service import (
     update_current_user_info_svc,
     admin_get_user_list_svc,

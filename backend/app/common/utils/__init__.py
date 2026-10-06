@@ -41,7 +41,7 @@ from .parse_llm_response import parse_llm_json_response
 from .estimate_tokens import estimate_tokens
 
 # 请求辅助（通用）
-from .request_helpers import parse_pagination_args
+from .request_helpers import parse_pagination_args, parse_json_body
 
 # 无头浏览器截图
 from .save_webpage_screenshot import take_screenshot_and_save
@@ -66,5 +66,6 @@ __all__ = [
     "parse_llm_json_response",
     "estimate_tokens",
     "parse_pagination_args",
+    "parse_json_body",
     "take_screenshot_and_save",
 ]

@@ -1,14 +1,14 @@
-from flask import request, g, redirect
+from flask import request, g
 
 from backend.app.api.v1.app_management import app_management_bp
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.auth import login_required
-from backend.app.common.utils.request_helpers import parse_json_body, parse_pagination_args
-from backend.app.middleware.rate_limiter import my_limiter
-from backend.app.schemas.requests.app_management_request import (
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import login_required
+from backend.app.common.utils import parse_json_body, parse_pagination_args
+from backend.app.middleware import my_limiter
+from backend.app.schemas.requests import (
     AppCreateRequest, AppUpdateRequest, AdminAppUpdateRequest
 )
-from backend.app.schemas.responses.BaseResponse import success_response, error_response
+from backend.app.schemas.responses import success_response, error_response
 from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
     list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id_svc, create_app_in_graph_svc
 from backend.app.services.chat_history_service import delete_chat_history_by_app_id_svc
