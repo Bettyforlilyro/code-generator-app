@@ -25,15 +25,6 @@ from .chat_client_builder import ChatClientBuilder
 
 logger = logging.getLogger(__name__)
 
-# -------------------- 缓存实例 --------------------
-# ChatClient 实例池：默认最多 30 条（30 种不同配置已经足够），TTL 30 分钟
-_LLM_CLIENT_CACHE: MemoryCache = MemoryCache(max_size=30, ttl_seconds=1800)
-_LLM_CLIENT_CACHE.start_auto_evict()
-
-# 并发保护：同一个 key 同时 miss 时只 build 一次
-_building_keys: set[str] = set()
-_lock = threading.Lock()
-
 
 def _make_cache_key(builder: 'ChatClientBuilder', app_id: str) -> str:
     """
@@ -73,54 +64,72 @@ def _make_cache_key(builder: 'ChatClientBuilder', app_id: str) -> str:
     return hashlib.md5(raw.encode('utf-8')).hexdigest()
 
 
+# -------------------- 缓存实例 --------------------
+# ChatClient 实例池：默认最多 30 条（30 种不同配置已经足够），TTL 30 分钟
+_LLM_CLIENT_CACHE: MemoryCache = MemoryCache(max_size=30, ttl_seconds=1800)
+_LLM_CLIENT_CACHE.start_auto_evict()
+# 并发保护：同一个 key 同时 miss 时只 build 一次
+# _building_keys 现在存的是 Event 对象，而非简单的 set
+# Event.set() 由 builder 在 build 完成后触发，唤醒所有等待者
+_building_keys: dict[str, threading.Event] = {}
+_lock = threading.Lock()
+_BUILD_TIMEOUT_SECONDS = 60   # 单个 client build 最长等 60s，兜底
+
+
 def get_or_create_chat_client(builder: 'ChatClientBuilder', app_id: str):
-    """
-    从缓存池获取 ChatClient，未命中则构建并缓存，app_id 也用于缓存 key，避免跨应用共享
-    不同的 app_id 之间不会共享 ChatClient 实例。
-
-    Args:
-        builder: 已配置好的 ChatClientBuilder
-        app_id: 应用 ID，用于缓存 key，避免跨应用共享
-
-    Returns:
-        ChatClient 实例
-
-    线程安全：并发请求同一 key 时只 build 一次，其余请求等待结果返回
-    """
     cache_key = _make_cache_key(builder, app_id)
 
-    # 1. 快速路径：命中直接返回
+    # 缓存命中直接返回
     cached = _LLM_CLIENT_CACHE.get(cache_key)
     if cached is not None:
         return cached
 
-    # 2. 并发保护：确保同一 key 只 build 一次
+    is_builder = False
+
     with _lock:
-        # double check：其他线程可能已经 build 好了
+        cached = _LLM_CLIENT_CACHE.get(cache_key)
+        if cached is not None:              # 其他线程刚好 build 完成
+            return cached
+
+        wait_event = _building_keys.get(cache_key)
+        if wait_event is None:
+            wait_event = threading.Event()
+            _building_keys[cache_key] = wait_event
+            is_builder = True
+
+    if not is_builder:
+        finished = wait_event.wait(timeout=_BUILD_TIMEOUT_SECONDS)
+        if not finished:
+            logger.warning(
+                f"[LLMClientPool] wait timeout ({_BUILD_TIMEOUT_SECONDS}s) "
+                f"for key={cache_key[:8]}, fallback to rebuild"
+            )
+            # 超时兜底重试一次
+            return get_or_create_chat_client(builder, app_id)
+
         cached = _LLM_CLIENT_CACHE.get(cache_key)
         if cached is not None:
             return cached
+        # 罕见竞态：Event set 了但 cache 没 set 成功，重试
+        return get_or_create_chat_client(builder, app_id)
 
-        # 标记正在构建，其他线程等待 build 完后走快速路径
-        if cache_key in _building_keys:
-            # 理论上不会走到这里（上面的 get 已经 double check 过了）
-            # 防御性：短暂阻塞后重试
-            import time
-            time.sleep(0.05)
-            cached = _LLM_CLIENT_CACHE.get(cache_key)
-            if cached is not None:
-                return cached
-
-        _building_keys.add(cache_key)
-        try:
-            # 3. 构建（慢路径，几百ms）
-            client = builder.build()
-            _LLM_CLIENT_CACHE.set(cache_key, client)
-            logger.info(f"[LLMClientPool] 新建 ChatClient, key={cache_key[:8]}, "
-                        f"model={builder.get_model()}, tools={tool_names_str(builder)}")
-            return client
-        finally:
-            _building_keys.discard(cache_key)
+    # build（无锁、可并发）
+    try:
+        client = builder.build()
+        _LLM_CLIENT_CACHE.set(cache_key, client)
+        logger.info(
+            f"[LLMClientPool] 新建 ChatClient, key={cache_key}, "
+            f"model={builder.get_model()}, tools={tool_names_str(builder)}"
+        )
+        return client
+    except Exception:
+        # build 失败也要清理，不然会永久卡住所有等待者
+        logger.exception(f"[LLMClientPool] builder.build() failed, key={cache_key}")
+        raise
+    finally:
+        with _lock:
+            _building_keys.pop(cache_key, None)   # 清登记
+        wait_event.set()   # 唤醒所有等待者（无论 build 成功还是失败）
 
 
 def tool_names_str(builder: 'ChatClientBuilder') -> str:
@@ -145,7 +154,7 @@ def invalidate(builder: 'ChatClientBuilder', app_id: str) -> None:
 
 
 def pool_info() -> dict:
-    """返回池子的状态信息（监控 / 调试用）"""
     info = _LLM_CLIENT_CACHE.info()
-    info['building_keys'] = list(_building_keys)
+    info['building_keys'] = list(_building_keys.keys())
+    info['building_count'] = len(_building_keys)
     return info
