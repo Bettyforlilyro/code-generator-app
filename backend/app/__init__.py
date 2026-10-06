@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flask import Flask
 
 from backend.app.common.exceptions import register_error_handlers
@@ -37,7 +39,8 @@ def create_app(config=None):
     # 2. 初始化扩展
     from backend.app.extensions import db, migrate
     db.init_app(app)
-    migrate.init_app(app, db)
+    migrations_dir = Path(__file__).resolve().parent.parent / 'migrations'
+    migrate.init_app(app, db, directory=str(migrations_dir))    # 显式指定迁移目录：backend/migrations/
 
     # 3. 注册中间件（CORS、限流、日志、请求日志等横切关注点）
     register_middleware(app)
