@@ -9,7 +9,7 @@ from backend.app.common.exceptions.error_codes import (
     PermissionDeniedError,
     ResourceNotFoundError
 )
-from backend.app.schemas.responses.BaseResponse import success_response
+from backend.app.schemas.responses import success_response
 
 # 创建测试用的蓝图
 test_bp = Blueprint('test', __name__, url_prefix='/test')

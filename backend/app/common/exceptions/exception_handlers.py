@@ -4,7 +4,7 @@ import traceback
 from flask import request
 from werkzeug.exceptions import HTTPException
 
-from backend.app.schemas.responses import BaseResponse
+from backend.app.schemas.responses import error_response
 from .error_codes import BusinessException, ErrorCode
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def register_error_handlers(app):
             f"Business Exception: code={error.code}, message={error.message}, "
             f"path={request.path}, method={request.method}"
         )
-        return BaseResponse.error_response(error.error_code, error.message, error.data)
+        return error_response(error.error_code, error.message, error.data)
 
     # ==================== 2. HTTP协议错误处理 ====================
     # ==================== 2. HTTP协议错误处理 ====================
@@ -77,7 +77,7 @@ def register_error_handlers(app):
         error_code = http_code_to_error_code.get(error.code, ErrorCode.INTERNAL_ERROR)
         custom_message = error_code.message
 
-        return BaseResponse.error_response(error_code, custom_message, http_status=error.code)
+        return error_response(error_code, custom_message, http_status=error.code)
 
     # ==================== 3. 系统异常兜底处理 ====================
     @app.errorhandler(Exception)
@@ -95,4 +95,4 @@ def register_error_handlers(app):
             f"Traceback: {traceback.format_exc()}"
         )
 
-        return BaseResponse.error_response(ErrorCode.INTERNAL_ERROR, "Unknown Internal Error!")
+        return error_response(ErrorCode.INTERNAL_ERROR, "Unknown Internal Error!")

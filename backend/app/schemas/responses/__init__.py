@@ -9,7 +9,7 @@ from .user_management_response import (
     UserLoginResponse,
     UserSummaryResponse,
 )
-from .BaseResponse import (
+from .response_utils import (
     ApiResponse,
     success_response,
     error_response,
