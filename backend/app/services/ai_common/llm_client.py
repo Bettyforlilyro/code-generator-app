@@ -15,7 +15,7 @@ from .tool_executor import (
     build_tool_end_content,
     tool_result_preview,
 )
-from .tools.tool_context_store import set_runtime_context
+from .tools import set_runtime_context
 
 # 工具调用循环的最大迭代次数（防止 LLM 陷入无限调用）
 _MAX_TOOL_ITERATIONS = 10

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from backend.app.services.ai_common.tools import (
     to_absolute, to_app_absolute, register_tool_display, FILE_DELETE_TOOL_NAME,
 )
-from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
+from . import get_runtime_context
 
 _logger = logging.getLogger(__name__)
 

@@ -3,9 +3,9 @@ from typing import Any, List
 from langchain_openai import ChatOpenAI
 
 from backend.app.config import get_config
-from backend.app.services.ai_common.advisor import AdvisorChain
-from backend.app.services.ai_common.llm_client import ChatClient
-from backend.app.services.ai_common.tools import filter_tools_by_names, get_all_tools_in_module
+from .advisor import AdvisorChain
+from .llm_client import ChatClient
+from .tools import filter_tools_by_names, get_all_tools_in_module
 
 
 class ChatClientBuilder:

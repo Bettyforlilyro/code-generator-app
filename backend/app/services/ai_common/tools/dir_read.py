@@ -10,7 +10,7 @@ from backend.app.services.ai_common.tools import (
     register_tool_display, to_absolute, to_relative, to_app_absolute,
     _normalize_rel_path, DIR_READ_TOOL_NAME,
 )
-from backend.app.services.ai_common.tools.tool_context_store import get_runtime_context
+from . import get_runtime_context
 
 _logger = logging.getLogger(__name__)
 
