@@ -9,11 +9,11 @@ import logging
 from typing import List, Dict
 
 from backend.app.config import get_config
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.graph.model.task_evaluate_ai_response import TaskEvaluateResult
-from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
+from backend.app.services.ai_common import get_chat_memory_manager
+from backend.app.services.graph.model import TaskEvaluateResult
 from backend.app.services.graph.prompt import TASK_CLASSIFIER_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from . import create_spec_llm_in_graph
 
 logger = logging.getLogger(__name__)
 

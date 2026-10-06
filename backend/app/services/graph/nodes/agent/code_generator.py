@@ -13,18 +13,18 @@ from typing import List
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns.code_file_type import CodeFileType
+from backend.app.common.emuns import CodeFileType
 from backend.app.config import get_config
-from backend.app.services.ai_common import process_sse_chunk, StreamChunk
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
+from backend.app.services.ai_common import get_chat_memory_manager
+from backend.app.services.ai_common import process_sse_chunk, StreamChunk, get_response_cls
 from backend.app.services.ai_common.tools import tools_factory_with_context
-from backend.app.services.graph.model.image_resource import ImageResource
-from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
+from backend.app.services.graph.model import ImageResource
 from backend.app.services.graph.prompt import (
     ENHANCED_PROMPT_TEMPLATE,
     ENHANCED_PROMPT_MODIFY_TEMPLATE,
 )
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from . import create_spec_llm_in_graph
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ def code_generator_node(state: WorkflowState):
             writer({"event_type": event_type, "data": data})
 
         if task_type != "chat":
-            result = CodeFileType.get_cls_type(code_gen_type).parse_response_from_llm(full_response)
+            result = get_response_cls(code_gen_type).parse_response_from_llm(full_response)
             logger.info(f"[code_generator] 生成完成...")
         else:
             result = full_response

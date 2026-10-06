@@ -12,14 +12,14 @@ import logging
 
 from langgraph.config import get_stream_writer
 
-from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.schemas.responses.ai_generate_results import VueProjectFileCodeResult, HtmlCodeResult, MultiFileCodeResult
+from backend.app.common.emuns import CodeFileType
+from backend.app.schemas.responses import VueProjectFileCodeResult, HtmlCodeResult, MultiFileCodeResult
 from backend.app.services.ai_common import StreamChunk
 from backend.app.services.ai_common.tools import tools_factory_with_context
-from backend.app.services.graph.model.qa_ai_response import QAResult
-from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
+from backend.app.services.graph.model import QAResult
 from backend.app.services.graph.prompt import QA_CHECK_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from . import create_spec_llm_in_graph
 
 # 审查未通过时给前端的友好提示（不暴露 QA feedback 里的技术细节）
 _FRIENDLY_REVIEW_FAILED_MESSAGES = [
@@ -31,7 +31,7 @@ _FRIENDLY_REVIEW_FAILED_MESSAGES = [
 logger = logging.getLogger(__name__)
 
 # 最大重试次数
-MAX_RETRY = 3
+_MAX_RETRY = 3
 
 
 def code_reviewer_node(state: WorkflowState) -> dict:
@@ -133,7 +133,7 @@ def route_after_code_reviewer(state: WorkflowState) -> str:
     qa_pass = state.get("qa_pass", False)
     retry_count = state.get("retry_count", 0)
 
-    if qa_pass or retry_count >= MAX_RETRY:
+    if qa_pass or retry_count >= _MAX_RETRY:
         return "save_or_build"
     else:
         logger.info(

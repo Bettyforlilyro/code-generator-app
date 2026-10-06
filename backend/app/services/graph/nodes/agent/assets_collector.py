@@ -17,11 +17,10 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
-from backend.app.services.ai_common.llm_client import ChatClient
-from backend.app.services.graph.model.image_ai_response import ImageAIResponse
-from backend.app.services.graph.model.image_resource import ImageResource
-from backend.app.services.graph.nodes.agent import create_spec_llm_in_graph
-from backend.app.services.graph.nodes.tools.image_tools import (
+from backend.app.services.ai_common import ChatClient
+from backend.app.services.graph.model import ImageAIResponse
+from backend.app.services.graph.model import ImageResource
+from backend.app.services.graph.nodes.tools import (
     search_content_images,
     search_illustration_images,
     generate_architecture_image,
@@ -29,6 +28,7 @@ from backend.app.services.graph.nodes.tools.image_tools import (
 )
 from backend.app.services.graph.prompt import MATERIAL_PLANNER_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from . import create_spec_llm_in_graph
 
 logger = logging.getLogger(__name__)
 

@@ -4,9 +4,14 @@ Agent节点 通用方法
 from typing import Any, Optional
 
 from backend.app.config import get_config
-from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
-from backend.app.services.ai_common.llm_client import ChatClient
-from backend.app.services.ai_common.llm_client_pool import get_or_create
+from backend.app.services.ai_common import ChatClient
+from backend.app.services.ai_common import ChatClientBuilder
+from backend.app.services.ai_common import get_or_create
+from .assets_collector import assets_collector_node
+from .code_generator import code_generator_node, route_after_code_generator
+from .code_reviewer import code_reviewer_node, route_after_code_reviewer
+from .task_evaluate import task_evaluate_node, route_after_task_evaluate
+from .type_router import type_router_node
 
 
 def create_spec_llm_in_graph(

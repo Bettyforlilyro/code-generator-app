@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from backend.app.services.graph.model.image_type_enum import ImageTypeEnum
+from .image_type_enum import ImageTypeEnum
 
 
 class ImageResource(BaseModel):

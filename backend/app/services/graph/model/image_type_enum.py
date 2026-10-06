@@ -10,7 +10,8 @@ class ImageTypeEnum(str, Enum):
     @classmethod
     def get_all_image_types(cls) -> list:
         """获取所有图片类型"""
-        return [cls.value for cls in ImageTypeEnum]
+        return [ImageTypeEnum.CONTENT.value, ImageTypeEnum.LOGO.value,
+                ImageTypeEnum.ILLUSTRATION.value, ImageTypeEnum.ARCHITECTURE.value]
 
     @classmethod
     def get_response_format(cls) -> dict:

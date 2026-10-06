@@ -444,13 +444,3 @@ def generate_logo_image(description: str) -> list[ImageResource]:
     finally:
         # 删除临时目录
         shutil.rmtree(temp_dir)
-
-
-# ============ 工具集合 ============
-
-ALL_IMAGE_TOOLS = [
-    search_content_images,
-    search_illustration_images,
-    generate_architecture_image,
-    generate_logo_image,
-]
