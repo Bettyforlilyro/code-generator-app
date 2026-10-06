@@ -4,8 +4,8 @@ import traceback
 from flask import request
 from werkzeug.exceptions import HTTPException
 
+from backend.app.schemas.responses import BaseResponse
 from .error_codes import BusinessException, ErrorCode
-from ...schemas.responses import BaseResponse   # TODO 导入待优化
 
 logger = logging.getLogger(__name__)
 

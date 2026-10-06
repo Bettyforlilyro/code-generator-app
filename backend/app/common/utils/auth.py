@@ -3,10 +3,9 @@ from functools import wraps
 
 import jwt
 from flask import request, current_app, g
-
 from sqlalchemy.exc import SQLAlchemyError
 
-from ..exceptions.error_codes import AuthenticationError, PermissionDeniedError
+from backend.app.common.exceptions import AuthenticationError, PermissionDeniedError
 from backend.app.models import User
 
 
