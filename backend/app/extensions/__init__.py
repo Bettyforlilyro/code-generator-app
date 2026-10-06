@@ -1,1 +1,1 @@
-from .db_instance import db
+from .db_instance import db, migrate

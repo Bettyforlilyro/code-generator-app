@@ -28,12 +28,16 @@ def create_app(config=None):
     app.url_map.strict_slashes = False
 
     # 1. 加载配置
-    if config:
+    if config:  # 外部手动传入配置
         app.config.update(config)
+    else:       # 默认配置
+        from backend.app.config import get_config
+        app.config.update(get_config().as_flask_config())
 
-    # 2. 初始化扩展（db 等 ORM 对象）
-    from backend.app.extensions.db_instance import db
+    # 2. 初始化扩展
+    from backend.app.extensions import db, migrate
     db.init_app(app)
+    migrate.init_app(app, db)
 
     # 3. 注册中间件（CORS、限流、日志、请求日志等横切关注点）
     register_middleware(app)
