@@ -180,8 +180,9 @@ def admin_update_user_svc(user_id: int, req, user_role: UserRole | None = None) 
         db.session.commit()
 
 
-def admin_delete_user_svc(user_id: int) -> None:
+def admin_delete_user_svc(user_id: int, delete_chat_history_by_user_id_svc: Callable[[int], bool]) -> None:
     """管理员软删除用户"""
     user = get_user_by_id_svc(user_id)
     user.is_delete = 1
+    delete_chat_history_by_user_id_svc(user_id)
     db.session.commit()

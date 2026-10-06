@@ -7,6 +7,7 @@ from backend.app.common.utils import login_required, role_required
 from backend.app.common.utils import parse_json_body, parse_pagination_args
 from backend.app.schemas.requests import UserUpdateRequest, UserRegisterRequest
 from backend.app.schemas.responses import success_response
+from backend.app.services.chat_history_service import delete_chat_history_by_user_id_svc
 from backend.app.services.user_service import (
     update_current_user_info_svc,
     admin_get_user_list_svc,
@@ -365,5 +366,5 @@ def update_user_by_admin(user_id):
 @user_management_bp.route('/<int:user_id>', methods=['DELETE'])
 @role_required('admin')
 def delete_user_by_admin(user_id):
-    admin_delete_user_svc(user_id)
+    admin_delete_user_svc(user_id, delete_chat_history_by_user_id_svc)
     return success_response({'message': '用户删除成功'})
