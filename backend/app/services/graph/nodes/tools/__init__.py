@@ -6,7 +6,6 @@ from .image_tools import (
 )
 
 __all__ = [
-
     "search_content_images",
     "search_illustration_images",
     "generate_architecture_image",

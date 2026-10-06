@@ -19,12 +19,9 @@ import hashlib
 import json
 import logging
 import threading
-from typing import TYPE_CHECKING
 
 from backend.app.common.utils import MemoryCache
-
-if TYPE_CHECKING:
-    from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder
+from .chat_client_builder import ChatClientBuilder
 
 logger = logging.getLogger(__name__)
 

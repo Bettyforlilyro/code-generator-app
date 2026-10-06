@@ -10,7 +10,7 @@ from typing import List
 
 from langchain_core.messages import ToolMessage
 
-from backend.app.services.ai_common.tools import filter_tools_by_names, get_tool_display
+from .tools import filter_tools_by_names, get_tool_display
 
 
 @dataclass
