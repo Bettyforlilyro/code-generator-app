@@ -180,9 +180,18 @@ def admin_update_user_svc(user_id: int, req, user_role: UserRole | None = None) 
         db.session.commit()
 
 
-def admin_delete_user_svc(user_id: int, delete_chat_history_by_user_id_svc: Callable[[int], bool]) -> None:
-    """管理员软删除用户"""
+def admin_delete_user_svc(user_id: int, delete_chat_history_fn) -> None:
+    """
+    管理员软删除用户
+
+    Args:
+        user_id: 用户 ID
+        delete_chat_history_fn: 删除用户所有对话记录的函数，参数为用户 ID
+
+    Raises:
+        BusinessException: 用户不存在
+    """
     user = get_user_by_id_svc(user_id)
     user.is_delete = 1
-    delete_chat_history_by_user_id_svc(user_id)
+    delete_chat_history_fn(user_id)
     db.session.commit()
