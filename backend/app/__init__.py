@@ -1,6 +1,6 @@
 from flask import Flask
 
-from backend.app.common.exceptions.exception_handlers import register_error_handlers
+from backend.app.common.exceptions import register_error_handlers
 from backend.app.middleware import register_all as register_middleware
 from backend.app.swagger import init_swagger
 

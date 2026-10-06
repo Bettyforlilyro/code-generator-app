@@ -21,7 +21,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING
 
-from backend.app.common.utils.cache import MemoryCache
+from backend.app.common.utils import MemoryCache
 
 if TYPE_CHECKING:
     from backend.app.services.ai_common.chat_client_builder import ChatClientBuilder

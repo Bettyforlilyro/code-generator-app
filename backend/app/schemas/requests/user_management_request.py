@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
-from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
+from backend.app.common.exceptions import BusinessException, ErrorCode
 
 
 class UserRegisterRequest(BaseModel):

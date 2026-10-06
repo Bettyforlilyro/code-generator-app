@@ -23,9 +23,9 @@ from flask import Flask, g, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from backend.app.common.exceptions.error_codes import ErrorCode
+from backend.app.common.exceptions import ErrorCode
 from backend.app.config import get_config
-from backend.app.schemas.responses.BaseResponse import error_response
+from backend.app.schemas.responses import error_response
 
 _logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from backend.app.schemas.responses.user_management_response import UserSummaryResponse
+from .user_management_response import UserSummaryResponse
 
 
 class AppCreateResponse(BaseModel):

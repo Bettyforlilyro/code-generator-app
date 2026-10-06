@@ -13,7 +13,7 @@ from flask import g, request
 from flask import jsonify, Response, stream_with_context, after_this_request
 from pydantic import BaseModel, Field
 
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
+from backend.app.common.exceptions import ErrorCode, BusinessException
 
 _logger = logging.getLogger(__name__)
 
