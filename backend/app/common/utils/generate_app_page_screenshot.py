@@ -4,7 +4,7 @@ import threading
 
 from flask import copy_current_request_context
 
-from ..exceptions.error_codes import BusinessException, ErrorCode
+from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
 from .get_random_picture import get_random_bz
 from .save_webpage_screenshot import take_screenshot_and_save
 from .upload_image import upload_image_to_bed

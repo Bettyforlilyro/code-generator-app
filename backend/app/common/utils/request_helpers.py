@@ -1,6 +1,6 @@
 from flask import request
 
-from ..exceptions.error_codes import BusinessException, ErrorCode
+from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
 
 
 def parse_pagination_args(max_per_page: int = 100) -> tuple[int, int]:
