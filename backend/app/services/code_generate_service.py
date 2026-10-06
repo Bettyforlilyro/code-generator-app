@@ -11,16 +11,13 @@
 """
 import logging
 
-from backend.app.common.emuns.chat_message_type import ChatMessageType
-from backend.app.common.emuns.code_file_type import CodeFileType
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.models.app_model import AppModel
-from backend.app.services.ai_common.chat_memory import get_chat_memory_manager
-from backend.app.services.ai_common.tools import get_all_tools_name
-from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
-from backend.app.services.chat_history_service import (
-    create_chat_history_svc,
-)
+from backend.app.common.emuns import ChatMessageType, CodeFileType
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.models import AppModel
+from .ai_common import get_chat_memory_manager
+from .ai_common.tools import get_all_tools_name
+from .ai_generator_facade import AICodeGeneratorFacade
+from .chat_history_service import create_chat_history_svc
 
 logger = logging.getLogger(__name__)
 

@@ -29,9 +29,9 @@ from backend.app.schemas.requests import (
 from backend.app.schemas.responses import (
     AppDetailResponse, AppListResponse, AppCreateResponse, UserSummaryResponse
 )
-from backend.app.services.ai_common import AiCodeTypeRouting
-from backend.app.services.chat_history_service import get_system_prompt_by_app_id_svc, create_chat_history_svc
-from backend.app.services.common import validate_sort_params
+from .ai_common import AiCodeTypeRouting
+from .chat_history_service import get_system_prompt_by_app_id_svc, create_chat_history_svc
+from .common import validate_sort_params
 
 logger = logging.getLogger(__name__)
 

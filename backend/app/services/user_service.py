@@ -3,12 +3,12 @@
 
 集中封装 User 模型的所有业务逻辑和数据库操作。
 """
-from backend.app.common.emuns.user_role import UserRole
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.extensions.db_instance import db
-from backend.app.models.user import User
-from backend.app.schemas.requests.user_management_request import UserRegisterRequest
-from backend.app.services.common import validate_sort_params
+from backend.app.common.emuns import UserRole
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.extensions import db
+from backend.app.models import User
+from backend.app.schemas.requests import UserRegisterRequest
+from .common import validate_sort_params
 
 
 # ==================== 用户信息维护 ====================

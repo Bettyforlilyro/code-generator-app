@@ -7,8 +7,8 @@ import functools
 import logging
 from typing import Callable, Iterable
 
-from backend.app.common.exceptions.error_codes import BusinessException, ErrorCode
-from backend.app.extensions.db_instance import db
+from backend.app.common.exceptions import BusinessException, ErrorCode
+from backend.app.extensions import db
 
 logger = logging.getLogger(__name__)
 

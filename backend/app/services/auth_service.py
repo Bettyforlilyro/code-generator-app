@@ -4,23 +4,22 @@ import uuid
 from flask import current_app
 from flask.ctx import after_this_request
 
-from backend.app.common.emuns.user_role import UserRole
-from backend.app.common.exceptions.error_codes import ErrorCode, BusinessException
-from backend.app.common.utils.auth import (
+from backend.app.common.emuns import UserRole
+from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import (
     generate_access_token,
     generate_refresh_token,
     verify_access_token,
     verify_refresh_token,
 )
-from backend.app.common.utils.get_random_picture import get_random_avatar
-from backend.app.extensions.db_instance import db
-from backend.app.models.user import User
-from backend.app.schemas.requests.user_management_request import UserRegisterRequest
-from backend.app.schemas.responses.user_management_response import (
-    UserLoginResponse,
-    UserRegisterResponse,
+from backend.app.common.utils import get_random_avatar
+from backend.app.extensions import db
+from backend.app.models import User
+from backend.app.schemas.requests import UserRegisterRequest
+from backend.app.schemas.responses import (
+    UserLoginResponse, UserRegisterResponse,
 )
-from backend.app.services.user_service import get_user_by_id_svc
+from .user_service import get_user_by_id_svc
 
 
 # ==================== 账号生成 ====================
