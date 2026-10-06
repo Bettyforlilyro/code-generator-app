@@ -16,7 +16,7 @@ class User(db.Model):
     user_avatar = db.Column(db.String(1024), comment='用户头像')
     user_profile = db.Column(db.String(512), comment='用户简介')
     user_role = db.Column(db.String(256), default='user', nullable=False, comment='用户角色：user/admin')
-    edit_time = db.Column(db.DateTime, default=datetime.utcnow, comment='编辑时间')
+    edit_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='编辑时间')
     create_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='创建时间')
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, comment='更新时间')
     is_delete = db.Column(db.SmallInteger, default=0, nullable=False, comment='是否删除')

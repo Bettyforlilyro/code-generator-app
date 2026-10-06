@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS chat_history
     id          BIGSERIAL PRIMARY KEY,
     message     TEXT NOT NULL,
     message_type VARCHAR(32),
-    app_id       BIGSERIAL,
-    user_id      BIGSERIAL,
+    app_id       BIGINT,
+    user_id      BIGINT,
     create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_delete    SMALLINT DEFAULT 0 NOT NULL

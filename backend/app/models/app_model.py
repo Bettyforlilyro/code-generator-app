@@ -8,14 +8,14 @@ class AppModel(db.Model):
     __tablename__ = 'app'
 
     id = db.Column(db.BigInteger, primary_key=True, comment='id')
-    app_name = db.Column(db.String(256), nullable=False, comment='应用名称')
+    app_name = db.Column(db.String(256), nullable=False, index=True, comment='应用名称')
     app_coverage = db.Column(db.String(1024), comment='应用封面图标URL')
     init_prompt = db.Column(db.Text, comment='应用初始化的用户Prompt')
     code_gen_type = db.Column(db.String(64), comment='代码生成类型：枚举值（如html/css/js/multi_file等）')
     deploy_key = db.Column(db.String(64), unique=True, comment='应用部署唯一标识ID')
     deploy_time = db.Column(db.DateTime, comment='部署时间：未部署时为NULL')
     priority = db.Column(db.Integer, default=0, nullable=False, comment='首页展示优先级')
-    user_id = db.Column(db.BigInteger, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, comment='创建用户ID（关联user表id）')
+    user_id = db.Column(db.BigInteger, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, index=True, comment='创建用户ID（关联user表id）')
     edit_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='编辑时间：业务代码手动更新')
     create_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='创建时间')
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, comment='更新时间：数据库自动更新')

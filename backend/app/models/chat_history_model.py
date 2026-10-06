@@ -7,12 +7,17 @@ class ChatHistory(db.Model):
     """对话历史模型"""
     __tablename__ = 'chat_history'
 
+    # 复合索引：SQL 中 idx_app_id_create_time ON (app_id, create_time)
+    __table_args__ = (
+        db.Index('idx_app_id_create_time', 'app_id', 'create_time'),
+    )
+
     id = db.Column(db.BigInteger, primary_key=True, comment='id')
     message = db.Column(db.Text, nullable=False, comment='消息')
     message_type = db.Column(db.String(32), comment='消息类型：user/ai')
-    app_id = db.Column(db.BigInteger, db.ForeignKey('app.id', ondelete='CASCADE'), comment='应用id')
-    user_id = db.Column(db.BigInteger, db.ForeignKey('user.id', ondelete='CASCADE'), comment='创建用户id')
-    create_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='创建时间')
+    app_id = db.Column(db.BigInteger, index=True, comment='应用id')
+    user_id = db.Column(db.BigInteger, comment='创建用户id')
+    create_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True, comment='创建时间')
     update_time = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, comment='更新时间')
     is_delete = db.Column(db.SmallInteger, default=0, nullable=False, comment='是否删除')
     token_count = db.Column(db.Integer, default=0, nullable=False, comment='token数量')
