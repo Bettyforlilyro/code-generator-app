@@ -356,28 +356,52 @@ def deploy_app_svc(app_id: int, user_id: int) -> dict:
 
 
 def _is_nginx_running() -> bool:
-    """检查 nginx 进程是否正在运行"""
+    """检查 nginx 进程是否正在运行（兼容 Windows / Linux）"""
     try:
-        result = subprocess.run(
-            ['tasklist', '/FI', 'IMAGENAME eq nginx.exe'],
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        return 'nginx.exe' in result.stdout.lower()
+        if os.name == 'nt':
+            # Windows：用 tasklist 查询进程
+            result = subprocess.run(
+                ['tasklist', '/FI', 'IMAGENAME eq nginx.exe'],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            return 'nginx.exe' in result.stdout.lower()
+        else:
+            # Linux：优先用 pgrep，不支持再 fallback 到 ps
+            try:
+                result = subprocess.run(
+                    ['pgrep', '-x', 'nginx'],
+                    capture_output=True,
+                    text=True,
+                )
+                return result.returncode == 0 and bool(result.stdout.strip())
+            except FileNotFoundError:
+                result = subprocess.run(
+                    ['sh', '-c', 'ps aux | grep nginx | grep -v grep'],
+                    capture_output=True,
+                    text=True,
+                )
+                return bool(result.stdout.strip())
     except Exception as e:
         logger.error(f"检查 nginx 进程失败: {str(e)}")
         return False
 
 
 def _start_nginx() -> bool:
-    """启动 nginx"""
+    """启动 nginx（兼容 Windows / Linux）"""
     try:
-        subprocess.Popen(
-            [NGINX_PATH],
-            cwd=os.path.dirname(NGINX_PATH),
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
+        if os.name == 'nt':
+            subprocess.Popen(
+                [NGINX_PATH],
+                cwd=os.path.dirname(NGINX_PATH),
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            # Linux：直接调用系统 nginx 命令（通常在 PATH 中）
+            # 若用户在 NGINX_PATH 里配置了 Linux 路径，则优先使用该路径
+            cmd = NGINX_PATH if (NGINX_PATH and os.path.isfile(NGINX_PATH)) else 'nginx'
+            subprocess.Popen([cmd])
         return True
     except Exception as e:
         logger.error(f"启动 nginx 失败: {str(e)}")
@@ -393,7 +417,7 @@ def get_app_by_deploy_key_svc(deploy_key: str) -> AppModel | None:
 
 def get_app_by_id_svc(app_id: int) -> AppModel | None:
     """根据 ID 查询应用（含软删除过滤），不存在返回 None"""
-    return AppModel.query.filter_by(id=app_id, is_delete=0).first()
+    return AppModel.query.filter_by(id=int(app_id), is_delete=0).first()
 
 
 def _get_app_or_raise(app_id: int) -> AppModel:
