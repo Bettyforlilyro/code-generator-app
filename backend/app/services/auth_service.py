@@ -1,6 +1,3 @@
-import time
-import uuid
-
 from flask import current_app
 from flask.ctx import after_this_request
 
@@ -11,6 +8,7 @@ from backend.app.common.utils import (
     generate_refresh_token,
     verify_access_token,
     verify_refresh_token,
+    generate_user_account,
 )
 from backend.app.common.utils import get_random_avatar
 from backend.app.extensions import db
@@ -20,21 +18,6 @@ from backend.app.schemas.responses import (
     UserLoginResponse, UserRegisterResponse,
 )
 from .user_service import get_user_by_id_svc
-
-
-# ==================== 账号生成 ====================
-def generate_user_account() -> str:
-    """
-    生成唯一的用户账号
-
-    规则：时间戳后6位 + 随机4位字符
-
-    Returns:
-        唯一的用户账号字符串
-    """
-    timestamp_suffix = str(int(time.time() * 1000))[-6:]
-    random_suffix = str(uuid.uuid4()).replace('-', '')[:4]
-    return f"{timestamp_suffix}{random_suffix}"
 
 
 # ==================== 注册 & 登录 ====================

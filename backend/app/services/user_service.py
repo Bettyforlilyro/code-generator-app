@@ -5,6 +5,7 @@
 """
 from backend.app.common.enums import UserRole
 from backend.app.common.exceptions import ErrorCode, BusinessException
+from backend.app.common.utils import generate_user_account
 from backend.app.extensions import db
 from backend.app.models import User
 from backend.app.schemas.requests import UserRegisterRequest
@@ -129,7 +130,7 @@ def admin_create_user_svc(req: UserRegisterRequest, role: UserRole = UserRole.US
     if existing_user:
         raise BusinessException(ErrorCode.USER_NAME_EXISTS, message="用户名已存在，请选择其他用户名")
 
-    user_account = generate_user_account(req.user_name)
+    user_account = generate_user_account()
     new_user = User(
         user_account=user_account,
         user_name=req.user_name,
