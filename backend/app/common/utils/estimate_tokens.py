@@ -1,5 +1,7 @@
 import tiktoken
-from loguru import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_tokens(text: str) -> int:
@@ -17,10 +19,8 @@ def estimate_tokens(text: str) -> int:
         # cl100k_base 是 GPT-4 / 通义 qwen 通用的编码
         encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
-    except ImportError:
-        pass
     except Exception as e:
-        logger.debug(f"tiktoken 估算失败，降级为字符估算: {e}")
+        logger.error(f"tiktoken 估算失败，降级为字符估算: {e}")
 
     # 方案二：粗略估算（兜底）
     # 中文每字约 1.5 token，英文每 4 字符约 1 token
