@@ -89,7 +89,7 @@ def test_custom_build():
     print("=" * 60)
     print("测试2: 自定义参数构建 + 结构化输出")
     print("=" * 60)
-    from backend.app.services.ai_common.prompts import CODE_GENERATE_HTML_SYSTEM_PROMPT
+    from backend.app.services.prompts import CODE_GENERATE_HTML_SYSTEM_PROMPT
     client = (ChatClientBuilder()
               .set_temperature(0.3)
               .set_max_tokens(50000)

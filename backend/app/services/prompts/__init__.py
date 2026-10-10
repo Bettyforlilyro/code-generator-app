@@ -4,8 +4,11 @@ from .generate_routing_prompt import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
 from .html_prompt import CODE_GENERATE_HTML_SYSTEM_PROMPT
 from .image_prompts import IMAGE_COLLECTION_SYSTEM_PROMPT, IMAGE_COLLECTION_PLAN_SYSTEM_PROMPT
 from .multi_file_prompt import CODE_GENERATE_MULTI_FILE_SYSTEM_PROMPT
-from .quality_check_prompt import CODE_QUALITY_CHECK_SYSTEM_PROMPT
 from .vue_project_prompt import CODE_GENERATE_VUE_PROJECT_SYSTEM_PROMPT
+from .qa_check_prompt import QA_CHECK_SYSTEM_PROMPT
+from .task_classifier_prompt import TASK_CLASSIFIER_SYSTEM_PROMPT
+from .enhance_user_prompt_template import ENHANCED_PROMPT_TEMPLATE, ENHANCED_PROMPT_MODIFY_TEMPLATE
+
 
 SYSTEM_PROMPT_MAP = {
     CodeFileType.HTML.value: CODE_GENERATE_HTML_SYSTEM_PROMPT,

@@ -17,8 +17,8 @@ from backend.app.schemas.responses import VueProjectFileCodeResult, HtmlCodeResu
 from backend.app.services.ai_common import StreamChunk
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.graph.model import QAResult
-from backend.app.services.graph.prompt import QA_CHECK_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from backend.app.services.prompts import QA_CHECK_SYSTEM_PROMPT
 from . import create_spec_llm_in_graph
 
 # 审查未通过时给前端的友好提示（不暴露 QA feedback 里的技术细节）

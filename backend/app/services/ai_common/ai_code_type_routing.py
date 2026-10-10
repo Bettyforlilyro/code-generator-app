@@ -2,7 +2,7 @@ from backend.app.common.enums import CodeFileType
 from backend.app.config import get_config
 from .chat_client_builder import ChatClientBuilder
 from .llm_client_pool import get_or_create_chat_client
-from .prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
+from backend.app.services.prompts import CODE_GENERATE_ROUTING_SYSTEM_PROMPT
 
 
 class AiCodeTypeRouting:

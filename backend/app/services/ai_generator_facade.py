@@ -14,9 +14,9 @@ from .ai_common import (
     ChatClientBuilder,
     get_chat_memory_manager,
     get_or_create_chat_client,
-    get_system_prompt, get_response_cls,
     process_sse_chunk, StreamChunk
 )
+from .prompts import get_system_prompt, get_response_cls
 from .app_service import update_app_svc, get_app_creator_by_app_id_svc
 
 logger = logging.getLogger(__name__)

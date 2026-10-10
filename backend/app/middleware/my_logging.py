@@ -84,6 +84,7 @@ def configure_logging(app):
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("httpcore2").setLevel(logging.WARNING)
     logging.getLogger("httpx2").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
     # Flask-Limiter 限流默认有一些INFO级打印，这里过滤掉换成自定义限流日志格式，直接压到 WARNING
     logging.getLogger("flask-limiter").setLevel(logging.WARNING)

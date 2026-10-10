@@ -9,7 +9,7 @@ from backend.app.common.utils import login_required
 from backend.app.common.utils import parse_json_body
 from backend.app.middleware import my_limiter
 from backend.app.schemas.responses import stream_response
-from backend.app.services.ai_common import get_system_prompt
+from backend.app.services.prompts import get_system_prompt
 from backend.app.services.app_service import update_app_code_gen_type_svc, update_app_system_prompt_svc
 from backend.app.services.code_generate_service import (
     validate_and_prepare_code_generation_svc,

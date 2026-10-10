@@ -25,8 +25,8 @@ from backend.app.services.graph.nodes.tools import (
     generate_architecture_image,
     generate_logo_image,
 )
-from backend.app.services.graph.prompt import MATERIAL_PLANNER_SYSTEM_PROMPT
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from backend.app.services.prompts import IMAGE_COLLECTION_PLAN_SYSTEM_PROMPT
 from . import create_spec_llm_in_graph
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def _plan_image_collection(
         ImageAIResponse 结构化规划结果
     """
     llm: ChatClient = create_spec_llm_in_graph(
-        system_prompt=MATERIAL_PLANNER_SYSTEM_PROMPT,
+        system_prompt=IMAGE_COLLECTION_PLAN_SYSTEM_PROMPT,
         app_id=app_id,
         response_format=ImageAIResponse.get_response_format(),
         temperature=0.3,  # 规划不需要太高创造性

@@ -18,16 +18,13 @@ from backend.app.config import get_config
 from backend.app.services.ai_common import (
     process_sse_chunk,
     StreamChunk,
-    get_response_cls,
     get_chat_memory_manager
 )
 from backend.app.services.ai_common.tools import tools_factory_with_context
 from backend.app.services.graph.model import ImageResource
-from backend.app.services.graph.prompt import (
-    ENHANCED_PROMPT_TEMPLATE,
-    ENHANCED_PROMPT_MODIFY_TEMPLATE,
-)
+from backend.app.services.prompts import ENHANCED_PROMPT_TEMPLATE, ENHANCED_PROMPT_MODIFY_TEMPLATE
 from backend.app.services.graph.state.workflow_state import WorkflowState
+from backend.app.services.prompts import get_response_cls
 from . import create_spec_llm_in_graph
 
 logger = logging.getLogger(__name__)
