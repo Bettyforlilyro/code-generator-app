@@ -14,15 +14,13 @@ import time
 from dotenv import load_dotenv
 
 from backend.app.common.enums.code_file_type import CodeFileType
-from backend.app.common.utils.code_file_saver import CodeFileSaverFactory
+from backend.app.common.utils import CodeFileSaverFactory
 from backend.app.schemas.responses.ai_generate_results import HtmlCodeResult
 from backend.app.services.ai_common import StreamChunk
-from backend.app.services.ai_common import (
-    PreAdvisor, PostAdvisor, StreamPostAdvisor,
-    AdvisorContext
-)
+
 from backend.app.services.ai_common import AiCodeTypeRouting
 from backend.app.services.ai_common import ChatClientBuilder
+from backend.app.services.ai_common.advisor import PreAdvisor, PostAdvisor, StreamPostAdvisor, AdvisorContext
 from backend.app.services.ai_generator_facade import AICodeGeneratorFacade
 
 # 加载环境变量
@@ -356,7 +354,6 @@ def main():
     print()
 
     tests = [
-        ("默认配置构建 + 简单对话", test_default_build),
         ("自定义参数构建", test_custom_build),
         ("多轮对话", test_multi_turn_conversation),
         ("chat_without_system", test_chat_without_system),
