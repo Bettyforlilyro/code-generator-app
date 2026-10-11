@@ -5,7 +5,6 @@
 ![LangChain](https://img.shields.io/badge/LangChain-1.3-15803D.svg)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.2-AE560E.svg)
 ![Vue](https://img.shields.io/badge/Vue-3.5-42b883.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 > 通过对话快速创建网页应用，支持实时预览、代码编辑与一键部署。
 
