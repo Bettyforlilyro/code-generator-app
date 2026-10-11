@@ -16,6 +16,7 @@ packages/
 
 *.zip
 *.log
+/backend/logs/
 .pytest_cache/
 .mypy_cache/
 .vscode/
