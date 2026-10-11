@@ -197,6 +197,18 @@ npm run dev
 ```bash
 sudo apt update
 sudo apt install -y nginx postgresql nodejs npm
+
+# 建数据库
+# 1. 启动 PostgreSQL
+sudo service postgresql start
+
+# 2. 切换到 postgres 超级用户
+sudo -u postgres psql
+
+# 3. 在 psql 里手动创建数据库 + 用户
+CREATE USER your_username WITH PASSWORD 'your_password';
+CREATE DATABASE code_generator OWNER your_username;
+GRANT ALL PRIVILEGES ON DATABASE code_generator TO your_username;
 ```
 
 可选：
