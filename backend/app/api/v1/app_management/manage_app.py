@@ -10,8 +10,9 @@ from backend.app.schemas.requests import (
 )
 from backend.app.schemas.responses import success_response, error_response
 from backend.app.services.app_service import create_app_svc, update_app_svc, delete_app_svc, get_app_detail_svc, \
-    list_apps_svc, list_featured_apps_svc, deploy_app_svc, get_app_by_id_svc, create_app_in_graph_svc
+    list_apps_svc, list_featured_apps_svc, get_app_by_id_svc, create_app_in_graph_svc
 from backend.app.services.chat_history_service import delete_chat_history_by_app_id_svc
+from backend.app.services.deploy_service import deploy_app_svc
 
 
 # ==================== 用户接口部分 ====================

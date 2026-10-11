@@ -4,23 +4,14 @@
 集中封装 AppModel 模型的所有业务逻辑和数据库操作。
 """
 import logging
-import os.path
-import random
-import shutil
-import string
-import subprocess
 import time
 from datetime import datetime
 from typing import Optional
 
 from backend.app.common.enums import (
     ChatMessageType, CodeFileType, UserRole,
-    DEFAULT_GENERATE_ROOT, DEFAULT_DEPLOY_ROOT, NGINX_PATH,
 )
 from backend.app.common.exceptions import ErrorCode, BusinessException
-from backend.app.common.utils import (
-    build_vue_project_sync, generate_app_page_screenshot_and_save_async,
-)
 from backend.app.extensions import db
 from backend.app.models import AppModel, User
 from backend.app.schemas.requests import (
@@ -282,130 +273,6 @@ def _attach_user_name_to_apps(app_items) -> list[dict]:
         if user_summary:
             app_dict["user_name"] = user_summary["user_name"]
     return apps
-
-
-# ==================== 部署 ====================
-
-def _generate_deploy_key() -> str:
-    """生成6位随机部署键"""
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-
-
-def deploy_app_svc(app_id: int, user_id: int) -> dict:
-    """
-    部署应用：复制代码文件到部署目录 + 启动 nginx（如未运行）
-
-    Args:
-        app_id: 应用 ID
-        user_id: 当前登录用户 ID
-
-    Returns:
-        dict: 包含 deploy_key 和 deploy_url 的字典
-
-    Raises:
-        BusinessException: 应用不存在 / 无权限 / 代码未生成 / nginx 启动失败
-    """
-    app = _get_app_or_raise(app_id)
-
-    if app.user_id != user_id:
-        raise BusinessException(ErrorCode.FORBIDDEN, "没有权限部署该应用")
-    if not app.code_gen_type:
-        raise BusinessException(ErrorCode.APP_NOT_FOUND, "应用实际未生成，请确认是否已生成")
-
-    # 生成/复用 deploy_key
-    if not app.deploy_key:
-        app.deploy_key = _generate_deploy_key()
-
-    # 复制代码文件
-    source_dir = os.path.join(DEFAULT_GENERATE_ROOT, f"{app.code_gen_type}_{app.id}")
-    if not os.path.isdir(source_dir):
-        raise BusinessException(ErrorCode.APP_NOT_FOUND, "应用代码不存在，请确认是否已生成")
-
-    # 如果是 vue 项目，同步阻塞等待构建完成后再部署
-    if app.code_gen_type == CodeFileType.VUE_PROJECT:
-        if not build_vue_project_sync(source_dir):
-            raise BusinessException(ErrorCode.INTERNAL_ERROR, "Vue项目构建失败")
-        # 构建成功后，将 dist 目录复制到部署目录
-        dist_dir = os.path.join(source_dir, "dist")
-        if not os.path.isdir(dist_dir):
-            raise BusinessException(ErrorCode.INTERNAL_ERROR, "Vue项目构建失败，dist目录不存在")
-        source_dir = dist_dir
-
-    target_dir = os.path.join(DEFAULT_DEPLOY_ROOT, app.deploy_key)
-    try:
-        shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
-    except Exception as e:
-        raise BusinessException(ErrorCode.INTERNAL_ERROR, f"部署应用失败: {str(e)}")
-
-    app.deploy_time = datetime.utcnow()
-    db.session.commit()
-    deploy_url = f"http://localhost/{app.deploy_key}"
-
-    # 启动 nginx（如未运行）
-    if not _is_nginx_running():
-        if not _start_nginx():
-            raise BusinessException(ErrorCode.INTERNAL_ERROR, "启动 nginx 失败")
-
-    # 启动应用截图（异步，不阻塞主线程）
-    generate_app_page_screenshot_and_save_async(app_id, deploy_url)
-
-    return {
-        "deploy_key": app.deploy_key,
-        "deploy_url": deploy_url,
-    }
-
-
-def _is_nginx_running() -> bool:
-    """检查 nginx 进程是否正在运行（兼容 Windows / Linux）"""
-    try:
-        if os.name == 'nt':
-            # Windows：用 tasklist 查询进程
-            result = subprocess.run(
-                ['tasklist', '/FI', 'IMAGENAME eq nginx.exe'],
-                capture_output=True,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            return 'nginx.exe' in result.stdout.lower()
-        else:
-            # Linux：优先用 pgrep，不支持再 fallback 到 ps
-            try:
-                result = subprocess.run(
-                    ['pgrep', '-x', 'nginx'],
-                    capture_output=True,
-                    text=True,
-                )
-                return result.returncode == 0 and bool(result.stdout.strip())
-            except FileNotFoundError:
-                result = subprocess.run(
-                    ['sh', '-c', 'ps aux | grep nginx | grep -v grep'],
-                    capture_output=True,
-                    text=True,
-                )
-                return bool(result.stdout.strip())
-    except Exception as e:
-        logger.error(f"检查 nginx 进程失败: {str(e)}")
-        return False
-
-
-def _start_nginx() -> bool:
-    """启动 nginx（兼容 Windows / Linux）"""
-    try:
-        if os.name == 'nt':
-            subprocess.Popen(
-                [NGINX_PATH],
-                cwd=os.path.dirname(NGINX_PATH),
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            # Linux：直接调用系统 nginx 命令（通常在 PATH 中）
-            # 若用户在 NGINX_PATH 里配置了 Linux 路径，则优先使用该路径
-            cmd = NGINX_PATH if (NGINX_PATH and os.path.isfile(NGINX_PATH)) else 'nginx'
-            subprocess.Popen([cmd])
-        return True
-    except Exception as e:
-        logger.error(f"启动 nginx 失败: {str(e)}")
-        return False
 
 
 # ==================== 查询辅助（供其他 Service / 路由层复用）====================
